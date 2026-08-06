@@ -1,13 +1,6 @@
 import { computed, ref } from "vue";
 import type { DocumentFormat } from "@/shared/types";
 import { UNTITLED_NAME } from "@/shared/types";
-import {
-  createEmptyDocument,
-  openMarkdownFile,
-  saveMarkdownFile,
-  saveMarkdownFileAs,
-  showError,
-} from "@/native/fileService";
 
 const SAMPLE = `# tomark
 
@@ -31,6 +24,17 @@ const SAMPLE = `# tomark
 | 定位 | 支持 |
 `;
 
+type FileService = typeof import("@/native/fileService");
+
+let fileServicePromise: Promise<FileService> | null = null;
+
+async function loadFileService(): Promise<FileService> {
+  if (!fileServicePromise) {
+    fileServicePromise = import("@/native/fileService");
+  }
+  return fileServicePromise;
+}
+
 export function useDocumentSession() {
   const path = ref<string | null>(null);
   const fileName = ref(UNTITLED_NAME);
@@ -40,8 +44,10 @@ export function useDocumentSession() {
   const documentVersion = ref(0);
   const statusMessage = ref("");
   const dirtyDialogOpen = ref(false);
+  const saving = ref(false);
 
   let dirtyResolver: ((ok: boolean) => void) | null = null;
+  let dirtyGuardPromise: Promise<boolean> | null = null;
 
   const dirty = computed(() => content.value !== savedContent.value);
   const title = computed(
@@ -71,22 +77,35 @@ export function useDocumentSession() {
     dirtyDialogOpen.value = false;
     const resolve = dirtyResolver;
     dirtyResolver = null;
+    dirtyGuardPromise = null;
     resolve?.(ok);
   }
 
-  async function guardDirty(): Promise<boolean> {
+  function guardDirty(): Promise<boolean> {
     if (!dirty.value) {
-      return true;
+      return Promise.resolve(true);
+    }
+    if (dirtyGuardPromise) {
+      return dirtyGuardPromise;
     }
     dirtyDialogOpen.value = true;
-    return new Promise<boolean>((resolve) => {
+    dirtyGuardPromise = new Promise<boolean>((resolve) => {
       dirtyResolver = resolve;
     });
+    return dirtyGuardPromise;
   }
 
   async function onDirtySave() {
     const ok = await save();
-    resolveDirty(ok);
+    if (!ok) {
+      resolveDirty(false);
+      return;
+    }
+    if (dirty.value) {
+      statusMessage.value = "保存期间内容已更改，请再次保存";
+      return;
+    }
+    resolveDirty(true);
   }
 
   function onDirtyDiscard() {
@@ -101,6 +120,7 @@ export function useDocumentSession() {
     if (!(await guardDirty())) {
       return;
     }
+    const { createEmptyDocument } = await loadFileService();
     applyLoaded(createEmptyDocument());
   }
 
@@ -108,6 +128,7 @@ export function useDocumentSession() {
     if (!(await guardDirty())) {
       return;
     }
+    const { openMarkdownFile, showError } = await loadFileService();
     try {
       const doc = await openMarkdownFile();
       if (!doc) {
@@ -119,40 +140,87 @@ export function useDocumentSession() {
     }
   }
 
-  async function save(): Promise<boolean> {
-    try {
-      if (!path.value) {
-        return saveAs();
-      }
-      await saveMarkdownFile(path.value, content.value, format.value);
-      savedContent.value = content.value;
-      statusMessage.value = `已保存 ${fileName.value}`;
-      return true;
-    } catch (error) {
-      await showError("保存失败", error);
+  async function runSave(action: () => Promise<boolean>): Promise<boolean> {
+    if (saving.value) {
       return false;
+    }
+    saving.value = true;
+    try {
+      return await action();
+    } finally {
+      saving.value = false;
     }
   }
 
-  async function saveAs(): Promise<boolean> {
+  async function saveAsCurrent(): Promise<boolean> {
+    const versionAtStart = documentVersion.value;
+    const snapshot = content.value;
+    const formatAtStart = { ...format.value };
+    const defaultPath = path.value ?? fileName.value;
+    const { saveMarkdownFileAs, showError } = await loadFileService();
+
     try {
       const doc = await saveMarkdownFileAs(
-        content.value,
-        format.value,
-        path.value ?? fileName.value,
+        snapshot,
+        formatAtStart,
+        defaultPath,
       );
       if (!doc) {
         return false;
       }
+      if (documentVersion.value !== versionAtStart) {
+        return false;
+      }
       path.value = doc.path;
       fileName.value = doc.fileName;
-      savedContent.value = content.value;
-      statusMessage.value = `已保存 ${doc.fileName}`;
+      savedContent.value = snapshot;
+      statusMessage.value =
+        content.value === snapshot
+          ? `已保存 ${doc.fileName}`
+          : `已保存 ${doc.fileName}，仍有未保存更改`;
       return true;
     } catch (error) {
       await showError("另存为失败", error);
       return false;
     }
+  }
+
+  async function save(): Promise<boolean> {
+    return runSave(async () => {
+      const targetPath = path.value;
+      if (!targetPath) {
+        return saveAsCurrent();
+      }
+
+      const versionAtStart = documentVersion.value;
+      const targetName = fileName.value;
+      const snapshot = content.value;
+      const formatAtStart = { ...format.value };
+      const { saveMarkdownFile, showError } = await loadFileService();
+
+      try {
+        await saveMarkdownFile(targetPath, snapshot, formatAtStart);
+        if (
+          documentVersion.value !== versionAtStart ||
+          path.value !== targetPath
+        ) {
+          return false;
+        }
+        savedContent.value = snapshot;
+        statusMessage.value =
+          content.value === snapshot
+            ? `已保存 ${targetName}`
+            : `已保存 ${targetName}，仍有未保存更改`;
+        return true;
+      } catch (error) {
+        await showError("保存失败", error);
+        return false;
+      }
+    });
+  }
+
+  async function saveAs(): Promise<boolean> {
+    return runSave(saveAsCurrent);
   }
 
   function setContent(next: string) {
@@ -169,7 +237,9 @@ export function useDocumentSession() {
     documentVersion,
     statusMessage,
     dirtyDialogOpen,
+    saving,
     setContent,
+    guardDirty,
     newDocument,
     openDocument,
     save,

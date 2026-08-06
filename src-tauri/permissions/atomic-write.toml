@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-atomic-write-text-file"
+description = "Allows atomically writing Markdown text files that were previously granted by the file dialog."
+commands.allow = ["atomic_write_text_file"]

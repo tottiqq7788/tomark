@@ -8,6 +8,7 @@ const projectRoot = path.resolve(depsDir, "..");
 const srcDir = path.join(projectRoot, "src");
 
 export default defineConfig({
+  root: projectRoot,
   cacheDir: path.join(depsDir, ".vite-cache"),
   plugins: [vue()],
   resolve: {
@@ -18,6 +19,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     globals: true,
-    include: ["tests/**/*.{test,spec}.ts", "src/**/*.{test,spec}.ts"],
+    include: ["tests/unit/**/*.{test,spec}.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
   },
 });

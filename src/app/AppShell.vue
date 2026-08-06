@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
-import EditorPane from "@/editor/EditorPane.vue";
-import PreviewPane from "@/preview/PreviewPane.vue";
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  onMounted,
+  watch,
+} from "vue";
+import type { UnlistenFn } from "@tauri-apps/api/event";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
-import { renderMarkdown } from "@/markdown/renderMarkdown";
-import { debounce } from "@/shared/debounce";
 import { useDocumentSession } from "./useDocumentSession";
-import type { PreviewAnchor } from "@/shared/types";
+import { useAppShortcuts } from "./useAppShortcuts";
+import { usePreviewBridge } from "./usePreviewBridge";
+
+const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
+const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
 
 const {
   path,
@@ -17,7 +24,9 @@ const {
   documentVersion,
   statusMessage,
   dirtyDialogOpen,
+  saving,
   setContent,
+  guardDirty,
   newDocument,
   openDocument,
   save,
@@ -27,26 +36,13 @@ const {
   onDirtyCancel,
 } = useDocumentSession();
 
-const previewRef = ref<{ scrollToSourceLine: (line: number) => void } | null>(
-  null,
-);
+const preview = usePreviewBridge(content);
+const previewHtml = preview.html;
+const previewLineToAnchor = preview.lineToAnchor;
 
-const html = ref("");
-const lineToAnchor = ref<Map<number, PreviewAnchor>>(new Map());
-
-const refreshPreview = debounce((source: string) => {
-  const result = renderMarkdown(source);
-  html.value = result.html;
-  lineToAnchor.value = result.lineToAnchor;
-}, 200);
-
-watch(
-  content,
-  (value) => {
-    refreshPreview(value);
-  },
-  { immediate: true },
-);
+function setPreviewRef(el: unknown) {
+  preview.previewRef.value = el as typeof preview.previewRef.value;
+}
 
 watch(
   title,
@@ -56,13 +52,84 @@ watch(
   { immediate: true },
 );
 
-onBeforeUnmount(() => {
-  refreshPreview.cancel();
+let unlistenCloseRequested: UnlistenFn | null = null;
+let unmounted = false;
+let destroyingWindow = false;
+
+onMounted(async () => {
+  if (import.meta.env.VITE_WDIO === "1") {
+    (
+      window as unknown as {
+        __tomarkE2e?: {
+          setContent: (value: string) => void;
+          isDirty: () => boolean;
+        };
+      }
+    ).__tomarkE2e = {
+      setContent,
+      isDirty: () => dirty.value,
+    };
+  }
+
+  const [{ isTauri }, { getCurrentWindow }] = await Promise.all([
+    import("@tauri-apps/api/core"),
+    import("@tauri-apps/api/window"),
+  ]);
+  if (!isTauri() || unmounted) {
+    return;
+  }
+  const appWindow = getCurrentWindow();
+  try {
+    const unlisten = await appWindow.onCloseRequested(async (event) => {
+      if (!dirty.value) {
+        return;
+      }
+      event.preventDefault();
+      if (!(await guardDirty()) || destroyingWindow) {
+        return;
+      }
+      destroyingWindow = true;
+      try {
+        await appWindow.destroy();
+      } catch (error) {
+        destroyingWindow = false;
+        statusMessage.value = `关闭窗口失败：${
+          error instanceof Error ? error.message : String(error)
+        }`;
+      }
+    });
+    if (unmounted) {
+      unlisten();
+    } else {
+      unlistenCloseRequested = unlisten;
+    }
+  } catch (error) {
+    statusMessage.value = `未能启用关闭保护：${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
 });
 
-function onLocate(line: number) {
-  previewRef.value?.scrollToSourceLine(line);
-}
+onBeforeUnmount(() => {
+  unmounted = true;
+  unlistenCloseRequested?.();
+  preview.refreshPreview.cancel();
+  if (import.meta.env.VITE_WDIO === "1") {
+    delete (window as unknown as { __tomarkE2e?: unknown }).__tomarkE2e;
+  }
+});
+
+useAppShortcuts({
+  save: () => {
+    void save();
+  },
+  saveAs: () => {
+    void saveAs();
+  },
+  newDocument,
+  openDocument,
+  isBlocked: () => saving.value || dirtyDialogOpen.value,
+});
 
 const canSave = computed(() => dirty.value || !path.value);
 </script>
@@ -72,28 +139,50 @@ const canSave = computed(() => dirty.value || !path.value);
     <header class="toolbar">
       <div class="toolbar-title">{{ title }}</div>
       <div class="toolbar-actions">
-        <button type="button" @click="newDocument()">新建</button>
-        <button type="button" @click="openDocument()">打开</button>
-        <button type="button" :disabled="!canSave" @click="save()">保存</button>
-        <button type="button" @click="saveAs()">另存为</button>
+        <button type="button" :disabled="saving" @click="newDocument()">
+          新建
+        </button>
+        <button type="button" :disabled="saving" @click="openDocument()">
+          打开
+        </button>
+        <button
+          type="button"
+          :disabled="saving || !canSave"
+          @click="save()"
+        >
+          保存
+        </button>
+        <button type="button" :disabled="saving" @click="saveAs()">
+          另存为
+        </button>
       </div>
     </header>
 
     <main class="panes">
       <section class="pane pane-editor" aria-label="源码">
-        <EditorPane
-          :model-value="content"
-          :document-version="documentVersion"
-          @update:model-value="setContent"
-          @locate="onLocate"
-        />
+        <Suspense>
+          <EditorPane
+            :model-value="content"
+            :document-version="documentVersion"
+            @update:model-value="setContent"
+            @locate="preview.locate"
+          />
+          <template #fallback>
+            <div class="pane-fallback">加载编辑器…</div>
+          </template>
+        </Suspense>
       </section>
       <section class="pane pane-preview" aria-label="预览">
-        <PreviewPane
-          ref="previewRef"
-          :html="html"
-          :line-to-anchor="lineToAnchor"
-        />
+        <Suspense>
+          <PreviewPane
+            :ref="setPreviewRef"
+            :html="previewHtml"
+            :line-to-anchor="previewLineToAnchor"
+          />
+          <template #fallback>
+            <div class="pane-fallback">加载预览…</div>
+          </template>
+        </Suspense>
       </section>
     </main>
 
@@ -106,6 +195,7 @@ const canSave = computed(() => dirty.value || !path.value);
       :open="dirtyDialogOpen"
       title="未保存的更改"
       :message="`「${fileName}」有未保存的更改，要先保存吗？`"
+      :busy="saving"
       @save="onDirtySave"
       @discard="onDirtyDiscard"
       @cancel="onDirtyCancel"
@@ -184,6 +274,14 @@ const canSave = computed(() => dirty.value || !path.value);
 
 .pane-editor {
   border-right: 1px solid #e5e7eb;
+}
+
+.pane-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: #6b7280;
+  font-size: 13px;
 }
 
 .status {

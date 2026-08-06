@@ -5,6 +5,24 @@ import { fileURLToPath, URL } from "node:url";
 const srcDir = fileURLToPath(new URL(".", import.meta.url));
 const host = process.env.TAURI_DEV_HOST;
 
+const connectSrc = host
+  ? [
+      "'self'",
+      `ws://${host}:1421`,
+      `http://${host}:1420`,
+      "ipc:",
+      "http://ipc.localhost",
+      "https://ipc.localhost",
+    ].join(" ")
+  : [
+      "'self'",
+      "ws://localhost:1421",
+      "http://localhost:1420",
+      "ipc:",
+      "http://ipc.localhost",
+      "https://ipc.localhost",
+    ].join(" ");
+
 export default defineConfig({
   root: srcDir,
   cacheDir: fileURLToPath(new URL("../deps/.vite-cache", import.meta.url)),
@@ -19,6 +37,16 @@ export default defineConfig({
     port: 1420,
     strictPort: true,
     host: host || false,
+    headers: {
+      "Content-Security-Policy": [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-eval'",
+        `connect-src ${connectSrc}`,
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' https: http: data: blob:",
+        "font-src 'self' data:",
+      ].join("; "),
+    },
     hmr: host
       ? {
           protocol: "ws",
@@ -37,5 +65,38 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: !process.env.TAURI_ENV_DEBUG ? "oxc" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
+    chunkSizeWarningLimit: 500,
+    rolldownOptions: {
+      output: {
+        chunkFileNames: "assets/[name]-[hash].js",
+        codeSplitting: {
+          minSize: 20_000,
+          groups: [
+            {
+              name: "vue",
+              test: /node_modules[\\/]vue[\\/]/,
+              priority: 40,
+            },
+            {
+              name: "codemirror",
+              test: /node_modules[\\/](@codemirror|@lezer)[\\/]/,
+              priority: 30,
+              maxSize: 480_000,
+            },
+            {
+              name: "markdown",
+              test: /node_modules[\\/](unified|remark-|rehype-|mdast-|micromark|hast-|unist-|vfile|bail|trough|devlop|property-information|space-separated-tokens|comma-separated-tokens|html-void-elements|stringify-entities|character-entities|decode-named-character-reference|ccount|longest-streak|zwitch|is-plain-obj|extend)/,
+              priority: 20,
+              maxSize: 480_000,
+            },
+            {
+              name: "tauri",
+              test: /node_modules[\\/]@tauri-apps[\\/]/,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
 });

@@ -1,5 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { open, save, message } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile } from "@tauri-apps/plugin-fs";
 import type { DocumentFormat, LineEnding, LoadedDocument } from "@/shared/types";
 import { UNTITLED_NAME } from "@/shared/types";
 
@@ -14,7 +15,7 @@ export function detectFormat(raw: string): { content: string; format: DocumentFo
   const hasBom = raw.charCodeAt(0) === 0xfeff;
   const withoutBom = hasBom ? raw.slice(1) : raw;
   const lineEnding: LineEnding = withoutBom.includes("\r\n") ? "crlf" : "lf";
-  const content = withoutBom.replace(/\r\n/g, "\n");
+  const content = withoutBom.replace(/\r\n?/g, "\n");
   return {
     content,
     format: { lineEnding, hasBom },
@@ -31,6 +32,10 @@ export function serializeContent(content: string, format: DocumentFormat): strin
 function fileNameFromPath(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
   return parts[parts.length - 1] || UNTITLED_NAME;
+}
+
+async function atomicWriteTextFile(path: string, contents: string): Promise<void> {
+  await invoke("atomic_write_text_file", { path, contents });
 }
 
 export async function openMarkdownFile(): Promise<LoadedDocument | null> {
@@ -61,7 +66,7 @@ export async function saveMarkdownFile(
   content: string,
   format: DocumentFormat,
 ): Promise<void> {
-  await writeTextFile(path, serializeContent(content, format));
+  await atomicWriteTextFile(path, serializeContent(content, format));
 }
 
 export async function saveMarkdownFileAs(
@@ -76,7 +81,7 @@ export async function saveMarkdownFileAs(
   if (!path) {
     return null;
   }
-  await writeTextFile(path, serializeContent(content, format));
+  await atomicWriteTextFile(path, serializeContent(content, format));
   return {
     path,
     fileName: fileNameFromPath(path),

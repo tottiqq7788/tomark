@@ -75,6 +75,15 @@ describe("renderMarkdown + line anchors", () => {
     expect(html).not.toContain("<script");
     expect(html).toContain("<strong>");
   });
+
+  it("keeps footnote links aligned with their sanitized targets", () => {
+    const { html } = renderMarkdown("Ref[^n]\n\n[^n]: Footnote text\n");
+    expect(html).toContain('href="#user-content-fn-n"');
+    expect(html).toContain('id="user-content-fn-n"');
+    expect(html).toContain('href="#user-content-fnref-n"');
+    expect(html).toContain('id="user-content-fnref-n"');
+    expect(html).not.toContain("user-content-user-content-");
+  });
 });
 
 describe("file format", () => {
@@ -84,6 +93,12 @@ describe("file format", () => {
     expect(content).toBe("hello\nworld\n");
     expect(format).toEqual({ lineEnding: "crlf", hasBom: true });
     expect(serializeContent(content, format)).toBe(raw);
+  });
+
+  it("normalizes legacy carriage-return line endings", () => {
+    const { content, format } = detectFormat("hello\rworld\r");
+    expect(content).toBe("hello\nworld\n");
+    expect(format).toEqual({ lineEnding: "lf", hasBom: false });
   });
 });
 

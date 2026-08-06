@@ -1,6 +1,7 @@
 import {
   EditorState,
   Compartment,
+  Transaction,
   type Extension,
 } from "@codemirror/state";
 import {
@@ -119,6 +120,7 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
           insert: doc,
         },
         effects,
+        annotations: Transaction.addToHistory.of(false),
       });
     },
     destroy: () => view.destroy(),

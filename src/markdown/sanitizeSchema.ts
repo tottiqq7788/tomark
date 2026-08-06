@@ -16,5 +16,7 @@ export const sanitizeSchema: Schema = {
     code: [...(defaultSchema.attributes?.code ?? []), "className"],
     a: [...(defaultSchema.attributes?.a ?? []), "href", "title"],
   },
-  clobberPrefix: "user-content-",
+  // remark-rehype already prefixes generated footnote IDs. Prefixing again
+  // here would make hrefs and their targets differ.
+  clobberPrefix: "",
 };

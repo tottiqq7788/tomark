@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBuildCommand": "",
+    "features": ["wdio"]
+  },
+  "app": {
+    "security": {
+      "capabilities": [
+        {
+          "identifier": "e2e",
+          "description": "Capabilities for WDIO embedded E2E builds",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "core:window:allow-destroy",
+            "core:window:allow-close",
+            "dialog:default",
+            "fs:allow-read-text-file",
+            "allow-atomic-write-text-file",
+            "wdio:default",
+            "wdio-webdriver:default"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

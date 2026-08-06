@@ -1,3 +1,5 @@
+import { Text } from "@codemirror/state";
+
 export interface HeadingNode {
   /** 1-based document line of the heading title text */
   line: number;
@@ -17,6 +19,8 @@ export interface HeadingNode {
 const ATX_RE = /^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/;
 const SETEXT_RE = /^(=+|-+)[ \t]*$/;
 
+type RawHeading = Pick<HeadingNode, "line" | "headingEndLine" | "level" | "text">;
+
 function isFencedFence(line: string): { open: boolean; marker: string; info: string } | null {
   const m = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
   if (!m) {
@@ -25,18 +29,26 @@ function isFencedFence(line: string): { open: boolean; marker: string; info: str
   return { open: true, marker: m[2][0], info: m[3] ?? "" };
 }
 
+export function looksLikeHeadingOrFenceLine(line: string): boolean {
+  if (isFencedFence(line)) {
+    return true;
+  }
+  if (ATX_RE.test(line)) {
+    return true;
+  }
+  return SETEXT_RE.test(line);
+}
+
 /**
  * Parse ATX / Setext headings while skipping fenced code blocks.
  */
-type RawHeading = Pick<HeadingNode, "line" | "headingEndLine" | "level" | "text">;
-
-export function extractHeadings(source: string): RawHeading[] {
-  const lines = source.length === 0 ? [] : source.split(/\r?\n/);
+export function extractHeadingsFromDoc(doc: Text): RawHeading[] {
   const result: RawHeading[] = [];
   let inFence: { marker: string; length: number } | null = null;
+  const total = doc.lines;
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i];
+  for (let i = 1; i <= total; i += 1) {
+    const line = doc.line(i).text;
     const fence = isFencedFence(line);
     if (inFence) {
       if (fence && fence.marker === inFence.marker) {
@@ -58,32 +70,31 @@ export function extractHeadings(source: string): RawHeading[] {
     const atx = ATX_RE.exec(line);
     if (atx) {
       result.push({
-        line: i + 1,
-        headingEndLine: i + 1,
+        line: i,
+        headingEndLine: i,
         level: atx[1].length,
         text: atx[2].trim(),
       });
       continue;
     }
 
-    // Setext: current line is text, next line is === or ---
     if (
-      i + 1 < lines.length &&
+      i + 1 <= total &&
       line.trim() !== "" &&
       !line.startsWith(" ") &&
       !line.startsWith("\t") &&
       !line.startsWith("#")
     ) {
-      const under = SETEXT_RE.exec(lines[i + 1]);
+      const under = SETEXT_RE.exec(doc.line(i + 1).text);
       if (under) {
         const level = under[1][0] === "=" ? 1 : 2;
         result.push({
-          line: i + 1,
-          headingEndLine: i + 2,
+          line: i,
+          headingEndLine: i + 1,
           level,
           text: line.trim(),
         });
-        i += 1; // skip underline
+        i += 1;
       }
     }
   }
@@ -91,28 +102,36 @@ export function extractHeadings(source: string): RawHeading[] {
   return result;
 }
 
+export function extractHeadings(source: string): RawHeading[] {
+  const doc = Text.of(source.length === 0 ? [""] : source.split(/\r?\n/));
+  return extractHeadingsFromDoc(doc);
+}
+
 function computeBodyEnds(
   headings: { line: number; level: number }[],
   totalLines: number,
 ): number[] {
-  return headings.map((h, index) => {
-    for (let j = index + 1; j < headings.length; j += 1) {
-      if (headings[j].level <= h.level) {
-        return headings[j].line;
-      }
+  const ends = new Array<number>(headings.length);
+  const stack: number[] = [];
+
+  for (let index = 0; index < headings.length; index += 1) {
+    const level = headings[index].level;
+    while (stack.length > 0 && headings[stack[stack.length - 1]].level >= level) {
+      const prev = stack.pop()!;
+      ends[prev] = headings[index].line;
     }
-    return totalLines + 1;
-  });
+    stack.push(index);
+  }
+
+  while (stack.length > 0) {
+    ends[stack.pop()!] = totalLines + 1;
+  }
+
+  return ends;
 }
 
-/**
- * Build hierarchical heading tree with body ranges.
- */
-export function buildHeadingTree(source: string): HeadingNode[] {
-  const lines = source.length === 0 ? [] : source.split(/\r?\n/);
-  const flat = extractHeadings(source);
-  const bodyEnds = computeBodyEnds(flat, lines.length);
-
+function buildTreeFromRaw(flat: RawHeading[], totalLines: number): HeadingNode[] {
+  const bodyEnds = computeBodyEnds(flat, totalLines);
   const nodes: HeadingNode[] = flat.map((h, i) => ({
     ...h,
     bodyStart: h.headingEndLine + 1,
@@ -140,7 +159,6 @@ export function buildHeadingTree(source: string): HeadingNode[] {
     }
     const ordinal = siblingCounters[depth];
     siblingCounters[depth] = ordinal + 1;
-    // reset deeper counters
     siblingCounters.length = depth + 1;
 
     const parentPath = stack.length > 0 ? stack[stack.length - 1].path : [];
@@ -155,6 +173,54 @@ export function buildHeadingTree(source: string): HeadingNode[] {
   }
 
   return roots;
+}
+
+/**
+ * Build hierarchical heading tree with body ranges.
+ */
+export function buildHeadingTreeFromDoc(doc: Text): HeadingNode[] {
+  return buildTreeFromRaw(extractHeadingsFromDoc(doc), doc.lines);
+}
+
+export function buildHeadingTree(source: string): HeadingNode[] {
+  const doc = Text.of(source.length === 0 ? [""] : source.split(/\r?\n/));
+  return buildHeadingTreeFromDoc(doc);
+}
+
+export function mapHeadingTreeLines(
+  roots: HeadingNode[],
+  mapLine: (line: number) => number | null,
+): HeadingNode[] {
+  const mapNode = (node: HeadingNode): HeadingNode | null => {
+    const line = mapLine(node.line);
+    const headingEndLine = mapLine(node.headingEndLine);
+    const bodyStart = mapLine(node.bodyStart);
+    const bodyEndMapped =
+      node.bodyEndExclusive > node.bodyStart
+        ? mapLine(node.bodyEndExclusive - 1)
+        : mapLine(node.bodyStart);
+    if (
+      line === null ||
+      headingEndLine === null ||
+      bodyStart === null ||
+      bodyEndMapped === null
+    ) {
+      return null;
+    }
+    const children = node.children
+      .map(mapNode)
+      .filter((child): child is HeadingNode => child !== null);
+    return {
+      ...node,
+      line,
+      headingEndLine,
+      bodyStart,
+      bodyEndExclusive: bodyEndMapped + 1,
+      children,
+    };
+  };
+
+  return roots.map(mapNode).filter((node): node is HeadingNode => node !== null);
 }
 
 export function flattenHeadingTree(roots: HeadingNode[]): HeadingNode[] {

@@ -13,14 +13,15 @@ import {
   type BlockInfo,
 } from "@codemirror/view";
 import {
-  buildHeadingTree,
+  buildHeadingTreeFromDoc,
   flattenHeadingTree,
+  looksLikeHeadingOrFenceLine,
+  mapHeadingTreeLines,
   pathKey,
   type HeadingNode,
 } from "./headingTree";
 
 export interface CollapsedHeading {
-  key: string;
   level: number;
   text: string;
   line: number;
@@ -59,15 +60,13 @@ function lineNumberAt(view: EditorView, block: BlockInfo): number {
   return view.state.doc.lineAt(block.from).number;
 }
 
-function collectCollapsedFromTree(
-  roots: HeadingNode[],
+function collectCollapsedFromFlat(
+  flat: HeadingNode[],
   collapsedKeys: Set<string>,
 ): CollapsedHeading[] {
-  const flat = flattenHeadingTree(roots);
   return flat
     .filter((h) => collapsedKeys.has(pathKey(h.path)))
     .map((h) => ({
-      key: pathKey(h.path),
       level: h.level,
       text: h.text,
       line: h.line,
@@ -107,42 +106,68 @@ function visibleCollapsedRanges(
 
 function reconcileCollapsed(
   prev: CollapsedHeading[],
-  roots: HeadingNode[],
+  _roots: HeadingNode[],
+  flat: HeadingNode[],
   isInitial: boolean,
 ): Set<string> {
-  const flat = flattenHeadingTree(roots);
   if (isInitial) {
     return new Set(flat.map((h) => pathKey(h.path)));
   }
 
   const next = new Set<string>();
-  const usedPrev = new Set<number>();
+  const usedHeadings = new Set<number>();
 
-  for (const heading of flat) {
-    const key = pathKey(heading.path);
-    let matched = prev.find(
-      (p, idx) => !usedPrev.has(idx) && p.key === key,
+  const findNearest = (
+    previous: CollapsedHeading,
+    predicate: (heading: HeadingNode) => boolean,
+  ) => {
+    let bestIndex = -1;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < flat.length; index += 1) {
+      if (usedHeadings.has(index) || !predicate(flat[index])) {
+        continue;
+      }
+      const distance = Math.abs(previous.line - flat[index].line);
+      if (distance < bestDistance) {
+        bestIndex = index;
+        bestDistance = distance;
+      }
+    }
+    return bestIndex;
+  };
+
+  for (const previous of prev) {
+    let matchedIndex = findNearest(
+      previous,
+      (heading) =>
+        heading.line === previous.line &&
+        heading.level === previous.level &&
+        heading.text === previous.text,
     );
-    if (!matched) {
-      matched = prev.find(
-        (p, idx) =>
-          !usedPrev.has(idx) &&
-          p.level === heading.level &&
-          p.text === heading.text,
+    if (matchedIndex < 0) {
+      matchedIndex = findNearest(
+        previous,
+        (heading) =>
+          heading.line === previous.line && heading.level === previous.level,
       );
     }
-    if (!matched) {
-      matched = prev.find(
-        (p, idx) =>
-          !usedPrev.has(idx) &&
-          p.level === heading.level &&
-          Math.abs(p.line - heading.line) <= 3,
+    if (matchedIndex < 0) {
+      matchedIndex = findNearest(
+        previous,
+        (heading) => heading.line === previous.line,
+      );
+    }
+    if (matchedIndex < 0) {
+      matchedIndex = findNearest(
+        previous,
+        (heading) =>
+          heading.level === previous.level && heading.text === previous.text,
       );
     }
 
-    if (matched) {
-      usedPrev.add(prev.indexOf(matched));
-      next.add(key);
+    if (matchedIndex >= 0) {
+      usedHeadings.add(matchedIndex);
+      next.add(pathKey(flat[matchedIndex].path));
     }
   }
 
@@ -152,6 +177,7 @@ function reconcileCollapsed(
 interface FoldFieldValue {
   collapsedKeys: Set<string>;
   roots: HeadingNode[];
+  flat: HeadingNode[];
   decorations: ReturnType<typeof Decoration.set>;
   headingLines: Map<number, boolean>;
 }
@@ -159,13 +185,14 @@ interface FoldFieldValue {
 function buildDecorations(
   state: EditorState,
   roots: HeadingNode[],
+  flat: HeadingNode[],
   collapsedKeys: Set<string>,
 ): { decorations: ReturnType<typeof Decoration.set>; headingLines: Map<number, boolean> } {
   const ranges = visibleCollapsedRanges(roots, collapsedKeys);
   const widgets: { from: number; to: number }[] = [];
   const headingLines = new Map<number, boolean>();
 
-  for (const h of flattenHeadingTree(roots)) {
+  for (const h of flat) {
     headingLines.set(h.line, collapsedKeys.has(pathKey(h.path)));
   }
 
@@ -230,27 +257,152 @@ function mapCollapsedThroughTransaction(
     .filter((c): c is CollapsedHeading => c !== null);
 }
 
+function mapLineThroughTransaction(tr: Transaction, line: number): number | null {
+  try {
+    if (line < 1 || line > tr.startState.doc.lines) {
+      return null;
+    }
+    const oldPos = tr.startState.doc.line(line).from;
+    const newPos = tr.changes.mapPos(oldPos, 1);
+    if (newPos < 0 || newPos > tr.state.doc.length) {
+      return null;
+    }
+    return tr.state.doc.lineAt(newPos).number;
+  } catch {
+    return null;
+  }
+}
+
+function touchedLines(tr: Transaction): number[] {
+  const lines = new Set<number>();
+  tr.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+    const start = tr.state.doc.lineAt(fromB).number;
+    const end = tr.state.doc.lineAt(Math.max(fromB, toB)).number;
+    for (let line = Math.max(1, start - 1); line <= end + 1; line += 1) {
+      if (line <= tr.state.doc.lines) {
+        lines.add(line);
+      }
+    }
+  });
+  return [...lines].sort((a, b) => a - b);
+}
+
+function changeInsertsNewline(tr: Transaction): boolean {
+  let hasNewline = false;
+  tr.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
+    if (inserted.toString().includes("\n")) {
+      hasNewline = true;
+    }
+  });
+  return hasNewline;
+}
+
+function isStructuralLine(
+  tr: Transaction,
+  line: number,
+  flat: HeadingNode[],
+): boolean {
+  if (line < 1 || line > tr.state.doc.lines) {
+    return false;
+  }
+  if (flat.some((h) => h.line === line || h.headingEndLine === line)) {
+    return true;
+  }
+  return looksLikeHeadingOrFenceLine(tr.state.doc.line(line).text);
+}
+
+export type RebuildStrategy = "reuse" | "remap" | "full";
+
+function oldTouchedLines(tr: Transaction): number[] {
+  const lines = new Set<number>();
+  tr.changes.iterChangedRanges((fromA, toA) => {
+    const start = tr.startState.doc.lineAt(fromA).number;
+    const end = tr.startState.doc.lineAt(Math.max(fromA, toA)).number;
+    for (let line = Math.max(1, start - 1); line <= end + 1; line += 1) {
+      if (line <= tr.startState.doc.lines) {
+        lines.add(line);
+      }
+    }
+  });
+  return [...lines].sort((a, b) => a - b);
+}
+
+function isOldStructuralLine(
+  tr: Transaction,
+  line: number,
+  flat: HeadingNode[],
+): boolean {
+  if (line < 1 || line > tr.startState.doc.lines) {
+    return false;
+  }
+  if (flat.some((h) => h.line === line || h.headingEndLine === line)) {
+    return true;
+  }
+  return looksLikeHeadingOrFenceLine(tr.startState.doc.line(line).text);
+}
+
+export function classifyHeadingRebuild(
+  tr: Transaction,
+  value: FoldFieldValue,
+): RebuildStrategy {
+  if (!tr.docChanged) {
+    return "reuse";
+  }
+
+  const newLines = touchedLines(tr);
+  const oldLines = oldTouchedLines(tr);
+  if (newLines.length === 0 && oldLines.length === 0) {
+    return "reuse";
+  }
+
+  for (const line of newLines) {
+    if (isStructuralLine(tr, line, value.flat)) {
+      return "full";
+    }
+  }
+  for (const line of oldLines) {
+    if (isOldStructuralLine(tr, line, value.flat)) {
+      return "full";
+    }
+  }
+
+  if (changeInsertsNewline(tr) || tr.startState.doc.lines !== tr.state.doc.lines) {
+    return "remap";
+  }
+
+  // Single-line body edits that do not create heading/fence syntax.
+  return "reuse";
+}
+
 function computeField(
   state: EditorState,
   collapsedKeys: Set<string>,
+  roots?: HeadingNode[],
+  flat?: HeadingNode[],
 ): FoldFieldValue {
-  const source = state.doc.toString();
-  const roots = buildHeadingTree(source);
+  const nextRoots = roots ?? buildHeadingTreeFromDoc(state.doc);
+  const nextFlat = flat ?? flattenHeadingTree(nextRoots);
   const { decorations, headingLines } = buildDecorations(
     state,
-    roots,
+    nextRoots,
+    nextFlat,
     collapsedKeys,
   );
-  return { collapsedKeys, roots, decorations, headingLines };
+  return {
+    collapsedKeys,
+    roots: nextRoots,
+    flat: nextFlat,
+    decorations,
+    headingLines,
+  };
 }
 
 export const headingFoldField = StateField.define<FoldFieldValue>({
   create(state) {
-    const roots = buildHeadingTree(state.doc.toString());
-    const collapsedKeys = new Set(
-      flattenHeadingTree(roots).map((h) => pathKey(h.path)),
-    );
-    return computeField(state, collapsedKeys);
+    const roots = buildHeadingTreeFromDoc(state.doc);
+    const flat = flattenHeadingTree(roots);
+    const collapsedKeys = new Set(flat.map((h) => pathKey(h.path)));
+    return computeField(state, collapsedKeys, roots, flat);
   },
   update(value, tr) {
     let collapsedKeys = value.collapsedKeys;
@@ -262,7 +414,7 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
       }
       if (effect.is(toggleHeadingFold)) {
         const line = effect.value;
-        const heading = flattenHeadingTree(value.roots).find((h) => h.line === line);
+        const heading = value.flat.find((h) => h.line === line);
         if (heading) {
           const key = pathKey(heading.path);
           const next = new Set(collapsedKeys);
@@ -277,24 +429,51 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
     }
 
     if (forceInitial) {
-      const roots = buildHeadingTree(tr.state.doc.toString());
-      collapsedKeys = new Set(
-        flattenHeadingTree(roots).map((h) => pathKey(h.path)),
-      );
-      return computeField(tr.state, collapsedKeys);
+      const roots = buildHeadingTreeFromDoc(tr.state.doc);
+      const flat = flattenHeadingTree(roots);
+      collapsedKeys = new Set(flat.map((h) => pathKey(h.path)));
+      return computeField(tr.state, collapsedKeys, roots, flat);
     }
 
-    if (tr.docChanged || tr.effects.length > 0) {
+    if (!tr.docChanged && tr.effects.length === 0) {
+      return value;
+    }
+
+    if (!tr.docChanged) {
+      return computeField(tr.state, collapsedKeys, value.roots, value.flat);
+    }
+
+    const strategy = classifyHeadingRebuild(tr, value);
+    if (strategy === "reuse") {
+      return computeField(tr.state, collapsedKeys, value.roots, value.flat);
+    }
+
+    if (strategy === "remap") {
+      const remappedRoots = mapHeadingTreeLines(value.roots, (line) =>
+        mapLineThroughTransaction(tr, line),
+      );
+      const remappedFlat = flattenHeadingTree(remappedRoots);
       const mapped = mapCollapsedThroughTransaction(
-        collectCollapsedFromTree(value.roots, collapsedKeys),
+        collectCollapsedFromFlat(value.flat, collapsedKeys),
         tr,
       );
-      const roots = buildHeadingTree(tr.state.doc.toString());
-      collapsedKeys = reconcileCollapsed(mapped, roots, false);
-      return computeField(tr.state, collapsedKeys);
+      collapsedKeys = reconcileCollapsed(
+        mapped,
+        remappedRoots,
+        remappedFlat,
+        false,
+      );
+      return computeField(tr.state, collapsedKeys, remappedRoots, remappedFlat);
     }
 
-    return value;
+    const mapped = mapCollapsedThroughTransaction(
+      collectCollapsedFromFlat(value.flat, collapsedKeys),
+      tr,
+    );
+    const roots = buildHeadingTreeFromDoc(tr.state.doc);
+    const flat = flattenHeadingTree(roots);
+    collapsedKeys = reconcileCollapsed(mapped, roots, flat, false);
+    return computeField(tr.state, collapsedKeys, roots, flat);
   },
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
 });

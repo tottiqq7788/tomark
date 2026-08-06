@@ -21,6 +21,6 @@
     },
     "types": ["vite/client", "vitest/globals"]
   },
-  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.vue", "../tests/**/*.ts"],
-  "exclude": ["./vite.config.mts", "./node_modules", "../deps/dist", "../deps/node_modules", "../tests/node_modules"]
+  "include": ["./**/*.ts", "./**/*.tsx", "./**/*.vue", "../tests/unit/**/*.ts"],
+  "exclude": ["./vite.config.mts", "./node_modules", "../deps/dist", "../deps/node_modules", "../tests/node_modules", "../tests/e2e"]
 }
