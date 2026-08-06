@@ -15,6 +15,7 @@
             "core:default",
             "core:window:allow-destroy",
             "core:window:allow-close",
+            "core:window:allow-start-dragging",
             "dialog:default",
             "fs:allow-read-text-file",
             "fs:allow-read-file",

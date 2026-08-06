@@ -64,6 +64,14 @@ vi.mock("@/app/useAppMenu", () => ({
   installAppMenu: vi.fn(async () => vi.fn()),
 }));
 
+const platformMocks = vi.hoisted(() => ({
+  isMacOS: vi.fn(() => false),
+}));
+
+vi.mock("@/shared/isMacOS", () => ({
+  isMacOS: () => platformMocks.isMacOS(),
+}));
+
 const dirty = ref(false);
 const dirtyDialogOpen = ref(false);
 let dirtyResolver: ((ok: boolean) => void) | null = null;
@@ -151,6 +159,7 @@ import AppShell from "@/app/AppShell.vue";
 describe("AppShell", () => {
   beforeEach(() => {
     tauriMocks.reset();
+    platformMocks.isMacOS.mockReturnValue(false);
     dirty.value = false;
     dirtyDialogOpen.value = false;
     dirtyResolver = null;
@@ -160,6 +169,64 @@ describe("AppShell", () => {
     previewMocks.syncNow.mockResolvedValue(true);
     previewMocks.isCurrent.mockReset();
     previewMocks.isCurrent.mockReturnValue(true);
+  });
+
+  it("keeps the default toolbar layout off macOS", async () => {
+    platformMocks.isMacOS.mockReturnValue(false);
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const toolbar = wrapper.get('[data-testid="app-toolbar"]');
+    expect(toolbar.classes()).not.toContain("is-macos-overlay");
+    expect(wrapper.find(".toolbar-traffic-spacer").exists()).toBe(false);
+    expect(wrapper.find('[data-testid="toolbar-drag-region"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.get('[data-testid="toolbar-title"]').text()).toContain(
+      "未命名.md",
+    );
+    wrapper.unmount();
+  });
+
+  it("merges toolbar with macOS overlay titlebar spacing and drag region", async () => {
+    platformMocks.isMacOS.mockReturnValue(true);
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const toolbar = wrapper.get('[data-testid="app-toolbar"]');
+    expect(toolbar.classes()).toContain("is-macos-overlay");
+
+    const spacer = wrapper.get(".toolbar-traffic-spacer");
+    expect(spacer.attributes("data-tauri-drag-region")).toBeDefined();
+    expect(spacer.attributes("aria-hidden")).toBe("true");
+
+    const dragRegion = wrapper.get('[data-testid="toolbar-drag-region"]');
+    expect(dragRegion.attributes("data-tauri-drag-region")).toBeDefined();
+
+    const title = wrapper.get('[data-testid="toolbar-title"]');
+    expect(title.attributes("data-tauri-drag-region")).toBeUndefined();
+    await title.trigger("click");
+    expect(title.text()).toContain("未命名.md");
+
+    wrapper.unmount();
   });
 
   it("guards a dirty document before destroying the Tauri window", async () => {

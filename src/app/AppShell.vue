@@ -15,9 +15,13 @@ import { useDocumentStats } from "./useDocumentStats";
 import { usePaneLocate } from "./usePaneLocate";
 import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
+import { isMacOS } from "@/shared/isMacOS";
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
+
+/** macOS Overlay titlebar merges with toolbar; Windows keeps native chrome. */
+const macOSOverlayTitlebar = isMacOS();
 
 const {
   path,
@@ -226,17 +230,35 @@ useAppShortcuts({
 
 <template>
   <div class="app-shell">
-    <header class="toolbar">
+    <header
+      class="toolbar"
+      :class="{ 'is-macos-overlay': macOSOverlayTitlebar }"
+      data-testid="app-toolbar"
+    >
+      <span
+        v-if="macOSOverlayTitlebar"
+        class="toolbar-traffic-spacer"
+        aria-hidden="true"
+        data-tauri-drag-region
+      />
       <button
         type="button"
         class="toolbar-title"
         :class="{ 'is-path': showFullPath && path }"
         :title="toolbarTitleHint"
         :aria-label="toolbarTitleHint"
+        data-testid="toolbar-title"
         @click="toggleToolbarPath"
       >
         {{ toolbarLabel }}
       </button>
+      <span
+        v-if="macOSOverlayTitlebar"
+        class="toolbar-drag-region"
+        aria-hidden="true"
+        data-tauri-drag-region
+        data-testid="toolbar-drag-region"
+      />
       <button
         v-if="saveStatus === 'manual'"
         type="button"
@@ -520,6 +542,46 @@ useAppShortcuts({
   background: #111827;
   color: #f9fafb;
   border-bottom: 1px solid #1f2937;
+}
+
+.toolbar.is-macos-overlay {
+  gap: 8px;
+  /* Match default traffic-light inset (~9–22px); 32px bar centers them. */
+  padding: 0 10px 0 0;
+  min-height: 32px;
+  height: 32px;
+  box-sizing: border-box;
+}
+
+.toolbar-traffic-spacer {
+  flex: 0 0 72px;
+  align-self: stretch;
+  min-height: 100%;
+}
+
+.toolbar-drag-region {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-width: 24px;
+  min-height: 100%;
+}
+
+.toolbar.is-macos-overlay .toolbar-title {
+  flex: 0 1 auto;
+  max-width: min(60%, 520px);
+  padding: 0 6px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.toolbar.is-macos-overlay .toolbar-save-status {
+  width: 18px;
+  height: 18px;
+}
+
+.toolbar.is-macos-overlay .save-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .toolbar-title {
