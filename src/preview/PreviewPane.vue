@@ -139,7 +139,7 @@ onBeforeUnmount(() => {
 }
 
 .preview-content {
-  padding: 20px 28px 48px;
+  padding: 10px 28px 48px;
   max-width: 920px;
 }
 
