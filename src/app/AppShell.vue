@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  defineAsyncComponent,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch,
-} from "vue";
-import type { UnlistenFn } from "@tauri-apps/api/event";
+import { computed, defineAsyncComponent, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
 import { useDocumentSession } from "./useDocumentSession";
@@ -15,10 +7,10 @@ import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
 import { usePaneSplit } from "./usePaneSplit";
 import { useViewMode } from "./useViewMode";
-import {
-  computeDocumentStats,
-  formatDocumentStats,
-} from "@/shared/documentStats";
+import { useToolbarTitle } from "./useToolbarTitle";
+import { useDocumentStats } from "./useDocumentStats";
+import { usePaneLocate } from "./usePaneLocate";
+import { useShellLifecycle } from "./useShellLifecycle";
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
@@ -50,11 +42,7 @@ const {
 const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
 const previewLineToAnchor = preview.lineToAnchor;
-const fileOpsViaMenu = ref(false);
-const editorPaneRef = ref<{ revealSourceLine: (line: number) => void } | null>(
-  null,
-);
-let pendingRevealLine: number | null = null;
+
 const {
   containerRef,
   dragging,
@@ -94,103 +82,46 @@ const saveStatusLabel = computed(() => {
   }
 });
 
-const documentStats = computed(() => computeDocumentStats(content.value));
-const documentStatsLabel = computed(() => formatDocumentStats(documentStats.value));
+const { label: documentStatsLabel } = useDocumentStats(content);
+
 const helpOpen = ref(false);
-const showFullPath = ref(false);
 
-const toolbarLabel = computed(() => {
-  const dirtyMark = dirty.value ? " *" : "";
-  if (showFullPath.value && path.value) {
-    return `${path.value}${dirtyMark}`;
-  }
-  return `${fileName.value}${dirtyMark}`;
+const {
+  showFullPath,
+  toolbarLabel,
+  toolbarTitleHint,
+  toggleToolbarPath,
+} = useToolbarTitle(path, fileName, dirty, documentVersion, statusMessage);
+
+const {
+  setPreviewRef,
+  setEditorPaneRef,
+  onLocateSource,
+  onLocatePreview,
+} = usePaneLocate({
+  preview,
+  isSourceVisible,
+  isPreviewVisible,
+  viewMode,
+  statusMessage,
 });
 
-const toolbarTitleHint = computed(() => {
-  if (!path.value) {
-    return "尚未保存到文件，暂无完整路径";
-  }
-  return showFullPath.value
-    ? "点击显示文件名"
-    : "点击显示完整路径";
-});
-
-function toggleToolbarPath() {
-  if (!path.value) {
-    statusMessage.value = "尚未保存到文件，暂无完整路径";
-    showFullPath.value = false;
-    return;
-  }
-  showFullPath.value = !showFullPath.value;
-}
-
-watch(path, () => {
-  showFullPath.value = false;
-});
-
-watch(
-  () => documentVersion.value,
-  () => {
-    showFullPath.value = false;
+const { fileOpsViaMenu } = useShellLifecycle(
+  {
+    dirty,
+    saving,
+    dirtyDialogOpen,
+    statusMessage,
+    setContent,
+    guardDirty,
+    flushAutosave,
+    newDocument,
+    openDocument,
+    saveAs,
+    dispose,
   },
+  preview,
 );
-
-function setPreviewRef(el: unknown) {
-  preview.attachPreview(
-    (el as { scrollToSourceLine?: (line: number) => Promise<void> } | null) &&
-      typeof (el as { scrollToSourceLine?: unknown }).scrollToSourceLine ===
-        "function"
-      ? (el as { scrollToSourceLine: (line: number) => Promise<void> })
-      : null,
-  );
-}
-
-function setEditorPaneRef(el: unknown) {
-  const pane =
-    el &&
-    typeof (el as { revealSourceLine?: unknown }).revealSourceLine === "function"
-      ? (el as { revealSourceLine: (line: number) => void })
-      : null;
-  editorPaneRef.value = pane;
-  if (pane && pendingRevealLine !== null) {
-    const line = pendingRevealLine;
-    pendingRevealLine = null;
-    pane.revealSourceLine(line);
-  }
-}
-
-async function onLocateSource(line: number) {
-  if (!isSourceVisible.value) {
-    statusMessage.value = "当前为渲染视图，请切换到源码或双栏后再定位";
-    return;
-  }
-  pendingRevealLine = null;
-  const wasCurrent = preview.isCurrent();
-  // Flush debounce so reverse locate uses current source↔anchor mapping.
-  const synced = await preview.syncNow();
-  if (!synced) {
-    return;
-  }
-  // The clicked line came from the previous DOM; never apply it to new source.
-  if (!wasCurrent || !preview.isCurrent()) {
-    statusMessage.value = "预览内容已更新，请重新点击定位";
-    return;
-  }
-  if (editorPaneRef.value) {
-    editorPaneRef.value.revealSourceLine(line);
-  } else {
-    pendingRevealLine = line;
-  }
-}
-
-function onLocatePreview(line: number) {
-  if (!isPreviewVisible.value) {
-    statusMessage.value = "当前为源码视图，请切换到渲染或双栏后再定位";
-    return;
-  }
-  void preview.locate(line);
-}
 
 function onSplitterKeydown(event: KeyboardEvent) {
   if (!showSplitter.value) {
@@ -232,153 +163,6 @@ watch(
   },
   { immediate: true },
 );
-
-let unlistenCloseRequested: UnlistenFn | null = null;
-let unlistenMenu: UnlistenFn | null = null;
-let unlistenAppExitRequested: UnlistenFn | null = null;
-let unmounted = false;
-let destroyingWindow = false;
-let appExitInFlight = false;
-
-async function onAppExitRequested() {
-  if (appExitInFlight || unmounted) {
-    return;
-  }
-  appExitInFlight = true;
-  try {
-    if (!(await guardDirty()) || unmounted) {
-      return;
-    }
-    const { invoke } = await import("@tauri-apps/api/core");
-    await invoke("confirm_app_exit");
-  } catch (error) {
-    statusMessage.value = `退出应用失败：${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  } finally {
-    appExitInFlight = false;
-  }
-}
-
-onMounted(async () => {
-  if (import.meta.env.VITE_WDIO === "1") {
-    (
-      window as unknown as {
-        __tomarkE2e?: {
-          setContent: (value: string) => void;
-          isDirty: () => boolean;
-        };
-      }
-    ).__tomarkE2e = {
-      setContent,
-      isDirty: () => dirty.value,
-    };
-  }
-
-  const [{ isTauri }, { getCurrentWindow }] = await Promise.all([
-    import("@tauri-apps/api/core"),
-    import("@tauri-apps/api/window"),
-  ]);
-  if (!isTauri() || unmounted) {
-    return;
-  }
-
-  const appWindow = getCurrentWindow();
-  try {
-    const unlisten = await appWindow.listen(
-      "tomark-app-exit-requested",
-      () => {
-        void onAppExitRequested();
-      },
-    );
-    if (unmounted) {
-      unlisten();
-      return;
-    }
-    unlistenAppExitRequested = unlisten;
-  } catch (error) {
-    statusMessage.value = `未能启用退出保护：${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  }
-
-  fileOpsViaMenu.value = false;
-  try {
-    const { installAppMenu } = await import("./useAppMenu");
-    if (unmounted) {
-      return;
-    }
-    unlistenMenu = await installAppMenu({
-      newDocument,
-      openDocument,
-      saveAs: () => {
-        void saveAs();
-      },
-      isBlocked: () => saving.value || dirtyDialogOpen.value,
-    });
-    if (unmounted) {
-      unlistenMenu?.();
-      unlistenMenu = null;
-      return;
-    }
-    fileOpsViaMenu.value = true;
-  } catch (error) {
-    if (unmounted) {
-      return;
-    }
-    fileOpsViaMenu.value = false;
-    statusMessage.value = `未能安装应用菜单：${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  }
-
-  if (unmounted) {
-    return;
-  }
-
-  try {
-    const unlisten = await appWindow.onCloseRequested(async (event) => {
-      await flushAutosave();
-      if (!dirty.value) {
-        return;
-      }
-      event.preventDefault();
-      if (!(await guardDirty()) || destroyingWindow) {
-        return;
-      }
-      destroyingWindow = true;
-      try {
-        await appWindow.destroy();
-      } catch (error) {
-        destroyingWindow = false;
-        statusMessage.value = `关闭窗口失败：${
-          error instanceof Error ? error.message : String(error)
-        }`;
-      }
-    });
-    if (unmounted) {
-      unlisten();
-    } else {
-      unlistenCloseRequested = unlisten;
-    }
-  } catch (error) {
-    statusMessage.value = `未能启用关闭保护：${
-      error instanceof Error ? error.message : String(error)
-    }`;
-  }
-});
-
-onBeforeUnmount(() => {
-  unmounted = true;
-  unlistenCloseRequested?.();
-  unlistenMenu?.();
-  unlistenAppExitRequested?.();
-  dispose();
-  preview.refreshPreview.cancel();
-  if (import.meta.env.VITE_WDIO === "1") {
-    delete (window as unknown as { __tomarkE2e?: unknown }).__tomarkE2e;
-  }
-});
 
 useAppShortcuts({
   save: () => {
@@ -462,12 +246,7 @@ useAppShortcuts({
     <main
       :ref="setContainerRef"
       class="panes"
-      :class="{
-        dragging: dragging && showSplitter,
-        'mode-source': viewMode === 'source',
-        'mode-preview': viewMode === 'preview',
-        'mode-split': viewMode === 'split',
-      }"
+      :class="{ dragging: dragging && showSplitter }"
       :style="{ gridTemplateColumns: panesGridTemplateColumns }"
     >
       <section

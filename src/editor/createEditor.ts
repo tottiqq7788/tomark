@@ -38,6 +38,8 @@ export interface EditorHandle {
   view: EditorView;
   setDocument: (doc: string, options?: { collapseHeadings?: boolean }) => void;
   revealSourceLine: (line: number) => void;
+  /** Re-measure geometry after the editor pane was hidden or resized. */
+  requestMeasure: () => void;
   getValue: () => string;
   destroy: () => void;
 }
@@ -230,6 +232,9 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
       });
       clearFlashSoon();
       view.focus();
+    },
+    requestMeasure: () => {
+      view.requestMeasure();
     },
     destroy: () => {
       if (flashTimer) {

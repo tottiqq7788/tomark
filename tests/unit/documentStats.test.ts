@@ -6,9 +6,9 @@ import {
 } from "@/shared/documentStats";
 
 describe("documentStats", () => {
-  it("counts empty document as zeros", () => {
+  it("counts empty document as one visual line", () => {
     expect(computeDocumentStats("")).toEqual({
-      lines: 0,
+      lines: 1,
       chars: 0,
       words: 0,
     });
@@ -22,6 +22,14 @@ describe("documentStats", () => {
       words: 6,
     });
     expect(countWords("tomark 编辑器")).toBe(4);
+  });
+
+  it("treats CRLF as a single line break", () => {
+    expect(computeDocumentStats("a\r\nb")).toEqual({
+      lines: 2,
+      chars: 4,
+      words: 2,
+    });
   });
 
   it("formats status label", () => {

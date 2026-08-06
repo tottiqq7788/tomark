@@ -83,4 +83,18 @@ describe("createEditor", () => {
     expect(fold.headingLines.get(3)).toBe(false);
     expect(fold.headingLines.get(7)).toBe(true);
   });
+
+  it("exposes requestMeasure for layout refresh", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "hello\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+    const spy = vi.spyOn(editor.view, "requestMeasure");
+    editor.requestMeasure();
+    expect(spy).toHaveBeenCalledOnce();
+  });
 });

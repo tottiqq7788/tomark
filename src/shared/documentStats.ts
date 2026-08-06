@@ -19,7 +19,8 @@ export function countWords(text: string): number {
 }
 
 export function computeDocumentStats(source: string): DocumentStats {
-  const lines = source.length === 0 ? 0 : source.split(/\r?\n/).length;
+  // Empty docs still occupy one visual line in the editor (CodeMirror line 1).
+  const lines = source.length === 0 ? 1 : source.split(/\r?\n/).length;
   const chars = Array.from(source).length;
   return {
     lines,

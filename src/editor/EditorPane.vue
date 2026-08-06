@@ -54,7 +54,11 @@ function revealSourceLine(line: number) {
   editor?.revealSourceLine(line);
 }
 
-defineExpose({ revealSourceLine });
+function requestMeasure() {
+  editor?.requestMeasure();
+}
+
+defineExpose({ revealSourceLine, requestMeasure });
 </script>
 
 <template>

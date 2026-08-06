@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { trapFocus } from "@/shared/focusTrap";
 
 const props = defineProps<{
   open: boolean;
@@ -13,15 +14,49 @@ const emit = defineEmits<{
 const present = ref(false);
 const shown = ref(false);
 const drawerRef = ref<HTMLElement | null>(null);
+
 let closing = false;
+let keydownBound = false;
+let closeEmitted = false;
+let openGeneration = 0;
 let closeFallbackTimer: ReturnType<typeof setTimeout> | undefined;
+let openFrame: number | undefined;
 let warmed = false;
+let releaseFocusTrap: (() => void) | undefined;
 
 function clearCloseFallback() {
   if (closeFallbackTimer !== undefined) {
     clearTimeout(closeFallbackTimer);
     closeFallbackTimer = undefined;
   }
+}
+
+function cancelOpenFrame() {
+  if (openFrame !== undefined) {
+    cancelAnimationFrame(openFrame);
+    openFrame = undefined;
+  }
+}
+
+function releaseTrap() {
+  releaseFocusTrap?.();
+  releaseFocusTrap = undefined;
+}
+
+function bindKeydown() {
+  if (keydownBound) {
+    return;
+  }
+  window.addEventListener("keydown", onKeydown);
+  keydownBound = true;
+}
+
+function unbindKeydown() {
+  if (!keydownBound) {
+    return;
+  }
+  window.removeEventListener("keydown", onKeydown);
+  keydownBound = false;
 }
 
 function onKeydown(event: KeyboardEvent) {
@@ -32,7 +67,6 @@ function onKeydown(event: KeyboardEvent) {
 }
 
 function promoteLayers() {
-  // Touch layout once so the first user-visible transition is not cold.
   drawerRef.value?.getBoundingClientRect();
 }
 
@@ -47,37 +81,69 @@ async function ensureMounted() {
 }
 
 async function openDrawer() {
+  const generation = ++openGeneration;
   clearCloseFallback();
+  cancelOpenFrame();
   closing = false;
+  closeEmitted = false;
   await ensureMounted();
+  if (generation !== openGeneration || !props.open) {
+    return;
+  }
   // One frame ensures the closed transform is committed before opening.
-  requestAnimationFrame(() => {
+  openFrame = requestAnimationFrame(() => {
+    openFrame = undefined;
+    if (generation !== openGeneration || !props.open) {
+      return;
+    }
     shown.value = true;
+    bindKeydown();
+    void nextTick(() => {
+      if (generation !== openGeneration || !shown.value || !drawerRef.value) {
+        return;
+      }
+      releaseTrap();
+      releaseFocusTrap = trapFocus(drawerRef.value);
+    });
   });
-  window.addEventListener("keydown", onKeydown);
 }
 
 function requestClose() {
   if (!present.value || closing || !shown.value) {
     return;
   }
+  const generation = openGeneration;
   closing = true;
   shown.value = false;
+  releaseTrap();
   clearCloseFallback();
+  cancelOpenFrame();
   closeFallbackTimer = setTimeout(() => {
-    finishClose();
+    if (generation !== openGeneration) {
+      return;
+    }
+    finishClose(generation);
   }, 400);
 }
 
-function finishClose() {
+function finishClose(expectedGeneration = openGeneration) {
+  if (expectedGeneration !== openGeneration) {
+    return;
+  }
+  // Ignore stale end events if the drawer was reopened mid-close.
   if (shown.value) {
     return;
   }
   clearCloseFallback();
   closing = false;
-  // Intentionally keep `present` true — remounting was a major first-open hitch.
-  window.removeEventListener("keydown", onKeydown);
-  emit("close");
+  unbindKeydown();
+  releaseTrap();
+  // Emit even while props.open is still true (button / Escape / overlay):
+  // parent sets open=false on this event; openGeneration guards reopen races.
+  if (!closeEmitted) {
+    closeEmitted = true;
+    emit("close");
+  }
 }
 
 function onDrawerTransitionEnd(event: TransitionEvent) {
@@ -88,7 +154,7 @@ function onDrawerTransitionEnd(event: TransitionEvent) {
     return;
   }
   if (!shown.value) {
-    finishClose();
+    finishClose(openGeneration);
   }
 }
 
@@ -109,8 +175,15 @@ watch(
     }
     if (shown.value) {
       requestClose();
+      return;
     }
+    // Closed before the open rAF ran — drop pending open without emitting.
+    cancelOpenFrame();
+    closing = false;
+    unbindKeydown();
+    releaseTrap();
   },
+  { immediate: true },
 );
 
 onMounted(() => {
@@ -135,7 +208,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   clearCloseFallback();
-  window.removeEventListener("keydown", onKeydown);
+  cancelOpenFrame();
+  unbindKeydown();
+  releaseTrap();
 });
 </script>
 
@@ -147,14 +222,17 @@ onBeforeUnmount(() => {
       :class="{ 'is-shown': shown }"
       :aria-hidden="shown ? 'false' : 'true'"
       role="presentation"
+      data-testid="help-overlay"
       @click.self="requestClose"
     >
       <aside
         ref="drawerRef"
         class="help-drawer"
         role="dialog"
-        aria-modal="true"
+        :aria-modal="shown ? 'true' : 'false'"
         aria-labelledby="help-drawer-title"
+        tabindex="-1"
+        data-testid="help-drawer"
         @transitionend="onDrawerTransitionEnd"
       >
         <header class="help-header">
@@ -163,6 +241,7 @@ onBeforeUnmount(() => {
             type="button"
             class="help-close"
             aria-label="关闭使用说明"
+            data-testid="help-close"
             @click="requestClose"
           >
             ×
@@ -173,9 +252,9 @@ onBeforeUnmount(() => {
           <section>
             <h3>界面</h3>
             <ul>
-              <li>左侧约 1/3 为 Markdown 源码，右侧约 2/3 为渲染预览（非所见即所得）。</li>
-              <li>拖动中间分隔条可调整两侧宽度。</li>
-              <li>底部状态栏显示行数、字符数、词数；右侧「?」可随时打开本说明。</li>
+              <li>默认双栏：左侧源码、右侧渲染预览（非所见即所得）；可用中间分隔条调宽。</li>
+              <li>右下角视图按钮可在「源码 / 源码+渲染 / 渲染」三种布局间切换。</li>
+              <li>底部状态栏显示行数、字符数、词数；「?」打开本说明；点击顶栏文件名可切换完整路径。</li>
             </ul>
           </section>
 
@@ -253,7 +332,6 @@ onBeforeUnmount(() => {
   align-items: flex-start;
   justify-content: center;
   background: rgba(15, 23, 42, 0);
-  /* Only opacity/color — never animate backdrop-filter (main cause of first-frame jank). */
   transition: background-color 280ms cubic-bezier(0.22, 1, 0.36, 1);
   pointer-events: none;
 }
