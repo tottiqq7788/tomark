@@ -430,6 +430,29 @@ export function useDocumentSession() {
     }
   }
 
+  async function openDocumentAtPath(filePath: string): Promise<boolean> {
+    const normalized = filePath.trim();
+    if (!normalized) {
+      return false;
+    }
+    if (path.value === normalized && !dirty.value) {
+      statusMessage.value = `已打开 ${fileName.value}`;
+      return true;
+    }
+    if (!(await guardDirty())) {
+      return false;
+    }
+    const { loadMarkdownFile, showError } = await loadFileService();
+    try {
+      const doc = await loadMarkdownFile(normalized);
+      applyLoaded(doc);
+      return true;
+    } catch (error) {
+      await showError("打开失败", error);
+      return false;
+    }
+  }
+
   async function saveAs(): Promise<boolean> {
     scheduleAutosave.cancel();
     try {
@@ -471,6 +494,7 @@ export function useDocumentSession() {
     flushAutosave,
     newDocument,
     openDocument,
+    openDocumentAtPath,
     save,
     saveAs,
     onDirtySave,

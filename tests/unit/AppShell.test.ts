@@ -56,6 +56,10 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => tauriMocks.appWindow,
 }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn(async () => vi.fn()),
+}));
+
 vi.mock("@/app/useAppMenu", () => ({
   installAppMenu: vi.fn(async () => vi.fn()),
 }));
@@ -99,6 +103,7 @@ vi.mock("@/app/useDocumentSession", () => ({
     },
     newDocument: vi.fn(),
     openDocument: vi.fn(),
+    openDocumentAtPath: vi.fn(async () => true),
     save,
     saveAs: vi.fn(async () => true),
     onDirtySave: vi.fn(),

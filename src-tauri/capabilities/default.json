@@ -10,6 +10,8 @@
     "fs:allow-read-text-file",
     "allow-atomic-write-text-file",
     "allow-confirm-app-exit",
+    "allow-acknowledge-open-file-listener",
+    "allow-request-default-markdown-app",
     "opener:allow-open-url",
     "opener:allow-default-urls"
   ]

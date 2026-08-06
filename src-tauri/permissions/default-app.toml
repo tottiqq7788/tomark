@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-request-default-markdown-app"
+description = "Allows requesting or guiding the user to set tomark as the default Markdown app."
+commands.allow = ["request_default_markdown_app"]

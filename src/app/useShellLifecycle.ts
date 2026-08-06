@@ -11,6 +11,7 @@ export type ShellLifecycleSession = {
   flushAutosave: () => Promise<void> | void;
   newDocument: () => unknown;
   openDocument: () => unknown;
+  openDocumentAtPath: (path: string) => Promise<boolean>;
   saveAs: () => unknown;
   dispose: () => void;
 };
@@ -31,9 +32,24 @@ export function useShellLifecycle(
   let unlistenCloseRequested: UnlistenFn | null = null;
   let unlistenMenu: UnlistenFn | null = null;
   let unlistenAppExitRequested: UnlistenFn | null = null;
+  let unlistenOpenFile: UnlistenFn | null = null;
   let unmounted = false;
   let destroyingWindow = false;
   let appExitInFlight = false;
+  let openInFlight: Promise<void> | null = null;
+
+  async function handleExternalOpenPath(filePath: string) {
+    if (unmounted) {
+      return;
+    }
+    const run = async () => {
+      await session.openDocumentAtPath(filePath);
+    };
+    openInFlight = (openInFlight ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(run);
+    await openInFlight;
+  }
 
   async function onAppExitRequested() {
     if (appExitInFlight || unmounted) {
@@ -70,11 +86,37 @@ export function useShellLifecycle(
       };
     }
 
-    const [{ isTauri }, { getCurrentWindow }] = await Promise.all([
-      import("@tauri-apps/api/core"),
-      import("@tauri-apps/api/window"),
-    ]);
+    const [{ isTauri, invoke }, { getCurrentWindow }, { listen }] =
+      await Promise.all([
+        import("@tauri-apps/api/core"),
+        import("@tauri-apps/api/window"),
+        import("@tauri-apps/api/event"),
+      ]);
     if (!isTauri() || unmounted) {
+      return;
+    }
+
+    try {
+      unlistenOpenFile = await listen<{ path: string }>(
+        "tomark-open-file",
+        (event) => {
+          void handleExternalOpenPath(event.payload.path);
+        },
+      );
+      const queued =
+        (await invoke<string[]>("acknowledge_open_file_listener")) ?? [];
+      if (!unmounted) {
+        for (const filePath of queued) {
+          void handleExternalOpenPath(filePath);
+        }
+      }
+    } catch (error) {
+      session.statusMessage.value = `未能启用外部打开：${
+        error instanceof Error ? error.message : String(error)
+      }`;
+    }
+
+    if (unmounted) {
       return;
     }
 
@@ -173,6 +215,7 @@ export function useShellLifecycle(
     unlistenCloseRequested?.();
     unlistenMenu?.();
     unlistenAppExitRequested?.();
+    unlistenOpenFile?.();
     session.dispose();
     preview.refreshPreview.cancel();
     if (import.meta.env.VITE_WDIO === "1") {

@@ -38,6 +38,17 @@ async function atomicWriteTextFile(path: string, contents: string): Promise<void
   await invoke("atomic_write_text_file", { path, contents });
 }
 
+export async function loadMarkdownFile(path: string): Promise<LoadedDocument> {
+  const raw = await readTextFile(path);
+  const { content, format } = detectFormat(raw);
+  return {
+    path,
+    fileName: fileNameFromPath(path),
+    content,
+    format,
+  };
+}
+
 export async function openMarkdownFile(): Promise<LoadedDocument | null> {
   const selected = await open({
     multiple: false,
@@ -51,14 +62,7 @@ export async function openMarkdownFile(): Promise<LoadedDocument | null> {
   if (!path) {
     return null;
   }
-  const raw = await readTextFile(path);
-  const { content, format } = detectFormat(raw);
-  return {
-    path,
-    fileName: fileNameFromPath(path),
-    content,
-    format,
-  };
+  return loadMarkdownFile(path);
 }
 
 export async function saveMarkdownFile(

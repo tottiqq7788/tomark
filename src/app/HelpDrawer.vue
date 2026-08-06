@@ -8,6 +8,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
+  "request-default-app": [];
 }>();
 
 /** Keep DOM after first mount so open/close only toggles compositor-friendly classes. */
@@ -284,6 +285,7 @@ onBeforeUnmount(() => {
               <li>已打开文件：停止输入约 2 秒后自动保存。</li>
               <li>未命名文档：请使用菜单「文件 → 另存为…」落盘。</li>
               <li>顶部右侧图标：黄色表示待保存，绿色对勾表示已同步。</li>
+              <li>安装后可双击 <code>.md</code> / <code>.markdown</code> 用 tomark 打开（需先设为默认应用或在「打开方式」中选择）。</li>
             </ul>
             <table>
               <thead>
@@ -316,6 +318,22 @@ onBeforeUnmount(() => {
                 </tr>
               </tbody>
             </table>
+          </section>
+
+          <section>
+            <h3>默认应用</h3>
+            <ul>
+              <li>可将 tomark 设为 Markdown 的系统默认打开方式。</li>
+              <li>macOS 会发起系统请求（可能需确认）；Windows 会打开默认应用设置页。</li>
+            </ul>
+            <button
+              type="button"
+              class="help-action"
+              data-testid="help-set-default-app"
+              @click="emit('request-default-app')"
+            >
+              设置为 Markdown 默认应用
+            </button>
           </section>
         </div>
       </aside>
@@ -446,6 +464,23 @@ onBeforeUnmount(() => {
   margin-top: 10px;
   border-collapse: collapse;
   font-size: 12px;
+}
+
+.help-action {
+  margin-top: 10px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid #93c5fd;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.help-action:hover {
+  background: #dbeafe;
 }
 
 .help-body th,

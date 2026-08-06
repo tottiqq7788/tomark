@@ -1,4 +1,6 @@
 mod atomic_write;
+mod default_app;
+mod open_file;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -41,7 +43,19 @@ fn confirm_app_exit(app: tauri::AppHandle) {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    // Single-instance must be registered first on Windows/Linux so subsequent
+    // "Open with" launches forward argv into the running process.
+    #[cfg(any(windows, target_os = "linux"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let files = open_file::collect_markdown_paths_from_args(argv.into_iter().skip(1));
+            open_file::deliver_open_paths(&app, files);
+        }));
+    }
+
+    builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(
@@ -50,9 +64,12 @@ pub fn run() {
                 .build(),
         )
         .plugin(navigation_guard())
+        .manage(open_file::PendingOpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             atomic_write::atomic_write_text_file,
-            confirm_app_exit
+            confirm_app_exit,
+            open_file::acknowledge_open_file_listener,
+            default_app::request_default_markdown_app
         ]);
 
     #[cfg(feature = "wdio")]
@@ -62,17 +79,38 @@ pub fn run() {
             .plugin(tauri_plugin_wdio_webdriver::init());
     }
 
+    #[cfg(any(windows, target_os = "linux"))]
+    {
+        builder = builder.setup(|app| {
+            let files = open_file::collect_markdown_paths_from_args(std::env::args().skip(1));
+            open_file::deliver_open_paths(app.handle(), files);
+            Ok(())
+        });
+    }
+
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building tomark");
+
     app.run(|app_handle, event| {
-        if let tauri::RunEvent::ExitRequested { api, .. } = event {
-            let exit_confirmed = APP_EXIT_CONFIRMED.swap(false, Ordering::SeqCst);
-            let has_windows = !app_handle.webview_windows().is_empty();
-            if should_prevent_app_exit(exit_confirmed, has_windows) {
-                api.prevent_exit();
-                let _ = app_handle.emit(APP_EXIT_REQUESTED_EVENT, ());
+        match &event {
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            tauri::RunEvent::Opened { urls } => {
+                let files = urls
+                    .iter()
+                    .filter_map(|url| url.to_file_path().ok())
+                    .collect::<Vec<_>>();
+                open_file::deliver_open_paths(app_handle, files);
             }
+            tauri::RunEvent::ExitRequested { api, .. } => {
+                let exit_confirmed = APP_EXIT_CONFIRMED.swap(false, Ordering::SeqCst);
+                let has_windows = !app_handle.webview_windows().is_empty();
+                if should_prevent_app_exit(exit_confirmed, has_windows) {
+                    api.prevent_exit();
+                    let _ = app_handle.emit(APP_EXIT_REQUESTED_EVENT, ());
+                }
+            }
+            _ => {}
         }
     });
 }

@@ -3,6 +3,7 @@ import type { LoadedDocument } from "@/shared/types";
 
 const nativeMocks = vi.hoisted(() => ({
   openMarkdownFile: vi.fn(),
+  loadMarkdownFile: vi.fn(),
   saveMarkdownFile: vi.fn(),
   saveMarkdownFileAs: vi.fn(),
   showError: vi.fn(),
@@ -31,6 +32,7 @@ function deferred<T>() {
 describe("useDocumentSession", () => {
   beforeEach(() => {
     nativeMocks.openMarkdownFile.mockReset();
+    nativeMocks.loadMarkdownFile.mockReset();
     nativeMocks.saveMarkdownFile.mockReset();
     nativeMocks.saveMarkdownFileAs.mockReset();
     nativeMocks.showError.mockReset();
@@ -274,6 +276,52 @@ describe("useDocumentSession", () => {
     expect(session.saveStatus.value).toBe("unsaved");
     session.dispose();
     vi.useRealTimers();
+  });
+
+  it("opens a document from an external path", async () => {
+    nativeMocks.loadMarkdownFile.mockResolvedValue({
+      path: "/tmp/external.md",
+      fileName: "external.md",
+      content: "# Hello",
+      format: { lineEnding: "lf", hasBom: false },
+    });
+    const session = useDocumentSession();
+    await expect(session.openDocumentAtPath("/tmp/external.md")).resolves.toBe(
+      true,
+    );
+    expect(session.path.value).toBe("/tmp/external.md");
+    expect(session.content.value).toBe("# Hello");
+    expect(session.dirty.value).toBe(false);
+    session.dispose();
+  });
+
+  it("keeps the current document when dirty open is cancelled", async () => {
+    const session = useDocumentSession();
+    session.setContent("dirty body");
+    const opening = session.openDocumentAtPath("/tmp/external.md");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(session.dirtyDialogOpen.value).toBe(true);
+    session.onDirtyCancel();
+    await expect(opening).resolves.toBe(false);
+    expect(nativeMocks.loadMarkdownFile).not.toHaveBeenCalled();
+    expect(session.content.value).toBe("dirty body");
+    session.dispose();
+  });
+
+  it("no-ops when reopening the same clean path", async () => {
+    nativeMocks.loadMarkdownFile.mockResolvedValue({
+      path: "/tmp/same.md",
+      fileName: "same.md",
+      content: "body",
+      format: { lineEnding: "lf", hasBom: false },
+    });
+    const session = useDocumentSession();
+    await expect(session.openDocumentAtPath("/tmp/same.md")).resolves.toBe(true);
+    nativeMocks.loadMarkdownFile.mockClear();
+    await expect(session.openDocumentAtPath("/tmp/same.md")).resolves.toBe(true);
+    expect(nativeMocks.loadMarkdownFile).not.toHaveBeenCalled();
+    session.dispose();
   });
 });
 

@@ -14,6 +14,7 @@ vi.mock("@tauri-apps/plugin-fs", () => ({ readTextFile }));
 
 import {
   detectFormat,
+  loadMarkdownFile,
   saveMarkdownFile,
   saveMarkdownFileAs,
   serializeContent,
@@ -27,6 +28,17 @@ describe("fileService atomic writes", () => {
     readTextFile.mockReset();
     message.mockReset();
     invoke.mockResolvedValue(undefined);
+  });
+
+  it("loads markdown from an absolute path", async () => {
+    readTextFile.mockResolvedValue("\uFEFFhello\r\n");
+    await expect(loadMarkdownFile("/tmp/note.md")).resolves.toEqual({
+      path: "/tmp/note.md",
+      fileName: "note.md",
+      content: "hello\n",
+      format: { lineEnding: "crlf", hasBom: true },
+    });
+    expect(readTextFile).toHaveBeenCalledWith("/tmp/note.md");
   });
 
   it("saves through the atomic write command", async () => {

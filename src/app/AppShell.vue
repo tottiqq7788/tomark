@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
+import DefaultAppPrompt from "@/app/DefaultAppPrompt.vue";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
@@ -11,6 +12,7 @@ import { useToolbarTitle } from "./useToolbarTitle";
 import { useDocumentStats } from "./useDocumentStats";
 import { usePaneLocate } from "./usePaneLocate";
 import { useShellLifecycle } from "./useShellLifecycle";
+import { useDefaultAppSetup } from "./useDefaultAppSetup";
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
@@ -31,6 +33,7 @@ const {
   flushAutosave,
   newDocument,
   openDocument,
+  openDocumentAtPath,
   save,
   saveAs,
   onDirtySave,
@@ -87,6 +90,21 @@ const { label: documentStatsLabel } = useDocumentStats(content);
 const helpOpen = ref(false);
 
 const {
+  open: defaultAppPromptOpen,
+  busy: defaultAppBusy,
+  statusMessage: defaultAppStatus,
+  platformHint: defaultAppHint,
+  showPrompt: showDefaultAppPrompt,
+  dismissPrompt: dismissDefaultAppPrompt,
+  requestDefaultApp,
+} = useDefaultAppSetup();
+
+function onRequestDefaultApp() {
+  helpOpen.value = false;
+  showDefaultAppPrompt();
+}
+
+const {
   showFullPath,
   toolbarLabel,
   toolbarTitleHint,
@@ -117,6 +135,7 @@ const { fileOpsViaMenu } = useShellLifecycle(
     flushAutosave,
     newDocument,
     openDocument,
+    openDocumentAtPath,
     saveAs,
     dispose,
   },
@@ -392,7 +411,20 @@ useAppShortcuts({
       </div>
     </footer>
 
-    <HelpDrawer :open="helpOpen" @close="helpOpen = false" />
+    <HelpDrawer
+      :open="helpOpen"
+      @close="helpOpen = false"
+      @request-default-app="onRequestDefaultApp"
+    />
+
+    <DefaultAppPrompt
+      :open="defaultAppPromptOpen"
+      :busy="defaultAppBusy"
+      :platform-hint="defaultAppHint"
+      :status-message="defaultAppStatus"
+      @later="dismissDefaultAppPrompt"
+      @confirm="void requestDefaultApp()"
+    />
 
     <DirtyConfirmDialog
       :open="dirtyDialogOpen"

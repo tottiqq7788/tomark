@@ -145,4 +145,19 @@ describe("HelpDrawer", () => {
     wrapper.unmount();
     outside.remove();
   });
+
+  it("emits request-default-app from the help action", async () => {
+    const wrapper = mount(HelpDrawer, {
+      props: { open: true },
+      attachTo: document.body,
+    });
+    await flushOpenAnimation();
+    const button = document.querySelector(
+      '[data-testid="help-set-default-app"]',
+    ) as HTMLButtonElement | null;
+    expect(button).toBeTruthy();
+    button?.click();
+    expect(wrapper.emitted("request-default-app")?.length).toBe(1);
+    wrapper.unmount();
+  });
 });

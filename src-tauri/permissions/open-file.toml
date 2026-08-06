@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-acknowledge-open-file-listener"
+description = "Allows the frontend to acknowledge OS file-open listeners and drain queued paths."
+commands.allow = ["acknowledge_open_file_listener"]
