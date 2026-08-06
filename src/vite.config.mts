@@ -85,9 +85,11 @@ export default defineConfig({
             },
             {
               name: "markdown",
+              // Keep unified/remark/rehype in ONE chunk. Splitting with maxSize
+              // created circular cross-chunk imports that leave `extend`/`unified`
+              // undefined at init (`t is not a function` in WebKit/production).
               test: /node_modules[\\/](unified|remark-|rehype-|mdast-|micromark|hast-|unist-|vfile|bail|trough|devlop|property-information|space-separated-tokens|comma-separated-tokens|html-void-elements|stringify-entities|character-entities|decode-named-character-reference|ccount|longest-streak|zwitch|is-plain-obj|extend)/,
               priority: 20,
-              maxSize: 480_000,
             },
             {
               name: "tauri",
