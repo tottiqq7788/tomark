@@ -15,6 +15,7 @@ import {
 import {
   buildHeadingTreeFromDoc,
   flattenHeadingTree,
+  isPathPrefix,
   looksLikeHeadingOrFenceLine,
   mapHeadingTreeLines,
   pathKey,
@@ -102,10 +103,27 @@ export function exclusiveExpandKeys(
   target: HeadingNode,
 ): Set<string> {
   const collapsed = new Set(flat.map((h) => pathKey(h.path)));
-  for (let depth = 1; depth <= target.path.length; depth += 1) {
-    collapsed.delete(pathKey(target.path.slice(0, depth)));
+  for (const h of flat) {
+    if (isPathPrefix(h.path, target.path)) {
+      collapsed.delete(pathKey(h.path));
+    }
   }
   return collapsed;
+}
+
+/** Collapse `target` and every descendant so open keys stay a single chain. */
+export function collapseHeadingSubtreeKeys(
+  flat: HeadingNode[],
+  target: HeadingNode,
+  collapsedKeys: Set<string>,
+): Set<string> {
+  const next = new Set(collapsedKeys);
+  for (const h of flat) {
+    if (isPathPrefix(target.path, h.path)) {
+      next.add(pathKey(h.path));
+    }
+  }
+  return next;
 }
 
 /**
@@ -164,14 +182,8 @@ function visibleCollapsedRanges(
 
 function reconcileCollapsed(
   prev: CollapsedHeading[],
-  _roots: HeadingNode[],
   flat: HeadingNode[],
-  isInitial: boolean,
 ): Set<string> {
-  if (isInitial) {
-    return defaultCollapsedKeys(_roots, flat);
-  }
-
   const next = new Set<string>();
   const usedHeadings = new Set<number>();
 
@@ -478,9 +490,11 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
           if (collapsedKeys.has(key)) {
             collapsedKeys = exclusiveExpandKeys(value.flat, heading);
           } else {
-            const next = new Set(collapsedKeys);
-            next.add(key);
-            collapsedKeys = next;
+            collapsedKeys = collapseHeadingSubtreeKeys(
+              value.flat,
+              heading,
+              collapsedKeys,
+            );
           }
         }
       }
@@ -521,12 +535,7 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
         collectCollapsedFromFlat(value.flat, collapsedKeys),
         tr,
       );
-      collapsedKeys = reconcileCollapsed(
-        mapped,
-        remappedRoots,
-        remappedFlat,
-        false,
-      );
+      collapsedKeys = reconcileCollapsed(mapped, remappedFlat);
       return computeField(tr.state, collapsedKeys, remappedRoots, remappedFlat);
     }
 
@@ -536,7 +545,7 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
     );
     const roots = buildHeadingTreeFromDoc(tr.state.doc);
     const flat = flattenHeadingTree(roots);
-    collapsedKeys = reconcileCollapsed(mapped, roots, flat, false);
+    collapsedKeys = reconcileCollapsed(mapped, flat);
     return computeField(tr.state, collapsedKeys, roots, flat);
   },
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
@@ -579,6 +588,11 @@ export function headingFoldExtensions() {
 }
 
 /** Apply default heading folds (first-child chain expanded; others collapsed). */
-export function collapseAllHeadingsEffect() {
+export function applyDefaultHeadingFoldsEffect() {
   return resetHeadingFolds.of(true);
+}
+
+/** @deprecated Prefer applyDefaultHeadingFoldsEffect — name kept for call-site compatibility. */
+export function collapseAllHeadingsEffect() {
+  return applyDefaultHeadingFoldsEffect();
 }

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildHeadingTree, extractHeadings, flattenHeadingTree, pathKey } from "@/editor/headingTree";
+import {
+  buildHeadingTree,
+  extractHeadings,
+  flattenHeadingTree,
+  isPathPrefix,
+  pathKey,
+} from "@/editor/headingTree";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
 import { buildLineAnchorMap } from "@/markdown/buildLineAnchorMap";
 import { detectFormat, serializeContent } from "@/native/fileService";
@@ -30,6 +36,17 @@ describe("headingTree", () => {
     expect(roots[0].children.map((c) => c.text)).toEqual(["Two", "Four"]);
     expect(roots[0].children[0].children[0].text).toBe("Three");
     expect(pathKey(roots[0].children[0].path)).toBe("0.0");
+  });
+
+  it("compares path prefixes by array, not string startsWith", () => {
+    expect(isPathPrefix([0, 1], [0, 1, 0])).toBe(true);
+    expect(isPathPrefix([0, 1], [0, 10])).toBe(false);
+    expect(isPathPrefix([0, 1], [0, 1])).toBe(true);
+    // Would be true with naive "0.1".startsWith on "0.10"
+    expect(pathKey([0, 1])).toBe("0.1");
+    expect(pathKey([0, 10])).toBe("0.10");
+    expect(pathKey([0, 10]).startsWith(pathKey([0, 1]))).toBe(true);
+    expect(isPathPrefix([0, 1], [0, 10])).toBe(false);
   });
 
   it("ignores headings inside fenced code", () => {

@@ -100,6 +100,8 @@ vi.mock("@/app/usePreviewBridge", () => ({
     html: ref(""),
     lineToAnchor: ref(new Map()),
     locate: vi.fn(),
+    syncNow: vi.fn(async () => true),
+    attachPreview: vi.fn(),
     refreshPreview: Object.assign(vi.fn(), { cancel: vi.fn() }),
   }),
 }));

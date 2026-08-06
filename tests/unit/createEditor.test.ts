@@ -3,6 +3,13 @@ import { undo, undoDepth } from "@codemirror/commands";
 import { createEditor, type EditorHandle } from "@/editor/createEditor";
 import { headingFoldField } from "@/editor/headingFoldExtension";
 
+function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
+  const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  return isApple
+    ? { metaKey: true, ctrlKey: false }
+    : { metaKey: false, ctrlKey: true };
+}
+
 describe("createEditor", () => {
   let editor: EditorHandle | null = null;
   let host: HTMLElement | null = null;
@@ -54,7 +61,7 @@ describe("createEditor", () => {
       cancelable: true,
       clientX: 10,
       clientY: 10,
-      metaKey: true,
+      ...locateModifierInit(),
     });
     editor.view.contentDOM.dispatchEvent(event);
     expect(onLocate).toHaveBeenCalledWith(3);

@@ -4,6 +4,13 @@ import { nextTick } from "vue";
 import PreviewPane from "@/preview/PreviewPane.vue";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
 
+function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
+  const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+  return isApple
+    ? { metaKey: true, ctrlKey: false }
+    : { metaKey: false, ctrlKey: true };
+}
+
 describe("PreviewPane locate", () => {
   it("scrolls to anchored block for source line", async () => {
     const source = `# Alpha\n\nPara.\n\n## Beta\n\nTail.\n`;
@@ -43,7 +50,7 @@ describe("PreviewPane locate", () => {
 
     const anchored = wrapper.find("[data-source-line]");
     expect(anchored.exists()).toBe(true);
-    await anchored.trigger("click", { metaKey: true });
+    await anchored.trigger("click", locateModifierInit());
 
     const events = wrapper.emitted("locate-source");
     expect(events).toBeTruthy();

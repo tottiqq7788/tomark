@@ -47,6 +47,7 @@ const fileOpsViaMenu = ref(false);
 const editorPaneRef = ref<{ revealSourceLine: (line: number) => void } | null>(
   null,
 );
+let pendingRevealLine: number | null = null;
 const {
   containerRef,
   dragging,
@@ -67,15 +68,38 @@ const saveStatusLabel = computed(() => {
 });
 
 function setPreviewRef(el: unknown) {
-  preview.previewRef.value = el as typeof preview.previewRef.value;
+  preview.attachPreview(
+    (el as { scrollToSourceLine?: (line: number) => Promise<void> } | null) &&
+      typeof (el as { scrollToSourceLine?: unknown }).scrollToSourceLine ===
+        "function"
+      ? (el as { scrollToSourceLine: (line: number) => Promise<void> })
+      : null,
+  );
 }
 
 function setEditorPaneRef(el: unknown) {
-  editorPaneRef.value = el as typeof editorPaneRef.value;
+  const pane =
+    el &&
+    typeof (el as { revealSourceLine?: unknown }).revealSourceLine === "function"
+      ? (el as { revealSourceLine: (line: number) => void })
+      : null;
+  editorPaneRef.value = pane;
+  if (pane && pendingRevealLine !== null) {
+    const line = pendingRevealLine;
+    pendingRevealLine = null;
+    pane.revealSourceLine(line);
+  }
 }
 
-function onLocateSource(line: number) {
-  editorPaneRef.value?.revealSourceLine(line);
+async function onLocateSource(line: number) {
+  // Flush debounce so reverse locate uses current source↔anchor mapping.
+  await preview.syncNow();
+  if (editorPaneRef.value) {
+    pendingRevealLine = null;
+    editorPaneRef.value.revealSourceLine(line);
+  } else {
+    pendingRevealLine = line;
+  }
 }
 
 function setContainerRef(el: unknown) {

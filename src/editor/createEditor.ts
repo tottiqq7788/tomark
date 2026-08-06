@@ -18,10 +18,11 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import {
-  collapseAllHeadingsEffect,
+  applyDefaultHeadingFoldsEffect,
   headingFoldExtensions,
   revealSourceLineEffect,
 } from "./headingFoldExtension";
+import { isLocateModifier } from "@/shared/locateModifier";
 
 export type LocateHandler = (sourceLine: number) => void;
 
@@ -43,8 +44,23 @@ export interface EditorHandle {
 
 const flashLineEffect = StateEffect.define<number | null>();
 
-function isLocateModifier(event: MouseEvent): boolean {
-  return event.metaKey || event.ctrlKey;
+function mapFlashLine(tr: Transaction, line: number | null): number | null {
+  if (line === null || !tr.docChanged) {
+    return line;
+  }
+  try {
+    if (line < 1 || line > tr.startState.doc.lines) {
+      return null;
+    }
+    const oldPos = tr.startState.doc.line(line).from;
+    const newPos = tr.changes.mapPos(oldPos, 1);
+    if (newPos < 0 || newPos > tr.state.doc.length) {
+      return null;
+    }
+    return tr.state.doc.lineAt(newPos).number;
+  } catch {
+    return null;
+  }
 }
 
 export function createEditor(options: CreateEditorOptions): EditorHandle {
@@ -71,6 +87,14 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
       options.onLocate(line);
       return true;
     },
+    contextmenu(event) {
+      // Defensive: if a platform still fires locate-like chord with menu, suppress menu.
+      if (isLocateModifier(event)) {
+        event.preventDefault();
+        return true;
+      }
+      return false;
+    },
   });
 
   const flashField = StateField.define<{
@@ -79,7 +103,7 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
   }>({
     create: () => ({ line: null, deco: Decoration.none }),
     update(value, tr) {
-      let line = value.line;
+      let line = mapFlashLine(tr, value.line);
       for (const effect of tr.effects) {
         if (effect.is(flashLineEffect)) {
           line = effect.value;
@@ -181,7 +205,7 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     getValue: () => view.state.doc.toString(),
     setDocument: (doc, opts) => {
       const effects =
-        opts?.collapseHeadings === false ? [] : [collapseAllHeadingsEffect()];
+        opts?.collapseHeadings === false ? [] : [applyDefaultHeadingFoldsEffect()];
       view.dispatch({
         changes: {
           from: 0,

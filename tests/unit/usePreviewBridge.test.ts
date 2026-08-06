@@ -12,21 +12,65 @@ describe("usePreviewBridge", () => {
     vi.advanceTimersByTime(200);
     await flushPromises();
 
-    const scrolls: Array<PreviewAnchorLike | undefined> = [];
-    bridge.previewRef.value = {
+    const scrolls: number[] = [];
+    bridge.attachPreview({
       async scrollToSourceLine(line: number) {
-        scrolls.push(bridge.lineToAnchor.value.get(line));
+        scrolls.push(line);
       },
-    };
+    });
 
     content.value = "plain paragraph";
     await bridge.locate(1);
     await nextTick();
 
-    expect(scrolls).toHaveLength(1);
-    expect(scrolls[0]?.blockType).toBe("p");
+    expect(scrolls).toEqual([1]);
+    expect(bridge.lineToAnchor.value.get(1)?.blockType).toBe("p");
+    vi.useRealTimers();
+  });
+
+  it("does not scroll a superseded locate when a newer locate starts", async () => {
+    vi.useFakeTimers();
+    const content = ref(`# A\n\npara A\n\n# B\n\npara B\n`);
+    const bridge = usePreviewBridge(content);
+    await flushPromises();
+    vi.advanceTimersByTime(200);
+    await flushPromises();
+
+    const scrolls: number[] = [];
+    bridge.attachPreview({
+      async scrollToSourceLine(line: number) {
+        scrolls.push(line);
+      },
+    });
+
+    const first = bridge.locate(1);
+    const second = bridge.locate(5);
+    await Promise.all([first, second]);
+    await nextTick();
+
+    expect(scrolls).toEqual([5]);
+    vi.useRealTimers();
+  });
+
+  it("queues locate until preview is attached", async () => {
+    vi.useFakeTimers();
+    const content = ref("hello\n");
+    const bridge = usePreviewBridge(content);
+    await flushPromises();
+    vi.advanceTimersByTime(200);
+    await flushPromises();
+
+    const scrolls: number[] = [];
+    await bridge.locate(1);
+    expect(scrolls).toEqual([]);
+
+    bridge.attachPreview({
+      async scrollToSourceLine(line: number) {
+        scrolls.push(line);
+      },
+    });
+    await flushPromises();
+    expect(scrolls).toEqual([1]);
     vi.useRealTimers();
   });
 });
-
-type PreviewAnchorLike = { blockType: string };

@@ -12,6 +12,7 @@ export function usePreviewBridge(content: Ref<string>) {
   const lineToAnchor = ref<Map<number, PreviewAnchor>>(new Map());
   let renderMarkdownFn: ((source: string) => RenderResult) | null = null;
   let previewVersion = 0;
+  let pendingLocateLine: number | null = null;
 
   async function ensureMarkdown() {
     if (!renderMarkdownFn) {
@@ -21,18 +22,20 @@ export function usePreviewBridge(content: Ref<string>) {
     return renderMarkdownFn;
   }
 
-  async function renderPreview(source: string) {
+  /** @returns false when a newer render superseded this one. */
+  async function renderPreview(source: string): Promise<boolean> {
     const version = ++previewVersion;
     const renderMarkdown = await ensureMarkdown();
     if (version !== previewVersion) {
-      return;
+      return false;
     }
     const result = renderMarkdown(source);
     if (version !== previewVersion) {
-      return;
+      return false;
     }
     html.value = result.html;
     lineToAnchor.value = result.lineToAnchor;
+    return true;
   }
 
   const refreshPreview = debounce((source: string) => {
@@ -51,11 +54,41 @@ export function usePreviewBridge(content: Ref<string>) {
     refreshPreview.cancel();
   });
 
-  async function locate(line: number) {
+  /** Cancel debounce and render current content immediately. */
+  async function syncNow(): Promise<boolean> {
     refreshPreview.cancel();
-    await renderPreview(content.value);
+    return renderPreview(content.value);
+  }
+
+  async function flushPendingLocate() {
+    if (pendingLocateLine === null || !previewRef.value) {
+      return;
+    }
+    const line = pendingLocateLine;
+    pendingLocateLine = null;
+    await previewRef.value.scrollToSourceLine(line);
+  }
+
+  function attachPreview(handle: PreviewHandle | null) {
+    previewRef.value = handle;
+    if (handle) {
+      void flushPendingLocate();
+    }
+  }
+
+  async function locate(line: number) {
+    const ok = await syncNow();
+    // Newer locate/render won the race — do not scroll with stale anchors.
+    if (!ok) {
+      return;
+    }
     await nextTick();
-    await previewRef.value?.scrollToSourceLine(line);
+    if (previewRef.value) {
+      pendingLocateLine = null;
+      await previewRef.value.scrollToSourceLine(line);
+    } else {
+      pendingLocateLine = line;
+    }
   }
 
   return {
@@ -63,6 +96,8 @@ export function usePreviewBridge(content: Ref<string>) {
     html,
     lineToAnchor,
     locate,
+    syncNow,
+    attachPreview,
     renderPreview,
     refreshPreview,
   };

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, ref, watch } from "vue";
 import type { PreviewAnchor } from "@/shared/types";
+import { isLocateModifier } from "@/shared/locateModifier";
 
 const props = defineProps<{
   html: string;
@@ -13,9 +14,13 @@ const emit = defineEmits<{
 
 const container = ref<HTMLElement | null>(null);
 const flashId = ref<string | null>(null);
+let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
-function isLocateModifier(event: MouseEvent): boolean {
-  return event.metaKey || event.ctrlKey;
+function clearFlashTimer() {
+  if (flashTimer) {
+    clearTimeout(flashTimer);
+    flashTimer = null;
+  }
 }
 
 function onPreviewClick(event: MouseEvent) {
@@ -39,6 +44,12 @@ function onPreviewClick(event: MouseEvent) {
   emit("locate-source", line);
 }
 
+function onPreviewContextMenu(event: MouseEvent) {
+  if (isLocateModifier(event)) {
+    event.preventDefault();
+  }
+}
+
 async function scrollToSourceLine(sourceLine: number) {
   const anchor = props.lineToAnchor.get(sourceLine);
   if (!anchor || !container.value) {
@@ -57,7 +68,9 @@ async function scrollToSourceLine(sourceLine: number) {
   el.classList.add("preview-flash");
   el.scrollIntoView({ behavior: "smooth", block: "start" });
   flashId.value = anchor.id;
-  window.setTimeout(() => {
+  clearFlashTimer();
+  flashTimer = setTimeout(() => {
+    flashTimer = null;
     if (flashId.value === anchor.id) {
       el.classList.remove("preview-flash");
       flashId.value = null;
@@ -71,8 +84,13 @@ watch(
   () => props.html,
   () => {
     flashId.value = null;
+    clearFlashTimer();
   },
 );
+
+onBeforeUnmount(() => {
+  clearFlashTimer();
+});
 </script>
 
 <template>
@@ -82,6 +100,7 @@ watch(
       class="preview-content markdown-body"
       v-html="html"
       @click="onPreviewClick"
+      @contextmenu="onPreviewContextMenu"
     />
   </div>
 </template>

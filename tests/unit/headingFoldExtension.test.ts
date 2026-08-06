@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EditorState, Text } from "@codemirror/state";
 import {
   classifyHeadingRebuild,
-  collapseAllHeadingsEffect,
+  applyDefaultHeadingFoldsEffect,
   headingFoldExtensions,
   headingFoldField,
   headingForSourceLine,
@@ -43,7 +43,7 @@ describe("headingFoldExtension", () => {
     });
     state = state.update({ effects: toggleHeadingFold.of(2) }).state;
     state = state.update({ effects: toggleHeadingFold.of(4) }).state;
-    state = state.update({ effects: collapseAllHeadingsEffect() }).state;
+    state = state.update({ effects: applyDefaultHeadingFoldsEffect() }).state;
 
     const fold = state.field(headingFoldField);
     expect(fold.headingLines.get(1)).toBe(false);
@@ -164,6 +164,7 @@ describe("headingFoldExtension", () => {
     const fold = state.field(headingFoldField);
     expect(fold.headingLines.get(1)).toBe(false);
     expect(fold.headingLines.get(2)).toBe(true);
+    expect(fold.headingLines.get(3)).toBe(true);
     expect(fold.headingLines.get(5)).toBe(true);
   });
 
