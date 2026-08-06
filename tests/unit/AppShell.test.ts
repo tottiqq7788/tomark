@@ -54,7 +54,9 @@ vi.mock("@/app/useDocumentSession", () => ({
     fileName: ref("未命名.md"),
     content: ref("# sample"),
     dirty: computed(() => dirty.value),
-    saveStatus: computed(() => (dirty.value ? "pending" : "saved")),
+    saveStatus: computed(() =>
+      dirty.value ? "unsaved" : "saved",
+    ),
     title: computed(() =>
       dirty.value ? "tomark — 未命名.md *" : "tomark — 未命名.md",
     ),

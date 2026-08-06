@@ -75,6 +75,23 @@ function collectCollapsedFromFlat(
     }));
 }
 
+/**
+ * Default open-document folds: collapse all headings, then expand the first-child
+ * chain from the first root until a heading with no children (so its body is visible).
+ */
+export function defaultCollapsedKeys(
+  roots: HeadingNode[],
+  flat: HeadingNode[],
+): Set<string> {
+  const collapsed = new Set(flat.map((h) => pathKey(h.path)));
+  let node: HeadingNode | undefined = roots[0];
+  while (node) {
+    collapsed.delete(pathKey(node.path));
+    node = node.children[0];
+  }
+  return collapsed;
+}
+
 function visibleCollapsedRanges(
   roots: HeadingNode[],
   collapsedKeys: Set<string>,
@@ -111,7 +128,7 @@ function reconcileCollapsed(
   isInitial: boolean,
 ): Set<string> {
   if (isInitial) {
-    return new Set(flat.map((h) => pathKey(h.path)));
+    return defaultCollapsedKeys(_roots, flat);
   }
 
   const next = new Set<string>();
@@ -401,7 +418,7 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
   create(state) {
     const roots = buildHeadingTreeFromDoc(state.doc);
     const flat = flattenHeadingTree(roots);
-    const collapsedKeys = new Set(flat.map((h) => pathKey(h.path)));
+    const collapsedKeys = defaultCollapsedKeys(roots, flat);
     return computeField(state, collapsedKeys, roots, flat);
   },
   update(value, tr) {
@@ -431,7 +448,7 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
     if (forceInitial) {
       const roots = buildHeadingTreeFromDoc(tr.state.doc);
       const flat = flattenHeadingTree(roots);
-      collapsedKeys = new Set(flat.map((h) => pathKey(h.path)));
+      collapsedKeys = defaultCollapsedKeys(roots, flat);
       return computeField(tr.state, collapsedKeys, roots, flat);
     }
 
@@ -514,6 +531,7 @@ export function headingFoldExtensions() {
   return [headingFoldField, foldGutterMarker];
 }
 
+/** Apply default heading folds (first-child chain expanded; others collapsed). */
 export function collapseAllHeadingsEffect() {
   return resetHeadingFolds.of(true);
 }

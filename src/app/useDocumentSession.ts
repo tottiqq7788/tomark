@@ -11,7 +11,7 @@ const SAMPLE = `# tomark
 
 1. 在左侧改写任意段落，右侧大约 200ms 内刷新预览
 2. 点击行首 **◎**，预览会滚动到对应渲染位置
-3. 打开文档时标题默认折叠，点标题旁三角可逐层展开
+3. 打开文档时沿第一条标题链展开到正文，其余标题折叠；点标题旁三角可逐层展开/折叠
 4. 拖动中间分隔条，可调整源码区与预览区宽度
 
 ### 编辑与保存
@@ -31,7 +31,7 @@ const SAMPLE = `# tomark
 
 ## 标题层级与折叠
 
-下面多层标题用来测试默认折叠、展开与定位。
+下面多层标题用来测试默认首链展开、折叠与定位。
 
 ### 二级下的三级 A
 
@@ -112,7 +112,7 @@ npm run tauri:dev
 
 这一段故意写得稍长，方便测试预览滚动、定位按钮和分隔条拖动后的布局。
 
-第一段：打开一份稍长的文档时，默认折叠可以把大纲收成紧凑结构；你只需展开当前关心的章节。编辑时不要反复强制整篇折叠，否则用户手动展开的节点会被冲掉。
+第一段：打开一份稍长的文档时，默认会沿第一条标题链展开到正文，其余章节保持折叠，大纲仍然紧凑；你只需再展开当前关心的分支。编辑时不要反复强制整篇折叠，否则用户手动展开的节点会被冲掉。
 
 第二段：自动保存采用「停止编辑后再写盘」的策略，连续敲字过程中不会每次按键都触发磁盘写入。已有路径的文件在空闲约两秒后落盘；未命名文件保持黄色状态，直到另存为成功。
 
@@ -158,15 +158,26 @@ export function useDocumentSession() {
   let dirtyGuardPromise: Promise<boolean> | null = null;
   let disposed = false;
   let autosaveFailureCount = 0;
+  const autosavePaused = ref(false);
 
   const dirty = computed(() => content.value !== savedContent.value);
   const title = computed(
     () => `tomark — ${fileName.value}${dirty.value ? " *" : ""}`,
   );
-  /** Toolbar indicator: pending while dirty/saving, saved when synced to disk (or pristine untitled). */
-  const saveStatus = computed<"pending" | "saved">(() =>
-    dirty.value || saving.value ? "pending" : "saved",
-  );
+  /** Toolbar: pending=autosaving, unsaved=not syncing (untitled or paused), saved=synced. */
+  const saveStatus = computed<"pending" | "unsaved" | "saved">(() => {
+    if (saving.value) {
+      return "pending";
+    }
+    if (!dirty.value) {
+      return "saved";
+    }
+    // Untitled or autosave paused — don't leave a perpetual spinner.
+    if (!path.value || autosavePaused.value) {
+      return "unsaved";
+    }
+    return "pending";
+  });
 
   function bumpVersion() {
     documentVersion.value += 1;
@@ -174,6 +185,7 @@ export function useDocumentSession() {
 
   function resetAutosaveFailures() {
     autosaveFailureCount = 0;
+    autosavePaused.value = false;
   }
 
   function resumeAutosaveIfNeeded() {
@@ -299,6 +311,7 @@ export function useDocumentSession() {
       } else if (path.value) {
         autosaveFailureCount += 1;
         if (autosaveFailureCount >= 3) {
+          autosavePaused.value = true;
           statusMessage.value =
             "自动保存连续失败，已暂停；请检查文件权限后手动保存或继续编辑";
           return;

@@ -247,6 +247,7 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile.mock.calls.length).toBeLessThanOrEqual(3);
     expect(nativeMocks.showError).toHaveBeenCalledTimes(1);
     expect(session.statusMessage.value).toContain("已暂停");
+    expect(session.saveStatus.value).toBe("unsaved");
     session.dispose();
     vi.useRealTimers();
   });
@@ -255,13 +256,15 @@ describe("useDocumentSession", () => {
     vi.useFakeTimers();
     const session = useDocumentSession();
     session.setContent("untitled edits");
-    expect(session.saveStatus.value).toBe("pending");
+    expect(session.saveStatus.value).toBe("unsaved");
 
     await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS + 500);
     expect(nativeMocks.saveMarkdownFile).not.toHaveBeenCalled();
     expect(nativeMocks.saveMarkdownFileAs).not.toHaveBeenCalled();
     expect(session.dirty.value).toBe(true);
+    expect(session.saveStatus.value).toBe("unsaved");
     session.dispose();
     vi.useRealTimers();
   });
 });
+

@@ -72,4 +72,15 @@ onBeforeUnmount(() => {
   height: 100%;
   outline: none;
 }
+
+.editor-host :deep(.cm-scroller) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.editor-host :deep(.cm-scroller::-webkit-scrollbar) {
+  display: none;
+  width: 0;
+  height: 0;
+}
 </style>

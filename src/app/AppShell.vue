@@ -52,9 +52,16 @@ const {
   nudgeRatio,
 } = usePaneSplit();
 
-const saveStatusLabel = computed(() =>
-  saveStatus.value === "pending" ? "等待保存" : "已保存",
-);
+const saveStatusLabel = computed(() => {
+  switch (saveStatus.value) {
+    case "pending":
+      return "正在保存…";
+    case "unsaved":
+      return "未保存到文件";
+    default:
+      return "已保存";
+  }
+});
 
 function setPreviewRef(el: unknown) {
   preview.previewRef.value = el as typeof preview.previewRef.value;
@@ -230,7 +237,7 @@ useAppShortcuts({
           />
         </svg>
         <svg
-          v-else
+          v-else-if="saveStatus === 'pending'"
           class="save-icon save-icon-pending"
           viewBox="0 0 16 16"
           aria-hidden="true"
@@ -245,6 +252,15 @@ useAppShortcuts({
             stroke-linecap="round"
             stroke-dasharray="28 12"
           />
+        </svg>
+        <svg
+          v-else
+          class="save-icon save-icon-unsaved"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+        >
+          <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.2" />
+          <circle cx="8" cy="8" r="3.2" fill="currentColor" />
         </svg>
       </div>
     </header>
@@ -358,6 +374,10 @@ useAppShortcuts({
 .save-icon-pending {
   color: #eab308;
   animation: save-spin 0.9s linear infinite;
+}
+
+.save-icon-unsaved {
+  color: #eab308;
 }
 
 @keyframes save-spin {

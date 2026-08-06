@@ -62,6 +62,14 @@ watch(
   min-height: 0;
   overflow: auto;
   background: #fff;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.preview-pane::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .preview-content {
