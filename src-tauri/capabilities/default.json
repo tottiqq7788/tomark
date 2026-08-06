@@ -1,0 +1,32 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for tomark",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**/*" }]
+    },
+    {
+      "identifier": "dialog:allow-open"
+    },
+    {
+      "identifier": "dialog:allow-save"
+    },
+    {
+      "identifier": "dialog:allow-ask"
+    },
+    {
+      "identifier": "dialog:allow-message"
+    }
+  ]
+}

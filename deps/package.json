@@ -1,0 +1,46 @@
+{
+  "name": "tomark",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config ../src/vite.config.mts",
+    "build": "vue-tsc --noEmit -p ../src/tsconfig.json && vite build --config ../src/vite.config.mts",
+    "preview": "vite preview --config ../src/vite.config.mts",
+    "test": "cd .. && deps/node_modules/.bin/vitest run --config deps/vitest.config.ts",
+    "test:watch": "cd .. && deps/node_modules/.bin/vitest --config deps/vitest.config.ts",
+    "tauri": "cd .. && deps/node_modules/.bin/tauri --config src-tauri/tauri.conf.json",
+    "tauri:dev": "cd .. && deps/node_modules/.bin/tauri dev --config src-tauri/tauri.conf.json",
+    "tauri:build": "cd .. && deps/node_modules/.bin/tauri build --config src-tauri/tauri.conf.json"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/lang-markdown": "^6.5.2",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.8",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.2",
+    "@tauri-apps/plugin-fs": "^2.5.1",
+    "rehype-sanitize": "^6.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/hast": "^3.0.5",
+    "@types/node": "^22.15.30",
+    "@types/unist": "^3.0.3",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/test-utils": "^2.4.11",
+    "jsdom": "^30.0.1",
+    "typescript": "~5.9.3",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.9"
+  }
+}

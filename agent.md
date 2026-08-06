@@ -25,14 +25,25 @@
 
 | 路径 | 职责 |
 |------|------|
-| `src/` | Vue UI、布局、CodeMirror、Markdown 管线、预览与联动 |
-| `src-tauri/` | Tauri/Rust 窗口、文件 IO、系统能力 |
+| `src/` | Vue UI、布局、CodeMirror、Markdown 管线、预览与联动；前端入口与可内收配置（`index.html`、`vite.config.mts`、`tsconfig.json`）也放这里 |
+| `src-tauri/` | Tauri/Rust 窗口、文件 IO、系统能力（Rust/Tauri 源码只放这里） |
 | `tests/` | 单元、集成、端到端测试与 fixtures |
-| `plan/prd/` | 产品需求、PRD、规格说明 |
+| `deps/` | 依赖目录：`package.json`、`package-lock.json`、真实 `node_modules/`、`vitest.config.ts`、前端构建产物 `dist/`、Vite 缓存 `.vite-cache/`。根目录禁止出现 `package.json` / `node_modules`（含 Vite 缓存冒充的空 `node_modules`）。`src/node_modules`、`tests/node_modules` 若存在，仅为指向 `deps/node_modules` 的符号链接（供解析），勿在其下再装依赖。 |
+| `plan/prd/` | 产品需求、PRD、规格说明（开发后归档；先开发再归档） |
 | `plan/misc/` | 调研、纪要、原型备注等产品相关产出 |
 | `.ai/` | 本地 Agent 任务与远程仓库元信息；**不要挪动或清空** |
 
-建议在 `src/` 内按模块拆分（实现阶段再落盘），例如：`app/`、`editor/`、`markdown/`、`preview/`、`native/`、`shared/`。
+开发相关顶层文件夹当前为：`src/`、`src-tauri/`、`tests/`、`deps/`（合计应保持在 **2–5 个**；`plan/`、`.ai/`、`.git/` 不计入）。
+
+建议在 `src/` 内按模块拆分，例如：`app/`、`editor/`、`markdown/`、`preview/`、`native/`、`shared/`。
+
+## 开发落盘规则（强制）
+
+- **禁止**在仓库根目录直接新增/堆砌开发源码文件（组件、页面、业务脚本、样式、Rust 源文件、测试用例等）。
+- 所有开发产出必须放入初始化后的开发目录（如 `src/`、`src-tauri/`、`tests/`、`deps/`）及其子目录。
+- 根目录只保留：文档与约定（`agent.md`、`readme.md`）、`plan/`、`.ai/`、`.git/`；npm 依赖入口放在 `deps/`。根目录**禁止**出现 `package.json` / `package-lock.json` / `node_modules`（含符号链接）。
+- 若现有开发目录不够用、需要新增顶层文件夹（例如 `docs-site/`、`scripts/`）：**先询问用户是否可以增加「XXX」文件夹**，征得同意后再建；不得擅自扩顶层。
+- 顶层开发相关文件夹总数保持 **2–5 个**；不要为了分类把根目录拆成一排空壳目录。
 
 ## 禁止事项
 
@@ -41,10 +52,12 @@
 - 不要改动、删除或重命名 `.git/`；不要无故清空 `.ai/` 已有内容。
 - 初始化 / 规划类任务不要顺手大面积生成业务代码或强制安装依赖、构建发布。
 - 不要用其他目录名替代强制的 `plan/prd` 与 `plan/misc`。
+- 不要把根目录当成源码垃圾桶；实现一律进模块目录。
 
 ## 常用任务入口
 
-- 开发类：`.ai/tasks/devTasks/`
+- 开发类：`.ai/tasks/devTasks/`（如「初始化开发目录」「新功能开发规划」）
+- 规划归档：`.ai/tasks/planTasks/`（如「prd归档」——先开发后归档）
 - 工程类（提交、推送、远程信息等）：`.ai/tasks/projectTasks/`
 
 执行任务时以对应 `.md` 步骤为准；需求清晰时可按任务说明直接落盘，勿反复空确认。
