@@ -1,10 +1,13 @@
 import {
   EditorState,
   Compartment,
+  StateEffect,
+  StateField,
   Transaction,
   type Extension,
 } from "@codemirror/state";
 import {
+  Decoration,
   EditorView,
   keymap,
   highlightActiveLine,
@@ -17,8 +20,10 @@ import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language"
 import {
   collapseAllHeadingsEffect,
   headingFoldExtensions,
+  revealSourceLineEffect,
 } from "./headingFoldExtension";
-import { locateGutter, type LocateHandler } from "./locateGutter";
+
+export type LocateHandler = (sourceLine: number) => void;
 
 export interface CreateEditorOptions {
   parent: HTMLElement;
@@ -31,17 +36,67 @@ export interface CreateEditorOptions {
 export interface EditorHandle {
   view: EditorView;
   setDocument: (doc: string, options?: { collapseHeadings?: boolean }) => void;
+  revealSourceLine: (line: number) => void;
   getValue: () => string;
   destroy: () => void;
 }
 
+const flashLineEffect = StateEffect.define<number | null>();
+
+function isLocateModifier(event: MouseEvent): boolean {
+  return event.metaKey || event.ctrlKey;
+}
+
 export function createEditor(options: CreateEditorOptions): EditorHandle {
   const readOnly = new Compartment();
+  let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
   const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged) {
       options.onChange(update.state.doc.toString());
     }
+  });
+
+  const locateClick = EditorView.domEventHandlers({
+    click(event, view) {
+      if (!isLocateModifier(event)) {
+        return false;
+      }
+      const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+      if (pos == null) {
+        return false;
+      }
+      event.preventDefault();
+      const line = view.state.doc.lineAt(pos).number;
+      options.onLocate(line);
+      return true;
+    },
+  });
+
+  const flashField = StateField.define<{
+    line: number | null;
+    deco: ReturnType<typeof Decoration.set>;
+  }>({
+    create: () => ({ line: null, deco: Decoration.none }),
+    update(value, tr) {
+      let line = value.line;
+      for (const effect of tr.effects) {
+        if (effect.is(flashLineEffect)) {
+          line = effect.value;
+        }
+      }
+      if (line === null || line < 1 || line > tr.state.doc.lines) {
+        return { line: null, deco: Decoration.none };
+      }
+      const lineObj = tr.state.doc.line(line);
+      return {
+        line,
+        deco: Decoration.set([
+          Decoration.line({ class: "cm-locate-flash" }).range(lineObj.from),
+        ]),
+      };
+    },
+    provide: (f) => EditorView.decorations.from(f, (v) => v.deco),
   });
 
   const theme = EditorView.theme({
@@ -80,6 +135,9 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     ".cm-activeLineGutter": {
       backgroundColor: "#eef2ff",
     },
+    ".cm-locate-flash": {
+      backgroundColor: "#dbeafe",
+    },
   });
 
   const startState = EditorState.create({
@@ -87,7 +145,6 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     extensions: [
       lineNumbers(),
       ...headingFoldExtensions(),
-      ...locateGutter(options.onLocate),
       drawSelection(),
       highlightActiveLine(),
       history(),
@@ -95,6 +152,8 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
       syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
       keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       EditorView.lineWrapping,
+      locateClick,
+      flashField,
       updateListener,
       theme,
       readOnly.of([]),
@@ -106,6 +165,16 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     state: startState,
     parent: options.parent,
   });
+
+  function clearFlashSoon() {
+    if (flashTimer) {
+      clearTimeout(flashTimer);
+    }
+    flashTimer = setTimeout(() => {
+      flashTimer = null;
+      view.dispatch({ effects: flashLineEffect.of(null) });
+    }, 1200);
+  }
 
   return {
     view,
@@ -123,6 +192,27 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         annotations: Transaction.addToHistory.of(false),
       });
     },
-    destroy: () => view.destroy(),
+    revealSourceLine: (line) => {
+      if (line < 1 || line > view.state.doc.lines) {
+        return;
+      }
+      const lineObj = view.state.doc.line(line);
+      view.dispatch({
+        effects: [
+          revealSourceLineEffect.of(line),
+          flashLineEffect.of(line),
+          EditorView.scrollIntoView(lineObj.from, { y: "start", yMargin: 24 }),
+        ],
+      });
+      clearFlashSoon();
+      view.focus();
+    },
+    destroy: () => {
+      if (flashTimer) {
+        clearTimeout(flashTimer);
+        flashTimer = null;
+      }
+      view.destroy();
+    },
   };
 }

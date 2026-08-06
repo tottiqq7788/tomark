@@ -5,6 +5,8 @@ import {
   collapseAllHeadingsEffect,
   headingFoldExtensions,
   headingFoldField,
+  headingForSourceLine,
+  revealSourceLineEffect,
   toggleHeadingFold,
 } from "@/editor/headingFoldExtension";
 import * as headingTree from "@/editor/headingTree";
@@ -16,7 +18,6 @@ describe("headingFoldExtension", () => {
       extensions: headingFoldExtensions(),
     });
     const fold = state.field(headingFoldField);
-    // A / A1 / A1a expanded; A2 and B collapsed
     expect(fold.headingLines.get(1)).toBe(false);
     expect(fold.headingLines.get(2)).toBe(false);
     expect(fold.headingLines.get(3)).toBe(false);
@@ -40,7 +41,6 @@ describe("headingFoldExtension", () => {
       doc: "# A\n## A1\nbody\n## A2\nx\n# B\ny\n",
       extensions: headingFoldExtensions(),
     });
-    // Collapse the open chain leaf, expand a sibling — then reset.
     state = state.update({ effects: toggleHeadingFold.of(2) }).state;
     state = state.update({ effects: toggleHeadingFold.of(4) }).state;
     state = state.update({ effects: collapseAllHeadingsEffect() }).state;
@@ -58,7 +58,6 @@ describe("headingFoldExtension", () => {
       extensions: headingFoldExtensions(),
     });
 
-    // Default: Root + A expanded, B collapsed. Collapse A, then insert sibling.
     state = state.update({ effects: toggleHeadingFold.of(2) }).state;
     state = state.update({
       changes: {
@@ -125,7 +124,6 @@ describe("headingFoldExtension", () => {
       doc: "# 1\n## 1.2\n### 1.2.2\nbody\n### 1.2.3\nx\n# 2\ny\n",
       extensions: headingFoldExtensions(),
     });
-    // Default: 1 / 1.2 / 1.2.2 open. Expand 1.2.3 → 1.2.2 closes.
     state = state.update({ effects: toggleHeadingFold.of(5) }).state;
     let fold = state.field(headingFoldField);
     expect(fold.headingLines.get(1)).toBe(false);
@@ -134,7 +132,6 @@ describe("headingFoldExtension", () => {
     expect(fold.headingLines.get(5)).toBe(false);
     expect(fold.headingLines.get(7)).toBe(true);
 
-    // Expand root 2 → previous chain closes.
     state = state.update({ effects: toggleHeadingFold.of(7) }).state;
     fold = state.field(headingFoldField);
     expect(fold.headingLines.get(1)).toBe(true);
@@ -149,7 +146,6 @@ describe("headingFoldExtension", () => {
       doc: "# A\n## A1\n### A1a\nbody\n## A2\nx\n",
       extensions: headingFoldExtensions(),
     });
-    // Open A2 exclusively, then open A1 — A1a must stay collapsed.
     state = state.update({ effects: toggleHeadingFold.of(5) }).state;
     state = state.update({ effects: toggleHeadingFold.of(2) }).state;
     const fold = state.field(headingFoldField);
@@ -164,11 +160,31 @@ describe("headingFoldExtension", () => {
       doc: "# A\n## A1\n### A1a\nbody\n## A2\nx\n",
       extensions: headingFoldExtensions(),
     });
-    // Default A / A1 / A1a open. Collapse A1 only.
     state = state.update({ effects: toggleHeadingFold.of(2) }).state;
     const fold = state.field(headingFoldField);
     expect(fold.headingLines.get(1)).toBe(false);
     expect(fold.headingLines.get(2)).toBe(true);
     expect(fold.headingLines.get(5)).toBe(true);
+  });
+
+  it("reveals a nested body line by exclusive-expanding its deepest heading", () => {
+    let state = EditorState.create({
+      doc: "# A\n## A1\n### A1a\nhidden body\n## A2\nx\n# B\ny\n",
+      extensions: headingFoldExtensions(),
+    });
+    state = state.update({ effects: toggleHeadingFold.of(7) }).state;
+    expect(state.field(headingFoldField).headingLines.get(1)).toBe(true);
+
+    const flat = state.field(headingFoldField).flat;
+    const target = headingForSourceLine(flat, 4);
+    expect(target?.text).toBe("A1a");
+
+    state = state.update({ effects: revealSourceLineEffect.of(4) }).state;
+    const fold = state.field(headingFoldField);
+    expect(fold.headingLines.get(1)).toBe(false);
+    expect(fold.headingLines.get(2)).toBe(false);
+    expect(fold.headingLines.get(3)).toBe(false);
+    expect(fold.headingLines.get(5)).toBe(true);
+    expect(fold.headingLines.get(7)).toBe(true);
   });
 });

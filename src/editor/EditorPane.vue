@@ -49,6 +49,12 @@ onBeforeUnmount(() => {
   editor?.destroy();
   editor = null;
 });
+
+function revealSourceLine(line: number) {
+  editor?.revealSourceLine(line);
+}
+
+defineExpose({ revealSourceLine });
 </script>
 
 <template>

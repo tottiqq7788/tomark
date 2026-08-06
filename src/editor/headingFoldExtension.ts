@@ -31,6 +31,8 @@ export interface CollapsedHeading {
 
 export const resetHeadingFolds = StateEffect.define<boolean>();
 export const toggleHeadingFold = StateEffect.define<number>();
+/** Expand the exclusive path so the given 1-based source line becomes visible. */
+export const revealSourceLineEffect = StateEffect.define<number>();
 
 class FoldMarker extends GutterMarker {
   constructor(readonly collapsed: boolean) {
@@ -104,6 +106,31 @@ export function exclusiveExpandKeys(
     collapsed.delete(pathKey(target.path.slice(0, depth)));
   }
   return collapsed;
+}
+
+/**
+ * Heading to exclusive-expand so `line` is visible: title line of a heading, else deepest
+ * section body that contains the line.
+ */
+export function headingForSourceLine(
+  flat: HeadingNode[],
+  line: number,
+): HeadingNode | null {
+  const asHeading = flat.find(
+    (h) => h.line === line || h.headingEndLine === line,
+  );
+  if (asHeading) {
+    return asHeading;
+  }
+  let best: HeadingNode | null = null;
+  for (const h of flat) {
+    if (h.bodyStart <= line && line < h.bodyEndExclusive) {
+      if (!best || h.path.length > best.path.length) {
+        best = h;
+      }
+    }
+  }
+  return best;
 }
 
 function visibleCollapsedRanges(
@@ -455,6 +482,12 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
             next.add(key);
             collapsedKeys = next;
           }
+        }
+      }
+      if (effect.is(revealSourceLineEffect)) {
+        const heading = headingForSourceLine(value.flat, effect.value);
+        if (heading) {
+          collapsedKeys = exclusiveExpandKeys(value.flat, heading);
         }
       }
     }

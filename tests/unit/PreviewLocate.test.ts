@@ -31,4 +31,37 @@ describe("PreviewPane locate", () => {
     expect(calls[0].id).toBeTruthy();
     wrapper.unmount();
   });
+
+  it("emits locate-source on Cmd/Ctrl+click of an anchored block", async () => {
+    const source = `# Alpha\n\nPara.\n\n## Beta\n\nTail.\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    const anchored = wrapper.find("[data-source-line]");
+    expect(anchored.exists()).toBe(true);
+    await anchored.trigger("click", { metaKey: true });
+
+    const events = wrapper.emitted("locate-source");
+    expect(events).toBeTruthy();
+    expect(events?.[0]?.[0]).toBe(Number(anchored.attributes("data-source-line")));
+    wrapper.unmount();
+  });
+
+  it("does not emit locate-source without a modifier key", async () => {
+    const source = `# Alpha\n\nPara.\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    await wrapper.find("[data-source-line]").trigger("click");
+    expect(wrapper.emitted("locate-source")).toBeUndefined();
+    wrapper.unmount();
+  });
 });

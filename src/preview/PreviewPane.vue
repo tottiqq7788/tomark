@@ -7,8 +7,37 @@ const props = defineProps<{
   lineToAnchor: Map<number, PreviewAnchor>;
 }>();
 
+const emit = defineEmits<{
+  "locate-source": [sourceLine: number];
+}>();
+
 const container = ref<HTMLElement | null>(null);
 const flashId = ref<string | null>(null);
+
+function isLocateModifier(event: MouseEvent): boolean {
+  return event.metaKey || event.ctrlKey;
+}
+
+function onPreviewClick(event: MouseEvent) {
+  if (!isLocateModifier(event)) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  const anchored = target.closest("[data-source-line]");
+  if (!(anchored instanceof HTMLElement)) {
+    return;
+  }
+  const raw = anchored.getAttribute("data-source-line");
+  const line = raw ? Number.parseInt(raw, 10) : Number.NaN;
+  if (!Number.isFinite(line) || line < 1) {
+    return;
+  }
+  event.preventDefault();
+  emit("locate-source", line);
+}
 
 async function scrollToSourceLine(sourceLine: number) {
   const anchor = props.lineToAnchor.get(sourceLine);
@@ -52,6 +81,7 @@ watch(
       ref="container"
       class="preview-content markdown-body"
       v-html="html"
+      @click="onPreviewClick"
     />
   </div>
 </template>

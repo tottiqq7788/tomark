@@ -7,7 +7,7 @@
 - 轻量级跨平台 Markdown **桌面**编辑器（非所见即所得）。
 - 布局：左侧约 1/3 显示 Markdown 源码，右侧约 2/3 显示渲染预览。
 - 源码区按标题（heading）范围可折叠，**打开文档时沿第一条标题链展开到正文，其余标题默认折叠**；手动展开某一标题时互斥，只保留该标题及其祖先展开；编辑过程中不要反复强制自动折叠，应保留用户已展开/折叠状态并尽量映射到新位置。
-- 源码每一可见行左侧提供定位按钮（gutter icon）；点击后右侧预览滚动到对应渲染块。空行定位到最近的可渲染块，不要用标题文本或像素高度猜测位置。
+- 按住 **Cmd**（Windows / Linux 为 **Ctrl**）点击源码行，右侧预览滚动到对应渲染块；同样修饰键点击预览块时，左侧展开并滚到对应源码行。空行定位到最近的可渲染块，不要用标题文本或像素高度猜测位置。
 
 ## 技术栈约定
 
@@ -15,7 +15,7 @@
 |------|------|
 | 桌面壳 | Tauri 2 + Rust |
 | 前端 | Vue 3 + TypeScript + Vite |
-| 编辑器 | CodeMirror 6（自定义标题折叠 + 行级 gutter） |
+| 编辑器 | CodeMirror 6（自定义标题折叠 + Cmd/Ctrl 双向定位） |
 | Markdown | unified / remark（含 GFM）+ rehype-sanitize；保留 AST 源码行信息，建立 `sourceLine → previewNode` 索引 |
 | 测试 | Vitest + Vue Test Utils；gutter / 滚动 / 跨平台文件操作用 Playwright 或 Tauri 冒烟预留 |
 

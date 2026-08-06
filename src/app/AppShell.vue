@@ -44,6 +44,9 @@ const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
 const previewLineToAnchor = preview.lineToAnchor;
 const fileOpsViaMenu = ref(false);
+const editorPaneRef = ref<{ revealSourceLine: (line: number) => void } | null>(
+  null,
+);
 const {
   containerRef,
   dragging,
@@ -65,6 +68,14 @@ const saveStatusLabel = computed(() => {
 
 function setPreviewRef(el: unknown) {
   preview.previewRef.value = el as typeof preview.previewRef.value;
+}
+
+function setEditorPaneRef(el: unknown) {
+  editorPaneRef.value = el as typeof editorPaneRef.value;
+}
+
+function onLocateSource(line: number) {
+  editorPaneRef.value?.revealSourceLine(line);
 }
 
 function setContainerRef(el: unknown) {
@@ -274,6 +285,7 @@ useAppShortcuts({
       <section class="pane pane-editor" aria-label="源码">
         <Suspense>
           <EditorPane
+            :ref="setEditorPaneRef"
             :model-value="content"
             :document-version="documentVersion"
             @update:model-value="setContent"
@@ -299,6 +311,7 @@ useAppShortcuts({
             :ref="setPreviewRef"
             :html="previewHtml"
             :line-to-anchor="previewLineToAnchor"
+            @locate-source="onLocateSource"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>
