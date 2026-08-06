@@ -9,15 +9,22 @@ import {
 } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
+import HelpDrawer from "@/app/HelpDrawer.vue";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
 import { usePaneSplit } from "./usePaneSplit";
+import { useViewMode } from "./useViewMode";
+import {
+  computeDocumentStats,
+  formatDocumentStats,
+} from "@/shared/documentStats";
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
 
 const {
+  path,
   fileName,
   content,
   dirty,
@@ -51,10 +58,30 @@ let pendingRevealLine: number | null = null;
 const {
   containerRef,
   dragging,
-  gridTemplateColumns,
+  gridTemplateColumns: splitGridTemplateColumns,
   startDragging,
   nudgeRatio,
 } = usePaneSplit();
+
+const {
+  mode: viewMode,
+  label: viewModeLabel,
+  isSourceVisible,
+  isPreviewVisible,
+  showSplitter,
+  cycle: cycleViewMode,
+} = useViewMode();
+
+const panesGridTemplateColumns = computed(() => {
+  if (!showSplitter.value) {
+    return "minmax(0, 1fr)";
+  }
+  return splitGridTemplateColumns.value;
+});
+
+const viewModeHint = computed(
+  () => `当前：${viewModeLabel.value}（点击切换）`,
+);
 
 const saveStatusLabel = computed(() => {
   switch (saveStatus.value) {
@@ -66,6 +93,48 @@ const saveStatusLabel = computed(() => {
       return "已保存";
   }
 });
+
+const documentStats = computed(() => computeDocumentStats(content.value));
+const documentStatsLabel = computed(() => formatDocumentStats(documentStats.value));
+const helpOpen = ref(false);
+const showFullPath = ref(false);
+
+const toolbarLabel = computed(() => {
+  const dirtyMark = dirty.value ? " *" : "";
+  if (showFullPath.value && path.value) {
+    return `${path.value}${dirtyMark}`;
+  }
+  return `${fileName.value}${dirtyMark}`;
+});
+
+const toolbarTitleHint = computed(() => {
+  if (!path.value) {
+    return "尚未保存到文件，暂无完整路径";
+  }
+  return showFullPath.value
+    ? "点击显示文件名"
+    : "点击显示完整路径";
+});
+
+function toggleToolbarPath() {
+  if (!path.value) {
+    statusMessage.value = "尚未保存到文件，暂无完整路径";
+    showFullPath.value = false;
+    return;
+  }
+  showFullPath.value = !showFullPath.value;
+}
+
+watch(path, () => {
+  showFullPath.value = false;
+});
+
+watch(
+  () => documentVersion.value,
+  () => {
+    showFullPath.value = false;
+  },
+);
 
 function setPreviewRef(el: unknown) {
   preview.attachPreview(
@@ -92,6 +161,10 @@ function setEditorPaneRef(el: unknown) {
 }
 
 async function onLocateSource(line: number) {
+  if (!isSourceVisible.value) {
+    statusMessage.value = "当前为渲染视图，请切换到源码或双栏后再定位";
+    return;
+  }
   pendingRevealLine = null;
   const wasCurrent = preview.isCurrent();
   // Flush debounce so reverse locate uses current source↔anchor mapping.
@@ -108,6 +181,27 @@ async function onLocateSource(line: number) {
     editorPaneRef.value.revealSourceLine(line);
   } else {
     pendingRevealLine = line;
+  }
+}
+
+function onLocatePreview(line: number) {
+  if (!isPreviewVisible.value) {
+    statusMessage.value = "当前为源码视图，请切换到渲染或双栏后再定位";
+    return;
+  }
+  void preview.locate(line);
+}
+
+function onSplitterKeydown(event: KeyboardEvent) {
+  if (!showSplitter.value) {
+    return;
+  }
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    nudgeRatio(-0.02);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    nudgeRatio(0.02);
   }
 }
 
@@ -129,16 +223,6 @@ async function onOpenLink(url: string) {
 
 function setContainerRef(el: unknown) {
   containerRef.value = el instanceof HTMLElement ? el : null;
-}
-
-function onSplitterKeydown(event: KeyboardEvent) {
-  if (event.key === "ArrowLeft") {
-    event.preventDefault();
-    nudgeRatio(-0.02);
-  } else if (event.key === "ArrowRight") {
-    event.preventDefault();
-    nudgeRatio(0.02);
-  }
 }
 
 watch(
@@ -313,7 +397,16 @@ useAppShortcuts({
 <template>
   <div class="app-shell">
     <header class="toolbar">
-      <div class="toolbar-title">{{ title }}</div>
+      <button
+        type="button"
+        class="toolbar-title"
+        :class="{ 'is-path': showFullPath && path }"
+        :title="toolbarTitleHint"
+        :aria-label="toolbarTitleHint"
+        @click="toggleToolbarPath"
+      >
+        {{ toolbarLabel }}
+      </button>
       <div
         class="toolbar-save-status"
         :data-status="saveStatus"
@@ -369,17 +462,26 @@ useAppShortcuts({
     <main
       :ref="setContainerRef"
       class="panes"
-      :class="{ dragging }"
-      :style="{ gridTemplateColumns }"
+      :class="{
+        dragging: dragging && showSplitter,
+        'mode-source': viewMode === 'source',
+        'mode-preview': viewMode === 'preview',
+        'mode-split': viewMode === 'split',
+      }"
+      :style="{ gridTemplateColumns: panesGridTemplateColumns }"
     >
-      <section class="pane pane-editor" aria-label="源码">
+      <section
+        v-show="isSourceVisible"
+        class="pane pane-editor"
+        aria-label="源码"
+      >
         <Suspense>
           <EditorPane
             :ref="setEditorPaneRef"
             :model-value="content"
             :document-version="documentVersion"
             @update:model-value="setContent"
-            @locate="preview.locate"
+            @locate="onLocatePreview"
           />
           <template #fallback>
             <div class="pane-fallback">加载编辑器…</div>
@@ -387,6 +489,7 @@ useAppShortcuts({
         </Suspense>
       </section>
       <div
+        v-if="showSplitter"
         class="pane-splitter"
         role="separator"
         aria-orientation="vertical"
@@ -395,7 +498,11 @@ useAppShortcuts({
         @pointerdown="startDragging"
         @keydown="onSplitterKeydown"
       />
-      <section class="pane pane-preview" aria-label="预览">
+      <section
+        v-show="isPreviewVisible"
+        class="pane pane-preview"
+        aria-label="预览"
+      >
         <Suspense>
           <PreviewPane
             :ref="setPreviewRef"
@@ -412,9 +519,101 @@ useAppShortcuts({
     </main>
 
     <footer class="status">
-      <span>{{ statusMessage || "就绪" }}</span>
-      <span v-if="dirty">未保存</span>
+      <div class="status-left">
+        <span>{{ statusMessage || "就绪" }}</span>
+        <span v-if="dirty" class="status-dirty">未保存</span>
+      </div>
+      <div class="status-right">
+        <span class="status-stats" :title="documentStatsLabel">
+          {{ documentStatsLabel }}
+        </span>
+        <button
+          type="button"
+          class="status-view-mode"
+          :aria-label="viewModeHint"
+          :title="viewModeHint"
+          @click="cycleViewMode"
+        >
+          <!-- 源码：仅左栏 -->
+          <svg
+            v-if="viewMode === 'source'"
+            class="view-mode-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="1.5"
+              y="2"
+              width="13"
+              height="12"
+              rx="1.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
+            <rect x="2.6" y="3.2" width="5.2" height="9.6" rx="0.6" fill="currentColor" />
+          </svg>
+          <!-- 源码/渲染：双栏 -->
+          <svg
+            v-else-if="viewMode === 'split'"
+            class="view-mode-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="1.5"
+              y="2"
+              width="13"
+              height="12"
+              rx="1.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
+            <rect x="2.6" y="3.2" width="4.4" height="9.6" rx="0.6" fill="currentColor" />
+            <rect
+              x="9"
+              y="3.2"
+              width="4.4"
+              height="9.6"
+              rx="0.6"
+              fill="currentColor"
+              opacity="0.35"
+            />
+          </svg>
+          <!-- 渲染：仅右栏 -->
+          <svg
+            v-else
+            class="view-mode-icon"
+            viewBox="0 0 16 16"
+            aria-hidden="true"
+          >
+            <rect
+              x="1.5"
+              y="2"
+              width="13"
+              height="12"
+              rx="1.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.4"
+            />
+            <rect x="8.2" y="3.2" width="5.2" height="9.6" rx="0.6" fill="currentColor" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="status-help"
+          aria-label="使用说明"
+          title="使用说明"
+          @click="helpOpen = true"
+        >
+          ?
+        </button>
+      </div>
     </footer>
+
+    <HelpDrawer :open="helpOpen" @close="helpOpen = false" />
 
     <DirtyConfirmDialog
       :open="dirtyDialogOpen"
@@ -450,11 +649,37 @@ useAppShortcuts({
 }
 
 .toolbar-title {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
   font-size: 13px;
   font-weight: 600;
+  text-align: left;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  direction: ltr;
+  cursor: pointer;
+}
+
+.toolbar-title.is-path {
+  direction: rtl;
+  text-align: left;
+}
+
+.toolbar-title:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.toolbar-title:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
 }
 
 .toolbar-save-status {
@@ -547,12 +772,74 @@ useAppShortcuts({
 
 .status {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 12px;
+  padding: 3px 10px 3px 12px;
   font-size: 12px;
   color: #6b7280;
   background: #f9fafb;
   border-top: 1px solid #e5e7eb;
+  min-height: 26px;
+}
+
+.status-left,
+.status-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.status-left {
+  flex: 1;
+}
+
+.status-dirty {
+  color: #b45309;
+  flex-shrink: 0;
+}
+
+.status-stats {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: #4b5563;
+}
+
+.status-help,
+.status-view-mode {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #fff;
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.status-help:hover,
+.status-view-mode:hover {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.status-help:focus-visible,
+.status-view-mode:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.view-mode-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 </style>
