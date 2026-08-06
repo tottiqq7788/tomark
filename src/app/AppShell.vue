@@ -110,21 +110,38 @@ onMounted(async () => {
     return;
   }
 
-  fileOpsViaMenu.value = true;
+  fileOpsViaMenu.value = false;
   try {
     const { installAppMenu } = await import("./useAppMenu");
+    if (unmounted) {
+      return;
+    }
     unlistenMenu = await installAppMenu({
       newDocument,
       openDocument,
       saveAs: () => {
         void saveAs();
       },
+      isBlocked: () => saving.value || dirtyDialogOpen.value,
     });
+    if (unmounted) {
+      unlistenMenu?.();
+      unlistenMenu = null;
+      return;
+    }
+    fileOpsViaMenu.value = true;
   } catch (error) {
+    if (unmounted) {
+      return;
+    }
     fileOpsViaMenu.value = false;
     statusMessage.value = `未能安装应用菜单：${
       error instanceof Error ? error.message : String(error)
     }`;
+  }
+
+  if (unmounted) {
+    return;
   }
 
   const appWindow = getCurrentWindow();

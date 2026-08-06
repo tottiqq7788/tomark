@@ -59,7 +59,7 @@ export function usePaneSplit(options?: {
   }
 
   function startDragging(event: PointerEvent) {
-    if (event.button !== 0) {
+    if (event.button !== 0 || dragging.value) {
       return;
     }
     event.preventDefault();

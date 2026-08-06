@@ -169,6 +169,88 @@ describe("useDocumentSession", () => {
     vi.useRealTimers();
   });
 
+  it("reschedules autosave when edits arrive during an in-flight write", async () => {
+    vi.useFakeTimers();
+    const firstWrite = deferred<void>();
+    nativeMocks.saveMarkdownFile
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockResolvedValueOnce(undefined);
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.setContent("first");
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledTimes(1);
+
+    session.setContent("second");
+    firstWrite.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledTimes(2);
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenLastCalledWith(
+      "/tmp/example.md",
+      "second",
+      { lineEnding: "lf", hasBom: false },
+    );
+    expect(session.dirty.value).toBe(false);
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it("restores autosave after save-as is cancelled", async () => {
+    vi.useFakeTimers();
+    nativeMocks.saveMarkdownFileAs.mockResolvedValue(null);
+    nativeMocks.saveMarkdownFile.mockResolvedValue(undefined);
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.setContent("keep me");
+
+    await expect(session.saveAs()).resolves.toBe(false);
+    expect(session.dirty.value).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
+      "/tmp/example.md",
+      "keep me",
+      { lineEnding: "lf", hasBom: false },
+    );
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it("stops autosave retries after repeated failures", async () => {
+    vi.useFakeTimers();
+    nativeMocks.saveMarkdownFile.mockRejectedValue(new Error("disk full"));
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.setContent("cannot persist");
+
+    for (let i = 0; i < 4; i += 1) {
+      await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    }
+
+    expect(nativeMocks.saveMarkdownFile.mock.calls.length).toBeLessThanOrEqual(3);
+    expect(nativeMocks.showError).toHaveBeenCalledTimes(1);
+    expect(session.statusMessage.value).toContain("已暂停");
+    session.dispose();
+    vi.useRealTimers();
+  });
+
   it("does not auto-save untitled documents without prompting", async () => {
     vi.useFakeTimers();
     const session = useDocumentSession();

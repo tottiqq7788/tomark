@@ -4,6 +4,7 @@ export interface AppMenuHandlers {
   newDocument: () => void | Promise<void>;
   openDocument: () => void | Promise<void>;
   saveAs: () => void | Promise<void>;
+  isBlocked?: () => boolean;
 }
 
 /**
@@ -18,6 +19,13 @@ export async function installAppMenu(
   );
   const isMac = navigator.userAgent.includes("Mac");
 
+  const run = (action: () => void | Promise<void>) => {
+    if (handlers.isBlocked?.()) {
+      return;
+    }
+    void action();
+  };
+
   const fileSubmenu = await Submenu.new({
     text: "文件",
     items: [
@@ -26,7 +34,7 @@ export async function installAppMenu(
         text: "新建",
         accelerator: "CmdOrCtrl+N",
         action: () => {
-          void handlers.newDocument();
+          run(handlers.newDocument);
         },
       }),
       await MenuItem.new({
@@ -34,7 +42,7 @@ export async function installAppMenu(
         text: "打开…",
         accelerator: "CmdOrCtrl+O",
         action: () => {
-          void handlers.openDocument();
+          run(handlers.openDocument);
         },
       }),
       await PredefinedMenuItem.new({ item: "Separator" }),
@@ -43,7 +51,7 @@ export async function installAppMenu(
         text: "另存为…",
         accelerator: "CmdOrCtrl+Shift+S",
         action: () => {
-          void handlers.saveAs();
+          run(handlers.saveAs);
         },
       }),
     ],

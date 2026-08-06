@@ -157,6 +157,7 @@ export function useDocumentSession() {
   let dirtyResolver: ((ok: boolean) => void) | null = null;
   let dirtyGuardPromise: Promise<boolean> | null = null;
   let disposed = false;
+  let autosaveFailureCount = 0;
 
   const dirty = computed(() => content.value !== savedContent.value);
   const title = computed(
@@ -169,6 +170,17 @@ export function useDocumentSession() {
 
   function bumpVersion() {
     documentVersion.value += 1;
+  }
+
+  function resetAutosaveFailures() {
+    autosaveFailureCount = 0;
+  }
+
+  function resumeAutosaveIfNeeded() {
+    if (disposed || !path.value || !dirty.value) {
+      return;
+    }
+    scheduleAutosave();
   }
 
   async function runSave(action: () => Promise<boolean>): Promise<boolean> {
@@ -205,6 +217,7 @@ export function useDocumentSession() {
       path.value = doc.path;
       fileName.value = doc.fileName;
       savedContent.value = snapshot;
+      resetAutosaveFailures();
       statusMessage.value =
         content.value === snapshot
           ? `已保存 ${doc.fileName}`
@@ -216,7 +229,9 @@ export function useDocumentSession() {
     }
   }
 
-  async function saveExistingPath(): Promise<boolean> {
+  async function saveExistingPath(options?: {
+    quiet?: boolean;
+  }): Promise<boolean> {
     const targetPath = path.value;
     if (!targetPath) {
       return false;
@@ -237,34 +252,59 @@ export function useDocumentSession() {
         return false;
       }
       savedContent.value = snapshot;
+      resetAutosaveFailures();
       statusMessage.value =
         content.value === snapshot
           ? `已自动保存 ${targetName}`
           : `已自动保存 ${targetName}，仍有未保存更改`;
       return true;
     } catch (error) {
-      await showError("保存失败", error);
+      const detail = error instanceof Error ? error.message : String(error);
+      if (options?.quiet) {
+        statusMessage.value = `自动保存失败：${detail}`;
+      } else {
+        await showError("保存失败", error);
+      }
       return false;
     }
   }
 
-  async function save(): Promise<boolean> {
+  async function save(options?: { quiet?: boolean }): Promise<boolean> {
     return runSave(async () => {
       if (!path.value) {
         return saveAsCurrent();
       }
-      return saveExistingPath();
+      return saveExistingPath(options);
     });
   }
 
   const scheduleAutosave = debounce(() => {
-    if (disposed || !path.value || !dirty.value || saving.value) {
+    if (disposed || !path.value || !dirty.value) {
       return;
     }
-    void save().then((ok) => {
-      if (!ok && path.value && dirty.value && !disposed) {
-        scheduleAutosave();
+    if (saving.value) {
+      void waitWhileSaving().then(() => {
+        resumeAutosaveIfNeeded();
+      });
+      return;
+    }
+
+    const quiet = autosaveFailureCount > 0;
+    void save({ quiet }).then((ok) => {
+      if (disposed) {
+        return;
       }
+      if (ok) {
+        resetAutosaveFailures();
+      } else if (path.value) {
+        autosaveFailureCount += 1;
+        if (autosaveFailureCount >= 3) {
+          statusMessage.value =
+            "自动保存连续失败，已暂停；请检查文件权限后手动保存或继续编辑";
+          return;
+        }
+      }
+      resumeAutosaveIfNeeded();
     });
   }, AUTOSAVE_WAIT_MS);
 
@@ -275,6 +315,7 @@ export function useDocumentSession() {
     format: DocumentFormat;
   }) {
     scheduleAutosave.cancel();
+    resetAutosaveFailures();
     path.value = doc.path;
     fileName.value = doc.fileName;
     content.value = doc.content;
@@ -326,6 +367,7 @@ export function useDocumentSession() {
   }
 
   async function onDirtySave() {
+    await waitWhileSaving();
     const ok = await save();
     if (!ok) {
       resolveDirty(false);
@@ -373,12 +415,19 @@ export function useDocumentSession() {
 
   async function saveAs(): Promise<boolean> {
     scheduleAutosave.cancel();
-    return runSave(saveAsCurrent);
+    try {
+      return await runSave(saveAsCurrent);
+    } finally {
+      resumeAutosaveIfNeeded();
+    }
   }
 
   function setContent(next: string) {
     content.value = next;
     if (path.value) {
+      if (autosaveFailureCount >= 3) {
+        resetAutosaveFailures();
+      }
       scheduleAutosave();
     }
   }
