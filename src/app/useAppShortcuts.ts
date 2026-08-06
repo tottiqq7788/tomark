@@ -6,6 +6,15 @@ export interface AppShortcutHandlers {
   newDocument: () => void | Promise<void>;
   openDocument: () => void | Promise<void>;
   isBlocked?: () => boolean;
+  /** When true, New/Open/Save As are handled by the native File menu. */
+  fileOpsViaMenu?: boolean | (() => boolean);
+}
+
+function resolveFlag(value: boolean | (() => boolean) | undefined): boolean {
+  if (typeof value === "function") {
+    return value();
+  }
+  return Boolean(value);
 }
 
 function isModifierPressed(event: KeyboardEvent): boolean {
@@ -14,15 +23,22 @@ function isModifierPressed(event: KeyboardEvent): boolean {
 
 export function matchAppShortcut(
   event: KeyboardEvent,
-): keyof AppShortcutHandlers | null {
+  options?: { fileOpsViaMenu?: boolean },
+): "save" | "saveAs" | "newDocument" | "openDocument" | null {
   if (!isModifierPressed(event) || event.altKey) {
     return null;
   }
   const key = event.key.toLowerCase();
   if (key === "s") {
-    return event.shiftKey ? "saveAs" : "save";
+    if (event.shiftKey) {
+      return options?.fileOpsViaMenu ? null : "saveAs";
+    }
+    return "save";
   }
   if (event.shiftKey) {
+    return null;
+  }
+  if (options?.fileOpsViaMenu) {
     return null;
   }
   if (key === "n") {
@@ -36,8 +52,10 @@ export function matchAppShortcut(
 
 export function useAppShortcuts(handlers: AppShortcutHandlers) {
   const onKeyDown = (event: KeyboardEvent) => {
-    const action = matchAppShortcut(event);
-    if (!action || action === "isBlocked") {
+    const action = matchAppShortcut(event, {
+      fileOpsViaMenu: resolveFlag(handlers.fileOpsViaMenu),
+    });
+    if (!action) {
       return;
     }
     if (handlers.isBlocked?.()) {

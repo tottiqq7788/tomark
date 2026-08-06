@@ -38,10 +38,15 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: () => tauriMocks.appWindow,
 }));
 
+vi.mock("@/app/useAppMenu", () => ({
+  installAppMenu: vi.fn(async () => vi.fn()),
+}));
+
 const dirty = ref(false);
 const dirtyDialogOpen = ref(false);
 let dirtyResolver: ((ok: boolean) => void) | null = null;
 const save = vi.fn(async () => true);
+const flushAutosave = vi.fn(async () => undefined);
 
 vi.mock("@/app/useDocumentSession", () => ({
   useDocumentSession: () => ({
@@ -49,6 +54,7 @@ vi.mock("@/app/useDocumentSession", () => ({
     fileName: ref("未命名.md"),
     content: ref("# sample"),
     dirty: computed(() => dirty.value),
+    saveStatus: computed(() => (dirty.value ? "pending" : "saved")),
     title: computed(() =>
       dirty.value ? "tomark — 未命名.md *" : "tomark — 未命名.md",
     ),
@@ -57,6 +63,7 @@ vi.mock("@/app/useDocumentSession", () => ({
     dirtyDialogOpen,
     saving: ref(false),
     setContent: vi.fn(),
+    flushAutosave,
     guardDirty: () => {
       if (!dirty.value) {
         return Promise.resolve(true);
@@ -81,6 +88,7 @@ vi.mock("@/app/useDocumentSession", () => ({
       dirtyResolver?.(false);
       dirtyResolver = null;
     },
+    dispose: vi.fn(),
   }),
 }));
 
@@ -109,6 +117,7 @@ describe("AppShell", () => {
     dirtyDialogOpen.value = false;
     dirtyResolver = null;
     save.mockClear();
+    flushAutosave.mockClear();
   });
 
   it("guards a dirty document before destroying the Tauri window", async () => {
@@ -130,14 +139,13 @@ describe("AppShell", () => {
     expect(closeHandler).not.toBeNull();
     const event = { preventDefault: vi.fn() };
     const closing = closeHandler!(event);
+    await flushPromises();
     await nextTick();
 
     expect(event.preventDefault).toHaveBeenCalledOnce();
-    const discard = wrapper
-      .findAll("button")
-      .find((button) => button.text() === "不保存");
-    expect(discard).toBeDefined();
-    await discard!.trigger("click");
+    expect(dirtyDialogOpen.value).toBe(true);
+    const discard = wrapper.get('[data-testid="dirty-discard"]');
+    await discard.trigger("click");
     await closing;
 
     expect(tauriMocks.destroy).toHaveBeenCalledOnce();

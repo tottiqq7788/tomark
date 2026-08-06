@@ -4,6 +4,7 @@ import {
   defineAsyncComponent,
   onBeforeUnmount,
   onMounted,
+  ref,
   watch,
 } from "vue";
 import type { UnlistenFn } from "@tauri-apps/api/event";
@@ -11,15 +12,16 @@ import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
+import { usePaneSplit } from "./usePaneSplit";
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
 
 const {
-  path,
   fileName,
   content,
   dirty,
+  saveStatus,
   title,
   documentVersion,
   statusMessage,
@@ -27,6 +29,7 @@ const {
   saving,
   setContent,
   guardDirty,
+  flushAutosave,
   newDocument,
   openDocument,
   save,
@@ -34,14 +37,41 @@ const {
   onDirtySave,
   onDirtyDiscard,
   onDirtyCancel,
+  dispose,
 } = useDocumentSession();
 
 const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
 const previewLineToAnchor = preview.lineToAnchor;
+const fileOpsViaMenu = ref(false);
+const {
+  containerRef,
+  dragging,
+  gridTemplateColumns,
+  startDragging,
+  nudgeRatio,
+} = usePaneSplit();
+
+const saveStatusLabel = computed(() =>
+  saveStatus.value === "pending" ? "等待保存" : "已保存",
+);
 
 function setPreviewRef(el: unknown) {
   preview.previewRef.value = el as typeof preview.previewRef.value;
+}
+
+function setContainerRef(el: unknown) {
+  containerRef.value = el instanceof HTMLElement ? el : null;
+}
+
+function onSplitterKeydown(event: KeyboardEvent) {
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    nudgeRatio(-0.02);
+  } else if (event.key === "ArrowRight") {
+    event.preventDefault();
+    nudgeRatio(0.02);
+  }
 }
 
 watch(
@@ -53,6 +83,7 @@ watch(
 );
 
 let unlistenCloseRequested: UnlistenFn | null = null;
+let unlistenMenu: UnlistenFn | null = null;
 let unmounted = false;
 let destroyingWindow = false;
 
@@ -78,9 +109,28 @@ onMounted(async () => {
   if (!isTauri() || unmounted) {
     return;
   }
+
+  fileOpsViaMenu.value = true;
+  try {
+    const { installAppMenu } = await import("./useAppMenu");
+    unlistenMenu = await installAppMenu({
+      newDocument,
+      openDocument,
+      saveAs: () => {
+        void saveAs();
+      },
+    });
+  } catch (error) {
+    fileOpsViaMenu.value = false;
+    statusMessage.value = `未能安装应用菜单：${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+
   const appWindow = getCurrentWindow();
   try {
     const unlisten = await appWindow.onCloseRequested(async (event) => {
+      await flushAutosave();
       if (!dirty.value) {
         return;
       }
@@ -113,6 +163,8 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   unmounted = true;
   unlistenCloseRequested?.();
+  unlistenMenu?.();
+  dispose();
   preview.refreshPreview.cancel();
   if (import.meta.env.VITE_WDIO === "1") {
     delete (window as unknown as { __tomarkE2e?: unknown }).__tomarkE2e;
@@ -128,37 +180,64 @@ useAppShortcuts({
   },
   newDocument,
   openDocument,
+  fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () => saving.value || dirtyDialogOpen.value,
 });
-
-const canSave = computed(() => dirty.value || !path.value);
 </script>
 
 <template>
   <div class="app-shell">
     <header class="toolbar">
       <div class="toolbar-title">{{ title }}</div>
-      <div class="toolbar-actions">
-        <button type="button" :disabled="saving" @click="newDocument()">
-          新建
-        </button>
-        <button type="button" :disabled="saving" @click="openDocument()">
-          打开
-        </button>
-        <button
-          type="button"
-          :disabled="saving || !canSave"
-          @click="save()"
+      <div
+        class="toolbar-save-status"
+        :data-status="saveStatus"
+        :title="saveStatusLabel"
+        :aria-label="saveStatusLabel"
+        role="status"
+      >
+        <svg
+          v-if="saveStatus === 'saved'"
+          class="save-icon save-icon-saved"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
         >
-          保存
-        </button>
-        <button type="button" :disabled="saving" @click="saveAs()">
-          另存为
-        </button>
+          <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.18" />
+          <path
+            d="M4.2 8.2 6.7 10.7 11.8 5.2"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <svg
+          v-else
+          class="save-icon save-icon-pending"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+        >
+          <circle
+            cx="8"
+            cy="8"
+            r="6"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+            stroke-dasharray="28 12"
+          />
+        </svg>
       </div>
     </header>
 
-    <main class="panes">
+    <main
+      :ref="setContainerRef"
+      class="panes"
+      :class="{ dragging }"
+      :style="{ gridTemplateColumns }"
+    >
       <section class="pane pane-editor" aria-label="源码">
         <Suspense>
           <EditorPane
@@ -172,6 +251,15 @@ const canSave = computed(() => dirty.value || !path.value);
           </template>
         </Suspense>
       </section>
+      <div
+        class="pane-splitter"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="调整源码与预览宽度"
+        tabindex="0"
+        @pointerdown="startDragging"
+        @keydown="onSplitterKeydown"
+      />
       <section class="pane pane-preview" aria-label="预览">
         <Suspense>
           <PreviewPane
@@ -232,37 +320,44 @@ const canSave = computed(() => dirty.value || !path.value);
   text-overflow: ellipsis;
 }
 
-.toolbar-actions {
-  display: flex;
-  gap: 8px;
+.toolbar-save-status {
   flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
 }
 
-.toolbar-actions button {
-  appearance: none;
-  border: 1px solid #374151;
-  background: #1f2937;
-  color: #f9fafb;
-  border-radius: 6px;
-  padding: 5px 10px;
-  font-size: 12px;
-  cursor: pointer;
+.save-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
-.toolbar-actions button:hover:not(:disabled) {
-  background: #374151;
+.save-icon-saved {
+  color: #22c55e;
 }
 
-.toolbar-actions button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.save-icon-pending {
+  color: #eab308;
+  animation: save-spin 0.9s linear infinite;
+}
+
+@keyframes save-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .panes {
   display: grid;
-  grid-template-columns: 1fr 2fr;
+  grid-template-columns: minmax(0, 1fr) 6px minmax(0, 2fr);
   min-height: 0;
   overflow: hidden;
+}
+
+.panes.dragging {
+  cursor: col-resize;
 }
 
 .pane {
@@ -272,8 +367,33 @@ const canSave = computed(() => dirty.value || !path.value);
   background: #fff;
 }
 
-.pane-editor {
-  border-right: 1px solid #e5e7eb;
+.pane-splitter {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: #e5e7eb;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.pane-splitter::before {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.pane-splitter:hover,
+.panes.dragging .pane-splitter,
+.pane-splitter:focus-visible {
+  background: #93c5fd;
+}
+
+.pane-splitter:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
 }
 
 .pane-fallback {

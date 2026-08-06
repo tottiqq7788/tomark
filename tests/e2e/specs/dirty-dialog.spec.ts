@@ -4,7 +4,7 @@ describe("dirty confirm dialog", () => {
   beforeEach(async () => {
     await browser.url("http://localhost:1420/");
     await mockAppIpc();
-    await $("button*=新建").waitForExist({ timeout: 30_000 });
+    await $(".toolbar-title").waitForExist({ timeout: 30_000 });
   });
 
   it("opens on Cmd/Ctrl+N after edits and closes with Escape", async () => {

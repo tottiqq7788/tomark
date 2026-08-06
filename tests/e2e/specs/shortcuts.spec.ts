@@ -9,7 +9,7 @@ describe("keyboard shortcuts", () => {
       savePath: "/tmp/tomark-shortcut.md",
     });
     writeMock = mocks.writeMock;
-    await $("button*=另存为").waitForExist({ timeout: 30_000 });
+    await $(".toolbar-title").waitForExist({ timeout: 30_000 });
   });
 
   it("saves with Cmd/Ctrl+S through the atomic write command", async () => {

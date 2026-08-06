@@ -18,7 +18,7 @@ vi.mock("@/native/fileService", () => ({
   }),
 }));
 
-import { useDocumentSession } from "@/app/useDocumentSession";
+import { useDocumentSession, AUTOSAVE_WAIT_MS } from "@/app/useDocumentSession";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -35,6 +35,7 @@ describe("useDocumentSession", () => {
     nativeMocks.saveMarkdownFileAs.mockReset();
     nativeMocks.showError.mockReset();
     nativeMocks.showError.mockResolvedValue(undefined);
+    vi.useRealTimers();
   });
 
   it("keeps edits made while an existing file is being saved dirty", async () => {
@@ -57,6 +58,7 @@ describe("useDocumentSession", () => {
     );
     expect(session.dirty.value).toBe(true);
     expect(session.statusMessage.value).toContain("仍有未保存更改");
+    session.dispose();
   });
 
   it("keeps edits made during save-as dirty", async () => {
@@ -77,6 +79,7 @@ describe("useDocumentSession", () => {
     await expect(saving).resolves.toBe(true);
     expect(session.path.value).toBe("/tmp/example.md");
     expect(session.dirty.value).toBe(true);
+    session.dispose();
   });
 
   it("reuses one dirty guard instead of orphaning the first caller", async () => {
@@ -87,40 +90,96 @@ describe("useDocumentSession", () => {
     const second = session.guardDirty();
 
     expect(first).toBe(second);
+    await Promise.resolve();
+    await Promise.resolve();
     expect(session.dirtyDialogOpen.value).toBe(true);
     session.onDirtyDiscard();
     await expect(Promise.all([first, second])).resolves.toEqual([true, true]);
+    session.dispose();
   });
 
-  it("does not resolve a save guard while newer edits remain unsaved", async () => {
-    const firstWrite = deferred<void>();
-    nativeMocks.saveMarkdownFile
-      .mockReturnValueOnce(firstWrite.promise)
-      .mockResolvedValueOnce(undefined);
+  it("flushes autosave before allowing navigation away from a saved file", async () => {
+    nativeMocks.saveMarkdownFile.mockResolvedValue(undefined);
     const session = useDocumentSession();
     session.path.value = "/tmp/example.md";
     session.fileName.value = "example.md";
-    session.setContent("first snapshot");
+    session.setContent("pending autosave");
 
-    const guard = session.guardDirty();
-    let guardSettled = false;
-    void guard.then(() => {
-      guardSettled = true;
-    });
-
-    const firstSave = session.onDirtySave();
-    session.setContent("newer edit");
-    firstWrite.resolve();
-    await firstSave;
-
-    expect(guardSettled).toBe(false);
-    expect(session.dirtyDialogOpen.value).toBe(true);
-    expect(session.statusMessage.value).toBe(
-      "保存期间内容已更改，请再次保存",
+    await expect(session.guardDirty()).resolves.toBe(true);
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
+      "/tmp/example.md",
+      "pending autosave",
+      { lineEnding: "lf", hasBom: false },
     );
-
-    await session.onDirtySave();
-    await expect(guard).resolves.toBe(true);
+    expect(session.dirty.value).toBe(false);
     expect(session.dirtyDialogOpen.value).toBe(false);
+    session.dispose();
+  });
+
+  it("auto-saves edits for documents that already have a path", async () => {
+    vi.useFakeTimers();
+    nativeMocks.saveMarkdownFile.mockResolvedValue(undefined);
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.setContent("auto saved body");
+    expect(session.saveStatus.value).toBe("pending");
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
+      "/tmp/example.md",
+      "auto saved body",
+      { lineEnding: "lf", hasBom: false },
+    );
+    expect(session.dirty.value).toBe(false);
+    expect(session.saveStatus.value).toBe("saved");
+    expect(session.statusMessage.value).toContain("已自动保存");
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it("defers autosave until editing has been idle for a few seconds", async () => {
+    vi.useFakeTimers();
+    nativeMocks.saveMarkdownFile.mockResolvedValue(undefined);
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+
+    session.setContent("a");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS - 200);
+    session.setContent("ab");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS - 200);
+    expect(nativeMocks.saveMarkdownFile).not.toHaveBeenCalled();
+
+    session.setContent("abc");
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledTimes(1);
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
+      "/tmp/example.md",
+      "abc",
+      { lineEnding: "lf", hasBom: false },
+    );
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it("does not auto-save untitled documents without prompting", async () => {
+    vi.useFakeTimers();
+    const session = useDocumentSession();
+    session.setContent("untitled edits");
+    expect(session.saveStatus.value).toBe("pending");
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS + 500);
+    expect(nativeMocks.saveMarkdownFile).not.toHaveBeenCalled();
+    expect(nativeMocks.saveMarkdownFileAs).not.toHaveBeenCalled();
+    expect(session.dirty.value).toBe(true);
+    session.dispose();
+    vi.useRealTimers();
   });
 });

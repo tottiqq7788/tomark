@@ -23,6 +23,20 @@ describe("useAppShortcuts", () => {
     expect(matchAppShortcut(keyEvent("o", { ctrlKey: true }))).toBe("openDocument");
   });
 
+  it("defers file ops to the native menu when requested", () => {
+    expect(
+      matchAppShortcut(keyEvent("n", { metaKey: true }), { fileOpsViaMenu: true }),
+    ).toBeNull();
+    expect(
+      matchAppShortcut(keyEvent("s", { metaKey: true, shiftKey: true }), {
+        fileOpsViaMenu: true,
+      }),
+    ).toBeNull();
+    expect(
+      matchAppShortcut(keyEvent("s", { metaKey: true }), { fileOpsViaMenu: true }),
+    ).toBe("save");
+  });
+
   it("ignores shortcuts without a modifier", () => {
     expect(matchAppShortcut(keyEvent("s"))).toBeNull();
     expect(matchAppShortcut(keyEvent("s", { altKey: true, metaKey: true }))).toBeNull();
