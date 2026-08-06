@@ -1,0 +1,9 @@
+[[permission]]
+identifier = "allow-load-markdown-document"
+description = "Allows loading Markdown files through the native text compatibility layer."
+commands.allow = ["load_markdown_document"]
+
+[[permission]]
+identifier = "allow-save-markdown-document"
+description = "Allows saving Markdown files through the native text compatibility layer."
+commands.allow = ["save_markdown_document"]

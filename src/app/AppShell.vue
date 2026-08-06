@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
+import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
 import DefaultAppPrompt from "@/app/DefaultAppPrompt.vue";
+import type { EncodingHint } from "@/shared/types";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
@@ -27,6 +29,7 @@ const {
   documentVersion,
   statusMessage,
   dirtyDialogOpen,
+  encodingDialogOpen,
   saving,
   setContent,
   guardDirty,
@@ -34,8 +37,13 @@ const {
   newDocument,
   openDocument,
   openDocumentAtPath,
+  reidentifyDocument,
   save,
   saveAs,
+  convertOverwriteUtf8,
+  convertSaveAsUtf8,
+  openEncodingSaveDialog,
+  cancelEncodingSaveDialog,
   onDirtySave,
   onDirtyDiscard,
   onDirtyCancel,
@@ -80,10 +88,17 @@ const saveStatusLabel = computed(() => {
       return "正在保存…";
     case "unsaved":
       return "未保存到文件";
+    case "manual":
+      return "保存需处理";
     default:
       return "已保存";
   }
 });
+
+async function onReidentify(hint: EncodingHint) {
+  helpOpen.value = false;
+  await reidentifyDocument(hint);
+}
 
 const { label: documentStatsLabel } = useDocumentStats(content);
 
@@ -102,6 +117,13 @@ const {
 function onRequestDefaultApp() {
   helpOpen.value = false;
   showDefaultAppPrompt();
+}
+
+async function onConfirmDefaultApp() {
+  const result = await requestDefaultApp();
+  if (result.ok || result.openedSettings) {
+    statusMessage.value = result.message;
+  }
 }
 
 const {
@@ -183,6 +205,10 @@ watch(
   { immediate: true },
 );
 
+watch(documentVersion, () => {
+  void preview.syncNow();
+});
+
 useAppShortcuts({
   save: () => {
     void save();
@@ -193,7 +219,8 @@ useAppShortcuts({
   newDocument,
   openDocument,
   fileOpsViaMenu: () => fileOpsViaMenu.value,
-  isBlocked: () => saving.value || dirtyDialogOpen.value,
+  isBlocked: () =>
+    saving.value || dirtyDialogOpen.value || encodingDialogOpen.value,
 });
 </script>
 
@@ -210,7 +237,33 @@ useAppShortcuts({
       >
         {{ toolbarLabel }}
       </button>
+      <button
+        v-if="saveStatus === 'manual'"
+        type="button"
+        class="toolbar-save-status is-manual"
+        data-status="manual"
+        data-testid="save-status-manual"
+        :title="saveStatusLabel"
+        :aria-label="saveStatusLabel"
+        @click="openEncodingSaveDialog"
+      >
+        <svg
+          class="save-icon save-icon-manual"
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+        >
+          <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.2" />
+          <path
+            d="M8 4.2v5.2M8 11.4h.01"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
       <div
+        v-else
         class="toolbar-save-status"
         :data-status="saveStatus"
         :title="saveStatusLabel"
@@ -413,8 +466,10 @@ useAppShortcuts({
 
     <HelpDrawer
       :open="helpOpen"
+      :can-reidentify="!!path"
       @close="helpOpen = false"
       @request-default-app="onRequestDefaultApp"
+      @reidentify="(hint) => void onReidentify(hint)"
     />
 
     <DefaultAppPrompt
@@ -423,7 +478,15 @@ useAppShortcuts({
       :platform-hint="defaultAppHint"
       :status-message="defaultAppStatus"
       @later="dismissDefaultAppPrompt"
-      @confirm="void requestDefaultApp()"
+      @confirm="void onConfirmDefaultApp()"
+    />
+
+    <EncodingSaveDialog
+      :open="encodingDialogOpen"
+      :busy="saving"
+      @overwrite="void convertOverwriteUtf8()"
+      @save-as="void convertSaveAsUtf8()"
+      @cancel="cancelEncodingSaveDialog"
     />
 
     <DirtyConfirmDialog
@@ -499,6 +562,24 @@ useAppShortcuts({
   place-items: center;
   width: 22px;
   height: 22px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+}
+
+.toolbar-save-status.is-manual {
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.toolbar-save-status.is-manual:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.toolbar-save-status.is-manual:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
 }
 
 .save-icon {
@@ -518,6 +599,10 @@ useAppShortcuts({
 
 .save-icon-unsaved {
   color: #eab308;
+}
+
+.save-icon-manual {
+  color: #f97316;
 }
 
 @keyframes save-spin {

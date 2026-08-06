@@ -136,14 +136,14 @@ describe("file format", () => {
     const raw = "\uFEFFhello\r\nworld\r\n";
     const { content, format } = detectFormat(raw);
     expect(content).toBe("hello\nworld\n");
-    expect(format).toEqual({ lineEnding: "crlf", hasBom: true });
+    expect(format).toMatchObject({ lineEnding: "crlf", hasBom: true, encoding: "utf8" });
     expect(serializeContent(content, format)).toBe(raw);
   });
 
   it("normalizes legacy carriage-return line endings", () => {
     const { content, format } = detectFormat("hello\rworld\r");
     expect(content).toBe("hello\nworld\n");
-    expect(format).toEqual({ lineEnding: "lf", hasBom: false });
+    expect(format).toMatchObject({ lineEnding: "lf", hasBom: false, encoding: "utf8" });
   });
 });
 

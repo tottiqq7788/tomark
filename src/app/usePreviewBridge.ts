@@ -10,10 +10,12 @@ export function usePreviewBridge(content: Ref<string>) {
   const previewRef = ref<PreviewHandle | null>(null);
   const html = ref("");
   const lineToAnchor = ref<Map<number, PreviewAnchor>>(new Map());
+  const previewError = ref<string | null>(null);
   let renderMarkdownFn: ((source: string) => RenderResult) | null = null;
   let previewVersion = 0;
   let renderedSource: string | null = null;
   let pendingLocateLine: number | null = null;
+  let locateGeneration = 0;
 
   async function ensureMarkdown() {
     if (!renderMarkdownFn) {
@@ -24,20 +26,55 @@ export function usePreviewBridge(content: Ref<string>) {
   }
 
   /** @returns false when a newer render superseded this one. */
-  async function renderPreview(source: string): Promise<boolean> {
+  async function renderPreview(
+    source: string,
+    options?: { force?: boolean },
+  ): Promise<boolean> {
+    if (
+      !options?.force &&
+      source === renderedSource &&
+      previewError.value === null &&
+      html.value.length > 0
+    ) {
+      return true;
+    }
+
     const version = ++previewVersion;
-    const renderMarkdown = await ensureMarkdown();
-    if (version !== previewVersion) {
+    try {
+      // Yield one frame for large docs so the UI can paint before parsing.
+      if (source.length > 48_000) {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve());
+        });
+        if (version !== previewVersion) {
+          return false;
+        }
+      }
+      const renderMarkdown = await ensureMarkdown();
+      if (version !== previewVersion) {
+        return false;
+      }
+      const result = renderMarkdown(source);
+      if (version !== previewVersion) {
+        return false;
+      }
+      html.value = result.html;
+      lineToAnchor.value = result.lineToAnchor;
+      renderedSource = source;
+      previewError.value = null;
+      return true;
+    } catch (error) {
+      if (version !== previewVersion) {
+        return false;
+      }
+      const message =
+        error instanceof Error ? error.message : String(error);
+      previewError.value = message;
+      html.value = `<p data-preview-error="1">预览渲染失败：${escapeHtml(message)}</p>`;
+      lineToAnchor.value = new Map();
+      renderedSource = source;
       return false;
     }
-    const result = renderMarkdown(source);
-    if (version !== previewVersion) {
-      return false;
-    }
-    html.value = result.html;
-    lineToAnchor.value = result.lineToAnchor;
-    renderedSource = source;
-    return true;
   }
 
   const refreshPreview = debounce((source: string) => {
@@ -46,7 +83,17 @@ export function usePreviewBridge(content: Ref<string>) {
 
   watch(
     content,
-    (value) => {
+    (value, previous) => {
+      // File open / replace: paint immediately. Typing stays debounced.
+      const openedOrReplaced =
+        previous === undefined ||
+        previous.length === 0 ||
+        Math.abs(value.length - previous.length) > 400;
+      if (openedOrReplaced) {
+        refreshPreview.cancel();
+        void renderPreview(value);
+        return;
+      }
       refreshPreview(value);
     },
     { immediate: true },
@@ -83,12 +130,16 @@ export function usePreviewBridge(content: Ref<string>) {
   }
 
   async function locate(line: number) {
+    const generation = ++locateGeneration;
     const ok = await syncNow();
     // Newer locate/render won the race — do not scroll with stale anchors.
-    if (!ok) {
+    if (!ok || generation !== locateGeneration) {
       return;
     }
     await nextTick();
+    if (generation !== locateGeneration) {
+      return;
+    }
     if (previewRef.value) {
       pendingLocateLine = null;
       await previewRef.value.scrollToSourceLine(line);
@@ -101,6 +152,7 @@ export function usePreviewBridge(content: Ref<string>) {
     previewRef,
     html,
     lineToAnchor,
+    previewError,
     locate,
     syncNow,
     isCurrent,
@@ -108,4 +160,12 @@ export function usePreviewBridge(content: Ref<string>) {
     renderPreview,
     refreshPreview,
   };
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }

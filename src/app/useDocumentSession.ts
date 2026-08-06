@@ -1,7 +1,12 @@
 import { computed, ref } from "vue";
-import type { DocumentFormat } from "@/shared/types";
-import { UNTITLED_NAME } from "@/shared/types";
+import type { DocumentFormat, EncodingHint } from "@/shared/types";
+import {
+  UNTITLED_NAME,
+  defaultDocumentFormat,
+  utf8DocumentFormat,
+} from "@/shared/types";
 import { debounce } from "@/shared/debounce";
+import { isUnmappableCharacterError } from "@/shared/encodingErrors";
 
 const SAMPLE = `# tomark
 
@@ -148,10 +153,12 @@ export function useDocumentSession() {
   const fileName = ref(UNTITLED_NAME);
   const content = ref(SAMPLE);
   const savedContent = ref(SAMPLE);
-  const format = ref<DocumentFormat>({ lineEnding: "lf", hasBom: false });
+  const format = ref<DocumentFormat>(defaultDocumentFormat());
   const documentVersion = ref(0);
   const statusMessage = ref("");
   const dirtyDialogOpen = ref(false);
+  const encodingDialogOpen = ref(false);
+  const encodingSaveBlocked = ref(false);
   const saving = ref(false);
 
   let dirtyResolver: ((ok: boolean) => void) | null = null;
@@ -164,8 +171,8 @@ export function useDocumentSession() {
   const title = computed(
     () => `tomark — ${fileName.value}${dirty.value ? " *" : ""}`,
   );
-  /** Toolbar: pending=autosaving, unsaved=not syncing (untitled or paused), saved=synced. */
-  const saveStatus = computed<"pending" | "unsaved" | "saved">(() => {
+  /** Toolbar: pending=autosaving, unsaved=not syncing, manual=encoding conflict, saved=synced. */
+  const saveStatus = computed<"pending" | "unsaved" | "manual" | "saved">(() => {
     if (saving.value) {
       return "pending";
     }
@@ -175,6 +182,9 @@ export function useDocumentSession() {
     }
     if (!dirty.value) {
       return "saved";
+    }
+    if (encodingSaveBlocked.value) {
+      return "manual";
     }
     // Autosave is paused — don't leave a perpetual spinner.
     if (autosavePaused.value) {
@@ -192,8 +202,40 @@ export function useDocumentSession() {
     autosavePaused.value = false;
   }
 
+  function clearEncodingIntervention() {
+    encodingSaveBlocked.value = false;
+    encodingDialogOpen.value = false;
+  }
+
+  function pauseForEncodingConflict() {
+    scheduleAutosave.cancel();
+    encodingSaveBlocked.value = true;
+    encodingDialogOpen.value = true;
+    statusMessage.value = "保存需处理：当前文件格式无法保存新字符";
+  }
+
+  function openEncodingSaveDialog() {
+    if (!encodingSaveBlocked.value) {
+      return;
+    }
+    encodingDialogOpen.value = true;
+  }
+
+  function cancelEncodingSaveDialog() {
+    encodingDialogOpen.value = false;
+    if (encodingSaveBlocked.value) {
+      statusMessage.value = "保存需处理：可继续编辑，或点击右上角图标处理";
+    }
+  }
+
   function resumeAutosaveIfNeeded() {
-    if (disposed || !path.value || !dirty.value) {
+    if (
+      disposed ||
+      !path.value ||
+      !dirty.value ||
+      encodingSaveBlocked.value ||
+      autosavePaused.value
+    ) {
       return;
     }
     scheduleAutosave();
@@ -211,7 +253,9 @@ export function useDocumentSession() {
     }
   }
 
-  async function saveAsCurrent(): Promise<boolean> {
+  async function saveAsCurrent(options?: {
+    forceUtf8?: boolean;
+  }): Promise<boolean> {
     const versionAtStart = documentVersion.value;
     const snapshot = content.value;
     const formatAtStart = { ...format.value };
@@ -223,6 +267,7 @@ export function useDocumentSession() {
         snapshot,
         formatAtStart,
         defaultPath,
+        { forceUtf8: options?.forceUtf8 },
       );
       if (!doc) {
         return false;
@@ -232,7 +277,9 @@ export function useDocumentSession() {
       }
       path.value = doc.path;
       fileName.value = doc.fileName;
+      format.value = doc.format;
       savedContent.value = snapshot;
+      clearEncodingIntervention();
       resetAutosaveFailures();
       statusMessage.value =
         content.value === snapshot
@@ -240,6 +287,10 @@ export function useDocumentSession() {
           : `已保存 ${doc.fileName}，仍有未保存更改`;
       return true;
     } catch (error) {
+      if (isUnmappableCharacterError(error) && !options?.forceUtf8) {
+        pauseForEncodingConflict();
+        return false;
+      }
       await showError("另存为失败", error);
       return false;
     }
@@ -247,6 +298,7 @@ export function useDocumentSession() {
 
   async function saveExistingPath(options?: {
     quiet?: boolean;
+    forceUtf8?: boolean;
   }): Promise<boolean> {
     const targetPath = path.value;
     if (!targetPath) {
@@ -260,14 +312,20 @@ export function useDocumentSession() {
     const { saveMarkdownFile, showError } = await loadFileService();
 
     try {
-      await saveMarkdownFile(targetPath, snapshot, formatAtStart);
+      await saveMarkdownFile(targetPath, snapshot, formatAtStart, {
+        forceUtf8: options?.forceUtf8,
+      });
       if (
         documentVersion.value !== versionAtStart ||
         path.value !== targetPath
       ) {
         return false;
       }
+      if (options?.forceUtf8) {
+        format.value = utf8DocumentFormat(formatAtStart.lineEnding, false);
+      }
       savedContent.value = snapshot;
+      clearEncodingIntervention();
       resetAutosaveFailures();
       statusMessage.value =
         content.value === snapshot
@@ -275,6 +333,10 @@ export function useDocumentSession() {
           : `已自动保存 ${targetName}，仍有未保存更改`;
       return true;
     } catch (error) {
+      if (isUnmappableCharacterError(error) && !options?.forceUtf8) {
+        pauseForEncodingConflict();
+        return false;
+      }
       const detail = error instanceof Error ? error.message : String(error);
       if (options?.quiet) {
         statusMessage.value = `自动保存失败：${detail}`;
@@ -287,6 +349,10 @@ export function useDocumentSession() {
 
   async function save(options?: { quiet?: boolean }): Promise<boolean> {
     return runSave(async () => {
+      if (encodingSaveBlocked.value) {
+        encodingDialogOpen.value = true;
+        return false;
+      }
       if (!path.value) {
         return saveAsCurrent();
       }
@@ -294,8 +360,34 @@ export function useDocumentSession() {
     });
   }
 
+  async function convertOverwriteUtf8(): Promise<boolean> {
+    return runSave(async () => {
+      if (!path.value) {
+        return false;
+      }
+      const ok = await saveExistingPath({ forceUtf8: true });
+      if (ok) {
+        statusMessage.value = `已转为通用格式并覆盖保存 ${fileName.value}`;
+      }
+      return ok;
+    });
+  }
+
+  async function convertSaveAsUtf8(): Promise<boolean> {
+    return runSave(async () => {
+      const ok = await saveAsCurrent({ forceUtf8: true });
+      return ok;
+    });
+  }
+
   const scheduleAutosave = debounce(() => {
-    if (disposed || !path.value || !dirty.value) {
+    if (
+      disposed ||
+      !path.value ||
+      !dirty.value ||
+      encodingSaveBlocked.value ||
+      autosavePaused.value
+    ) {
       return;
     }
     if (saving.value) {
@@ -312,6 +404,8 @@ export function useDocumentSession() {
       }
       if (ok) {
         resetAutosaveFailures();
+      } else if (path.value && encodingSaveBlocked.value) {
+        return;
       } else if (path.value) {
         autosaveFailureCount += 1;
         if (autosaveFailureCount >= 3) {
@@ -333,13 +427,22 @@ export function useDocumentSession() {
   }) {
     scheduleAutosave.cancel();
     resetAutosaveFailures();
+    clearEncodingIntervention();
     path.value = doc.path;
     fileName.value = doc.fileName;
     content.value = doc.content;
     savedContent.value = doc.content;
     format.value = doc.format;
     bumpVersion();
-    statusMessage.value = doc.path ? `已打开 ${doc.fileName}` : "新建文档";
+    if (!doc.path) {
+      statusMessage.value = "新建文档";
+      return;
+    }
+    if (doc.format.confidence === "tentative") {
+      statusMessage.value = `已打开 ${doc.fileName}（已自动识别文本格式；若显示异常可在帮助中重新识别）`;
+      return;
+    }
+    statusMessage.value = `已打开 ${doc.fileName}`;
   }
 
   function resolveDirty(ok: boolean) {
@@ -435,10 +538,6 @@ export function useDocumentSession() {
     if (!normalized) {
       return false;
     }
-    if (path.value === normalized && !dirty.value) {
-      statusMessage.value = `已打开 ${fileName.value}`;
-      return true;
-    }
     if (!(await guardDirty())) {
       return false;
     }
@@ -453,10 +552,31 @@ export function useDocumentSession() {
     }
   }
 
+  async function reidentifyDocument(hint: EncodingHint): Promise<boolean> {
+    const target = path.value;
+    if (!target) {
+      statusMessage.value = "请先打开文件后再重新识别";
+      return false;
+    }
+    if (!(await guardDirty())) {
+      return false;
+    }
+    const { loadMarkdownFile, showError } = await loadFileService();
+    try {
+      const doc = await loadMarkdownFile(target, hint);
+      applyLoaded(doc);
+      statusMessage.value = `已重新识别 ${doc.fileName}`;
+      return true;
+    } catch (error) {
+      await showError("重新识别失败", error);
+      return false;
+    }
+  }
+
   async function saveAs(): Promise<boolean> {
     scheduleAutosave.cancel();
     try {
-      return await runSave(saveAsCurrent);
+      return await runSave(() => saveAsCurrent());
     } finally {
       resumeAutosaveIfNeeded();
     }
@@ -464,12 +584,13 @@ export function useDocumentSession() {
 
   function setContent(next: string) {
     content.value = next;
-    if (path.value) {
-      if (autosaveFailureCount >= 3) {
-        resetAutosaveFailures();
-      }
-      scheduleAutosave();
+    if (!path.value || encodingSaveBlocked.value) {
+      return;
     }
+    if (autosaveFailureCount >= 3) {
+      resetAutosaveFailures();
+    }
+    scheduleAutosave();
   }
 
   function dispose() {
@@ -488,6 +609,8 @@ export function useDocumentSession() {
     documentVersion,
     statusMessage,
     dirtyDialogOpen,
+    encodingDialogOpen,
+    encodingSaveBlocked,
     saving,
     setContent,
     guardDirty,
@@ -495,8 +618,13 @@ export function useDocumentSession() {
     newDocument,
     openDocument,
     openDocumentAtPath,
+    reidentifyDocument,
     save,
     saveAs,
+    convertOverwriteUtf8,
+    convertSaveAsUtf8,
+    openEncodingSaveDialog,
+    cancelEncodingSaveDialog,
     onDirtySave,
     onDirtyDiscard,
     onDirtyCancel,

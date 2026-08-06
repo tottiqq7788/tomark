@@ -71,8 +71,15 @@ export function useDefaultAppSetup(options?: {
       const result = await invoke<DefaultAppResult>(
         "request_default_markdown_app",
       );
-      statusMessage.value = result.message;
-      markDefaultAppPromptSeen(storage);
+      // OS APIs only report that we requested / opened settings — not a verified
+      // default-handler state. Close after a successful handoff; keep open on errors.
+      if (result.ok || result.openedSettings) {
+        markDefaultAppPromptSeen(storage);
+        open.value = false;
+        statusMessage.value = "";
+      } else {
+        statusMessage.value = result.message;
+      }
       return result;
     } catch (error) {
       const message =

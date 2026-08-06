@@ -1,6 +1,8 @@
 mod atomic_write;
 mod default_app;
+mod document_io;
 mod open_file;
+mod text_codec;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -67,6 +69,8 @@ pub fn run() {
         .manage(open_file::PendingOpenFiles::default())
         .invoke_handler(tauri::generate_handler![
             atomic_write::atomic_write_text_file,
+            document_io::load_markdown_document,
+            document_io::save_markdown_document,
             confirm_app_exit,
             open_file::acknowledge_open_file_listener,
             default_app::request_default_markdown_app
@@ -79,7 +83,7 @@ pub fn run() {
             .plugin(tauri_plugin_wdio_webdriver::init());
     }
 
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     {
         builder = builder.setup(|app| {
             let files = open_file::collect_markdown_paths_from_args(std::env::args().skip(1));

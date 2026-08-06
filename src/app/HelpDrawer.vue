@@ -1,15 +1,34 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { trapFocus } from "@/shared/focusTrap";
+import type { EncodingHint } from "@/shared/types";
 
 const props = defineProps<{
   open: boolean;
+  canReidentify?: boolean;
 }>();
 
 const emit = defineEmits<{
   close: [];
   "request-default-app": [];
+  reidentify: [hint: EncodingHint];
 }>();
+
+const showReidentifyOptions = ref(false);
+
+const REIDENTIFY_OPTIONS: { hint: EncodingHint; label: string }[] = [
+  { hint: "auto", label: "自动" },
+  { hint: "simplifiedChinese", label: "简体中文" },
+  { hint: "traditionalChinese", label: "繁体中文" },
+  { hint: "japanese", label: "日文" },
+  { hint: "korean", label: "韩文" },
+  { hint: "western", label: "西文" },
+];
+
+function onPickReidentify(hint: EncodingHint) {
+  showReidentifyOptions.value = false;
+  emit("reidentify", hint);
+}
 
 /** Keep DOM after first mount so open/close only toggles compositor-friendly classes. */
 const present = ref(false);
@@ -174,6 +193,7 @@ watch(
       void openDrawer();
       return;
     }
+    showReidentifyOptions.value = false;
     if (shown.value) {
       requestClose();
       return;
@@ -335,6 +355,37 @@ onBeforeUnmount(() => {
               设置为 Markdown 默认应用
             </button>
           </section>
+
+          <section v-if="canReidentify">
+            <h3>文本显示异常？</h3>
+            <ul>
+              <li>通常会自动识别常见文本格式；若显示乱码，可手动重新识别。</li>
+            </ul>
+            <button
+              type="button"
+              class="help-action"
+              data-testid="help-reidentify-toggle"
+              @click="showReidentifyOptions = !showReidentifyOptions"
+            >
+              重新识别
+            </button>
+            <div
+              v-if="showReidentifyOptions"
+              class="reidentify-options"
+              data-testid="help-reidentify-options"
+            >
+              <button
+                v-for="option in REIDENTIFY_OPTIONS"
+                :key="option.hint"
+                type="button"
+                class="help-action secondary"
+                :data-testid="`help-reidentify-${option.hint}`"
+                @click="onPickReidentify(option.hint)"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+          </section>
         </div>
       </aside>
     </div>
@@ -479,8 +530,29 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.help-action.secondary {
+  background: #fff;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
 .help-action:hover {
   background: #dbeafe;
+}
+
+.help-action.secondary:hover {
+  background: #f3f4f6;
+}
+
+.reidentify-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.reidentify-options .help-action {
+  margin-top: 0;
 }
 
 .help-body th,

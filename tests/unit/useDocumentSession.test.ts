@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LoadedDocument } from "@/shared/types";
+import { defaultDocumentFormat } from "@/shared/types";
+import { UnmappableCharacterError } from "@/shared/encodingErrors";
 
 const nativeMocks = vi.hoisted(() => ({
   openMarkdownFile: vi.fn(),
@@ -15,7 +17,7 @@ vi.mock("@/native/fileService", () => ({
     path: null,
     fileName: "未命名.md",
     content: "",
-    format: { lineEnding: "lf", hasBom: false },
+    format: defaultDocumentFormat(),
   }),
 }));
 
@@ -28,6 +30,8 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+const UTF8_FORMAT = defaultDocumentFormat();
 
 describe("useDocumentSession", () => {
   beforeEach(() => {
@@ -65,7 +69,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
       "/tmp/example.md",
       "first snapshot",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     expect(session.dirty.value).toBe(true);
     expect(session.statusMessage.value).toContain("仍有未保存更改");
@@ -84,7 +89,7 @@ describe("useDocumentSession", () => {
       path: "/tmp/example.md",
       fileName: "example.md",
       content: "first snapshot",
-      format: { lineEnding: "lf", hasBom: false },
+      format: UTF8_FORMAT,
     });
 
     await expect(saving).resolves.toBe(true);
@@ -120,7 +125,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
       "/tmp/example.md",
       "pending autosave",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     expect(session.dirty.value).toBe(false);
     expect(session.dirtyDialogOpen.value).toBe(false);
@@ -143,7 +149,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
       "/tmp/example.md",
       "auto saved body",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     expect(session.dirty.value).toBe(false);
     expect(session.saveStatus.value).toBe("saved");
@@ -174,7 +181,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
       "/tmp/example.md",
       "abc",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     session.dispose();
     vi.useRealTimers();
@@ -208,7 +216,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenLastCalledWith(
       "/tmp/example.md",
       "second",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     expect(session.dirty.value).toBe(false);
     session.dispose();
@@ -234,7 +243,8 @@ describe("useDocumentSession", () => {
     expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
       "/tmp/example.md",
       "keep me",
-      { lineEnding: "lf", hasBom: false },
+      UTF8_FORMAT,
+      { forceUtf8: undefined },
     );
     session.dispose();
     vi.useRealTimers();
@@ -263,6 +273,100 @@ describe("useDocumentSession", () => {
     vi.useRealTimers();
   });
 
+  it("pauses autosave immediately on encoding conflicts", async () => {
+    vi.useFakeTimers();
+    nativeMocks.saveMarkdownFile.mockRejectedValue(
+      new UnmappableCharacterError("cannot encode", {
+        encoding: "windows1252",
+        codepoint: 0x1f600,
+      }),
+    );
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.format.value = {
+      ...UTF8_FORMAT,
+      encoding: "windows1252",
+    };
+    session.setContent("hello 😀");
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledTimes(1);
+    expect(session.encodingSaveBlocked.value).toBe(true);
+    expect(session.encodingDialogOpen.value).toBe(true);
+    expect(session.saveStatus.value).toBe("manual");
+    expect(nativeMocks.showError).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(AUTOSAVE_WAIT_MS);
+    await Promise.resolve();
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledTimes(1);
+
+    session.cancelEncodingSaveDialog();
+    expect(session.encodingDialogOpen.value).toBe(false);
+    expect(session.encodingSaveBlocked.value).toBe(true);
+    session.openEncodingSaveDialog();
+    expect(session.encodingDialogOpen.value).toBe(true);
+    session.dispose();
+    vi.useRealTimers();
+  });
+
+  it("converts to utf-8 overwrite and resumes autosave", async () => {
+    nativeMocks.saveMarkdownFile.mockResolvedValue(undefined);
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.format.value = {
+      ...UTF8_FORMAT,
+      encoding: "windows1252",
+    };
+    session.setContent("hello 😀");
+    session.encodingSaveBlocked.value = true;
+    session.encodingDialogOpen.value = true;
+
+    await expect(session.convertOverwriteUtf8()).resolves.toBe(true);
+    expect(nativeMocks.saveMarkdownFile).toHaveBeenCalledWith(
+      "/tmp/example.md",
+      "hello 😀",
+      expect.objectContaining({ encoding: "windows1252" }),
+      { forceUtf8: true },
+    );
+    expect(session.format.value.encoding).toBe("utf8");
+    expect(session.encodingSaveBlocked.value).toBe(false);
+    expect(session.dirty.value).toBe(false);
+    expect(session.saveStatus.value).toBe("saved");
+    session.dispose();
+  });
+
+  it("converts with save-as utf-8 without overwriting original", async () => {
+    nativeMocks.saveMarkdownFileAs.mockResolvedValue({
+      path: "/tmp/example-utf8.md",
+      fileName: "example-utf8.md",
+      content: "hello 😀",
+      format: UTF8_FORMAT,
+    });
+    const session = useDocumentSession();
+    session.path.value = "/tmp/example.md";
+    session.fileName.value = "example.md";
+    session.setContent("hello 😀");
+    session.encodingSaveBlocked.value = true;
+    session.encodingDialogOpen.value = true;
+
+    await expect(session.convertSaveAsUtf8()).resolves.toBe(true);
+    expect(nativeMocks.saveMarkdownFileAs).toHaveBeenCalledWith(
+      "hello 😀",
+      expect.any(Object),
+      "/tmp/example.md",
+      { forceUtf8: true },
+    );
+    expect(session.path.value).toBe("/tmp/example-utf8.md");
+    expect(session.encodingSaveBlocked.value).toBe(false);
+    session.dispose();
+  });
+
   it("does not auto-save untitled documents without prompting", async () => {
     vi.useFakeTimers();
     const session = useDocumentSession();
@@ -283,7 +387,7 @@ describe("useDocumentSession", () => {
       path: "/tmp/external.md",
       fileName: "external.md",
       content: "# Hello",
-      format: { lineEnding: "lf", hasBom: false },
+      format: UTF8_FORMAT,
     });
     const session = useDocumentSession();
     await expect(session.openDocumentAtPath("/tmp/external.md")).resolves.toBe(
@@ -309,19 +413,54 @@ describe("useDocumentSession", () => {
     session.dispose();
   });
 
-  it("no-ops when reopening the same clean path", async () => {
-    nativeMocks.loadMarkdownFile.mockResolvedValue({
-      path: "/tmp/same.md",
-      fileName: "same.md",
-      content: "body",
-      format: { lineEnding: "lf", hasBom: false },
-    });
+  it("reloads from disk when reopening the same clean path", async () => {
+    nativeMocks.loadMarkdownFile
+      .mockResolvedValueOnce({
+        path: "/tmp/same.md",
+        fileName: "same.md",
+        content: "body",
+        format: UTF8_FORMAT,
+      })
+      .mockResolvedValueOnce({
+        path: "/tmp/same.md",
+        fileName: "same.md",
+        content: "updated body",
+        format: UTF8_FORMAT,
+      });
     const session = useDocumentSession();
     await expect(session.openDocumentAtPath("/tmp/same.md")).resolves.toBe(true);
-    nativeMocks.loadMarkdownFile.mockClear();
     await expect(session.openDocumentAtPath("/tmp/same.md")).resolves.toBe(true);
-    expect(nativeMocks.loadMarkdownFile).not.toHaveBeenCalled();
+    expect(nativeMocks.loadMarkdownFile).toHaveBeenCalledTimes(2);
+    expect(session.content.value).toBe("updated body");
+    session.dispose();
+  });
+
+  it("reidentifies the current path with a user hint", async () => {
+    nativeMocks.loadMarkdownFile
+      .mockResolvedValueOnce({
+        path: "/tmp/note.md",
+        fileName: "note.md",
+        content: "caf\uFFFD\n",
+        format: UTF8_FORMAT,
+      })
+      .mockResolvedValueOnce({
+        path: "/tmp/note.md",
+        fileName: "note.md",
+        content: "café\n",
+        format: {
+          ...UTF8_FORMAT,
+          encoding: "windows1252",
+          source: "userHint",
+        },
+      });
+    const session = useDocumentSession();
+    await session.openDocumentAtPath("/tmp/note.md");
+    await expect(session.reidentifyDocument("western")).resolves.toBe(true);
+    expect(nativeMocks.loadMarkdownFile).toHaveBeenLastCalledWith(
+      "/tmp/note.md",
+      "western",
+    );
+    expect(session.content.value).toBe("café\n");
     session.dispose();
   });
 });
-

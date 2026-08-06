@@ -89,6 +89,7 @@ vi.mock("@/app/useDocumentSession", () => ({
     documentVersion: ref(0),
     statusMessage: ref(""),
     dirtyDialogOpen,
+    encodingDialogOpen: ref(false),
     saving: ref(false),
     setContent: vi.fn(),
     flushAutosave,
@@ -104,8 +105,13 @@ vi.mock("@/app/useDocumentSession", () => ({
     newDocument: vi.fn(),
     openDocument: vi.fn(),
     openDocumentAtPath: vi.fn(async () => true),
+    reidentifyDocument: vi.fn(async () => true),
     save,
     saveAs: vi.fn(async () => true),
+    convertOverwriteUtf8: vi.fn(async () => true),
+    convertSaveAsUtf8: vi.fn(async () => true),
+    openEncodingSaveDialog: vi.fn(),
+    cancelEncodingSaveDialog: vi.fn(),
     onDirtySave: vi.fn(),
     onDirtyDiscard: () => {
       dirtyDialogOpen.value = false;
