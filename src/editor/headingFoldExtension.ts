@@ -92,6 +92,20 @@ export function defaultCollapsedKeys(
   return collapsed;
 }
 
+/**
+ * Exclusive expand: only `target` and its ancestors stay open; all other headings collapse.
+ */
+export function exclusiveExpandKeys(
+  flat: HeadingNode[],
+  target: HeadingNode,
+): Set<string> {
+  const collapsed = new Set(flat.map((h) => pathKey(h.path)));
+  for (let depth = 1; depth <= target.path.length; depth += 1) {
+    collapsed.delete(pathKey(target.path.slice(0, depth)));
+  }
+  return collapsed;
+}
+
 function visibleCollapsedRanges(
   roots: HeadingNode[],
   collapsedKeys: Set<string>,
@@ -434,13 +448,13 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
         const heading = value.flat.find((h) => h.line === line);
         if (heading) {
           const key = pathKey(heading.path);
-          const next = new Set(collapsedKeys);
-          if (next.has(key)) {
-            next.delete(key);
+          if (collapsedKeys.has(key)) {
+            collapsedKeys = exclusiveExpandKeys(value.flat, heading);
           } else {
+            const next = new Set(collapsedKeys);
             next.add(key);
+            collapsedKeys = next;
           }
-          collapsedKeys = next;
         }
       }
     }

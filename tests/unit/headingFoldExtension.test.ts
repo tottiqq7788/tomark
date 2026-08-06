@@ -119,4 +119,56 @@ describe("headingFoldExtension", () => {
     expect(roots).toHaveLength(1);
     expect(roots[0].children[0].text).toBe("Two");
   });
+
+  it("collapses sibling branches when expanding another leaf on the same path", () => {
+    let state = EditorState.create({
+      doc: "# 1\n## 1.2\n### 1.2.2\nbody\n### 1.2.3\nx\n# 2\ny\n",
+      extensions: headingFoldExtensions(),
+    });
+    // Default: 1 / 1.2 / 1.2.2 open. Expand 1.2.3 → 1.2.2 closes.
+    state = state.update({ effects: toggleHeadingFold.of(5) }).state;
+    let fold = state.field(headingFoldField);
+    expect(fold.headingLines.get(1)).toBe(false);
+    expect(fold.headingLines.get(2)).toBe(false);
+    expect(fold.headingLines.get(3)).toBe(true);
+    expect(fold.headingLines.get(5)).toBe(false);
+    expect(fold.headingLines.get(7)).toBe(true);
+
+    // Expand root 2 → previous chain closes.
+    state = state.update({ effects: toggleHeadingFold.of(7) }).state;
+    fold = state.field(headingFoldField);
+    expect(fold.headingLines.get(1)).toBe(true);
+    expect(fold.headingLines.get(2)).toBe(true);
+    expect(fold.headingLines.get(3)).toBe(true);
+    expect(fold.headingLines.get(5)).toBe(true);
+    expect(fold.headingLines.get(7)).toBe(false);
+  });
+
+  it("collapses descendants when expanding an ancestor on the path", () => {
+    let state = EditorState.create({
+      doc: "# A\n## A1\n### A1a\nbody\n## A2\nx\n",
+      extensions: headingFoldExtensions(),
+    });
+    // Open A2 exclusively, then open A1 — A1a must stay collapsed.
+    state = state.update({ effects: toggleHeadingFold.of(5) }).state;
+    state = state.update({ effects: toggleHeadingFold.of(2) }).state;
+    const fold = state.field(headingFoldField);
+    expect(fold.headingLines.get(1)).toBe(false);
+    expect(fold.headingLines.get(2)).toBe(false);
+    expect(fold.headingLines.get(3)).toBe(true);
+    expect(fold.headingLines.get(5)).toBe(true);
+  });
+
+  it("collapses only the clicked heading when folding an open node", () => {
+    let state = EditorState.create({
+      doc: "# A\n## A1\n### A1a\nbody\n## A2\nx\n",
+      extensions: headingFoldExtensions(),
+    });
+    // Default A / A1 / A1a open. Collapse A1 only.
+    state = state.update({ effects: toggleHeadingFold.of(2) }).state;
+    const fold = state.field(headingFoldField);
+    expect(fold.headingLines.get(1)).toBe(false);
+    expect(fold.headingLines.get(2)).toBe(true);
+    expect(fold.headingLines.get(5)).toBe(true);
+  });
 });
