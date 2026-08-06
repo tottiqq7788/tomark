@@ -92,13 +92,38 @@ function setEditorPaneRef(el: unknown) {
 }
 
 async function onLocateSource(line: number) {
+  pendingRevealLine = null;
+  const wasCurrent = preview.isCurrent();
   // Flush debounce so reverse locate uses current source↔anchor mapping.
-  await preview.syncNow();
+  const synced = await preview.syncNow();
+  if (!synced) {
+    return;
+  }
+  // The clicked line came from the previous DOM; never apply it to new source.
+  if (!wasCurrent || !preview.isCurrent()) {
+    statusMessage.value = "预览内容已更新，请重新点击定位";
+    return;
+  }
   if (editorPaneRef.value) {
-    pendingRevealLine = null;
     editorPaneRef.value.revealSourceLine(line);
   } else {
     pendingRevealLine = line;
+  }
+}
+
+async function onOpenLink(url: string) {
+  try {
+    const { isTauri } = await import("@tauri-apps/api/core");
+    if (isTauri()) {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(url);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  } catch (error) {
+    statusMessage.value = `打开链接失败：${
+      error instanceof Error ? error.message : String(error)
+    }`;
   }
 }
 
@@ -126,8 +151,30 @@ watch(
 
 let unlistenCloseRequested: UnlistenFn | null = null;
 let unlistenMenu: UnlistenFn | null = null;
+let unlistenAppExitRequested: UnlistenFn | null = null;
 let unmounted = false;
 let destroyingWindow = false;
+let appExitInFlight = false;
+
+async function onAppExitRequested() {
+  if (appExitInFlight || unmounted) {
+    return;
+  }
+  appExitInFlight = true;
+  try {
+    if (!(await guardDirty()) || unmounted) {
+      return;
+    }
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("confirm_app_exit");
+  } catch (error) {
+    statusMessage.value = `退出应用失败：${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  } finally {
+    appExitInFlight = false;
+  }
+}
 
 onMounted(async () => {
   if (import.meta.env.VITE_WDIO === "1") {
@@ -150,6 +197,25 @@ onMounted(async () => {
   ]);
   if (!isTauri() || unmounted) {
     return;
+  }
+
+  const appWindow = getCurrentWindow();
+  try {
+    const unlisten = await appWindow.listen(
+      "tomark-app-exit-requested",
+      () => {
+        void onAppExitRequested();
+      },
+    );
+    if (unmounted) {
+      unlisten();
+      return;
+    }
+    unlistenAppExitRequested = unlisten;
+  } catch (error) {
+    statusMessage.value = `未能启用退出保护：${
+      error instanceof Error ? error.message : String(error)
+    }`;
   }
 
   fileOpsViaMenu.value = false;
@@ -186,7 +252,6 @@ onMounted(async () => {
     return;
   }
 
-  const appWindow = getCurrentWindow();
   try {
     const unlisten = await appWindow.onCloseRequested(async (event) => {
       await flushAutosave();
@@ -223,6 +288,7 @@ onBeforeUnmount(() => {
   unmounted = true;
   unlistenCloseRequested?.();
   unlistenMenu?.();
+  unlistenAppExitRequested?.();
   dispose();
   preview.refreshPreview.cancel();
   if (import.meta.env.VITE_WDIO === "1") {
@@ -336,6 +402,7 @@ useAppShortcuts({
             :html="previewHtml"
             :line-to-anchor="previewLineToAnchor"
             @locate-source="onLocateSource"
+            @open-link="onOpenLink"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>

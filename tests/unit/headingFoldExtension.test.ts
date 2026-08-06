@@ -112,6 +112,26 @@ describe("headingFoldExtension", () => {
     spy.mockRestore();
   });
 
+  it("fully rebuilds when the middle of a multiline setext heading is edited", () => {
+    let state = EditorState.create({
+      doc: "first\nsecond\nthird\n---\nbody\n",
+      extensions: headingFoldExtensions(),
+    });
+    const tr = state.update({
+      changes: {
+        from: state.doc.line(2).from,
+        to: state.doc.line(2).to,
+        insert: "",
+      },
+    });
+
+    expect(classifyHeadingRebuild(tr, state.field(headingFoldField))).toBe(
+      "full",
+    );
+    state = tr.state;
+    expect(state.field(headingFoldField).flat[0].line).toBe(3);
+  });
+
   it("builds headings from Text without splitting the whole document string", () => {
     const doc = Text.of(["# One", "", "## Two", "body"]);
     const roots = headingTree.buildHeadingTreeFromDoc(doc);

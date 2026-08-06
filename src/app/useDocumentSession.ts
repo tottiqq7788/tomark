@@ -169,11 +169,15 @@ export function useDocumentSession() {
     if (saving.value) {
       return "pending";
     }
+    // An untitled document has never been persisted, even when it is pristine.
+    if (!path.value) {
+      return "unsaved";
+    }
     if (!dirty.value) {
       return "saved";
     }
-    // Untitled or autosave paused — don't leave a perpetual spinner.
-    if (!path.value || autosavePaused.value) {
+    // Autosave is paused — don't leave a perpetual spinner.
+    if (autosavePaused.value) {
       return "unsaved";
     }
     return "pending";

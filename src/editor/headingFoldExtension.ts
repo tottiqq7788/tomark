@@ -135,7 +135,7 @@ export function headingForSourceLine(
   line: number,
 ): HeadingNode | null {
   const asHeading = flat.find(
-    (h) => h.line === line || h.headingEndLine === line,
+    (h) => h.line <= line && line <= h.headingEndLine,
   );
   if (asHeading) {
     return asHeading;
@@ -375,7 +375,7 @@ function isStructuralLine(
   if (line < 1 || line > tr.state.doc.lines) {
     return false;
   }
-  if (flat.some((h) => h.line === line || h.headingEndLine === line)) {
+  if (flat.some((h) => h.line <= line && line <= h.headingEndLine)) {
     return true;
   }
   return looksLikeHeadingOrFenceLine(tr.state.doc.line(line).text);
@@ -405,7 +405,7 @@ function isOldStructuralLine(
   if (line < 1 || line > tr.startState.doc.lines) {
     return false;
   }
-  if (flat.some((h) => h.line === line || h.headingEndLine === line)) {
+  if (flat.some((h) => h.line <= line && line <= h.headingEndLine)) {
     return true;
   }
   return looksLikeHeadingOrFenceLine(tr.startState.doc.line(line).text);

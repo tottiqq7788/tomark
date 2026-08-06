@@ -11,6 +11,8 @@ describe("usePreviewBridge", () => {
     await flushPromises();
     vi.advanceTimersByTime(200);
     await flushPromises();
+    await bridge.syncNow();
+    expect(bridge.isCurrent()).toBe(true);
 
     const scrolls: number[] = [];
     bridge.attachPreview({
@@ -20,10 +22,12 @@ describe("usePreviewBridge", () => {
     });
 
     content.value = "plain paragraph";
+    expect(bridge.isCurrent()).toBe(false);
     await bridge.locate(1);
     await nextTick();
 
     expect(scrolls).toEqual([1]);
+    expect(bridge.isCurrent()).toBe(true);
     expect(bridge.lineToAnchor.value.get(1)?.blockType).toBe("p");
     vi.useRealTimers();
   });

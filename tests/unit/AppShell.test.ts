@@ -6,24 +6,41 @@ const tauriMocks = vi.hoisted(() => {
   type CloseHandler = (event: {
     preventDefault: () => void;
   }) => void | Promise<void>;
+  type AppExitHandler = () => void;
 
   let closeHandler: CloseHandler | null = null;
+  let appExitHandler: AppExitHandler | null = null;
   const unlisten = vi.fn();
+  const unlistenAppExit = vi.fn();
   const destroy = vi.fn(async () => undefined);
+  const invoke = vi.fn(async () => undefined);
   const onCloseRequested = vi.fn(async (handler: CloseHandler) => {
     closeHandler = handler;
     return unlisten;
   });
+  const listen = vi.fn(async (event: string, handler: AppExitHandler) => {
+    if (event === "tomark-app-exit-requested") {
+      appExitHandler = handler;
+    }
+    return unlistenAppExit;
+  });
 
   return {
-    appWindow: { onCloseRequested, destroy },
+    appWindow: { onCloseRequested, destroy, listen },
     destroy,
+    getAppExitHandler: () => appExitHandler,
     getCloseHandler: () => closeHandler,
+    invoke,
+    listen,
     onCloseRequested,
     reset: () => {
       closeHandler = null;
+      appExitHandler = null;
       unlisten.mockClear();
+      unlistenAppExit.mockClear();
       destroy.mockClear();
+      invoke.mockClear();
+      listen.mockClear();
       onCloseRequested.mockClear();
     },
     unlisten,
@@ -32,6 +49,7 @@ const tauriMocks = vi.hoisted(() => {
 
 vi.mock("@tauri-apps/api/core", () => ({
   isTauri: () => true,
+  invoke: tauriMocks.invoke,
 }));
 
 vi.mock("@tauri-apps/api/window", () => ({
@@ -47,6 +65,10 @@ const dirtyDialogOpen = ref(false);
 let dirtyResolver: ((ok: boolean) => void) | null = null;
 const save = vi.fn(async () => true);
 const flushAutosave = vi.fn(async () => undefined);
+const previewMocks = vi.hoisted(() => ({
+  syncNow: vi.fn(async () => true),
+  isCurrent: vi.fn(() => true),
+}));
 
 vi.mock("@/app/useDocumentSession", () => ({
   useDocumentSession: () => ({
@@ -100,7 +122,8 @@ vi.mock("@/app/usePreviewBridge", () => ({
     html: ref(""),
     lineToAnchor: ref(new Map()),
     locate: vi.fn(),
-    syncNow: vi.fn(async () => true),
+    syncNow: previewMocks.syncNow,
+    isCurrent: previewMocks.isCurrent,
     attachPreview: vi.fn(),
     refreshPreview: Object.assign(vi.fn(), { cancel: vi.fn() }),
   }),
@@ -122,6 +145,10 @@ describe("AppShell", () => {
     dirtyResolver = null;
     save.mockClear();
     flushAutosave.mockClear();
+    previewMocks.syncNow.mockReset();
+    previewMocks.syncNow.mockResolvedValue(true);
+    previewMocks.isCurrent.mockReset();
+    previewMocks.isCurrent.mockReturnValue(true);
   });
 
   it("guards a dirty document before destroying the Tauri window", async () => {
@@ -179,6 +206,123 @@ describe("AppShell", () => {
     );
     await flushPromises();
     expect(save).toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("guards native app exit before confirming it to Rust", async () => {
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    dirty.value = true;
+    await nextTick();
+
+    const appExitHandler = tauriMocks.getAppExitHandler();
+    expect(appExitHandler).not.toBeNull();
+    appExitHandler!();
+    await flushPromises();
+    await nextTick();
+    expect(dirtyDialogOpen.value).toBe(true);
+
+    await wrapper.get('[data-testid="dirty-discard"]').trigger("click");
+    await flushPromises();
+    expect(tauriMocks.invoke).toHaveBeenCalledWith("confirm_app_exit");
+    wrapper.unmount();
+  });
+
+  it("does not reveal a source line from a superseded preview render", async () => {
+    const revealSourceLine = vi.fn();
+    const EditorPaneStub = defineComponent({
+      setup(_props, { expose }) {
+        expose({ revealSourceLine });
+        return () => h("div", { class: "editor-pane-stub" });
+      },
+    });
+    const PreviewPaneStub = defineComponent({
+      emits: ["locate-source"],
+      setup(_props, { emit }) {
+        return () =>
+          h(
+            "button",
+            {
+              class: "preview-locate",
+              onClick: () => emit("locate-source", 3),
+            },
+            "locate",
+          );
+      },
+    });
+    previewMocks.syncNow.mockResolvedValue(false);
+
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: EditorPaneStub,
+          PreviewPane: PreviewPaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    await wrapper.get(".preview-locate").trigger("click");
+    await flushPromises();
+
+    expect(previewMocks.syncNow).toHaveBeenCalled();
+    expect(revealSourceLine).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("does not reuse a line clicked in stale preview content", async () => {
+    const revealSourceLine = vi.fn();
+    const EditorPaneStub = defineComponent({
+      setup(_props, { expose }) {
+        expose({ revealSourceLine });
+        return () => h("div", { class: "editor-pane-stub" });
+      },
+    });
+    const PreviewPaneStub = defineComponent({
+      emits: ["locate-source"],
+      setup(_props, { emit }) {
+        return () =>
+          h(
+            "button",
+            {
+              class: "preview-locate",
+              onClick: () => emit("locate-source", 3),
+            },
+            "locate",
+          );
+      },
+    });
+    previewMocks.isCurrent
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: EditorPaneStub,
+          PreviewPane: PreviewPaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    await wrapper.get(".preview-locate").trigger("click");
+    await flushPromises();
+
+    expect(previewMocks.syncNow).toHaveBeenCalled();
+    expect(revealSourceLine).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("预览内容已更新，请重新点击定位");
     wrapper.unmount();
   });
 });

@@ -68,6 +68,26 @@
 
 快捷任务入口：`.ai/tasks/devTasks/运行开发预览.md`。
 
+## 打包安装包
+
+原则：按**当前设备**打出发行安装包；命令在 `deps/` 下执行（或 `npm --prefix deps run …`）。首次或依赖变更后先：`cd deps && npm install --legacy-peer-deps`。
+
+| 当前设备 | 命令 | 产物 |
+|----------|------|------|
+| **macOS（须打两套）** | `npm run tauri:build -- --target x86_64-apple-darwin` | Intel：`src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg` |
+| | `npm run tauri:build -- --target aarch64-apple-darwin` | Apple 芯片：`src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg` |
+| **Windows** | `npm run tauri:build`（或显式 `--bundles nsis`） | `src-tauri/target/release/bundle/nsis/*.exe`（以实际日志为准） |
+
+补充：
+
+1. mac 交叉架构前确认已安装对应 Rust target，例如：`rustup target add x86_64-apple-darwin`、`rustup target add aarch64-apple-darwin`。缺则先安装再打包。
+2. 本机已是 Apple 芯片时打 Intel、或本机是 Intel 时打 arm64，均属交叉编译，耗时更长，属正常。
+3. 不要用 `tauri:dev` 或仅前端 `build` 代替安装包；用户要的是可分发的 dmg / exe。
+4. 完成后向用户回报**每个**安装包的绝对路径。
+5. 签名 / 公证未配置时，打出的包仍可用于本机或未签名分发测试；若签名失败，在回复中说明，并尽量保留已生成的未签名产物路径。
+
+快捷任务入口：`.ai/tasks/devTasks/打包安装包.md`。
+
 ## 禁止事项
 
 - 不要把密钥、token、内网地址写入 `readme.md` 或其它公开文档。
@@ -80,8 +100,8 @@
 
 ## 常用任务入口
 
-- 开发类：`.ai/tasks/devTasks/`（如「初始化开发目录」「新功能开发规划」「运行开发预览」「新增功能审查」）
+- 开发类：`.ai/tasks/devTasks/`（如「初始化开发目录」「新功能开发规划」「运行开发预览」「打包安装包」「新增功能审查」）
 - 规划归档：`.ai/tasks/planTasks/`（如「prd归档」——先开发后归档）
-- 工程类（提交、推送、远程信息等）：`.ai/tasks/projectTasks/`
+- 工程类（提交、推送、远程信息、提交 release 等）：`.ai/tasks/projectTasks/`
 
 执行任务时以对应 `.md` 步骤为准；需求清晰时可按任务说明直接落盘，勿反复空确认。

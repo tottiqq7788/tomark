@@ -12,6 +12,7 @@ export function usePreviewBridge(content: Ref<string>) {
   const lineToAnchor = ref<Map<number, PreviewAnchor>>(new Map());
   let renderMarkdownFn: ((source: string) => RenderResult) | null = null;
   let previewVersion = 0;
+  let renderedSource: string | null = null;
   let pendingLocateLine: number | null = null;
 
   async function ensureMarkdown() {
@@ -35,6 +36,7 @@ export function usePreviewBridge(content: Ref<string>) {
     }
     html.value = result.html;
     lineToAnchor.value = result.lineToAnchor;
+    renderedSource = source;
     return true;
   }
 
@@ -58,6 +60,10 @@ export function usePreviewBridge(content: Ref<string>) {
   async function syncNow(): Promise<boolean> {
     refreshPreview.cancel();
     return renderPreview(content.value);
+  }
+
+  function isCurrent(): boolean {
+    return renderedSource === content.value;
   }
 
   async function flushPendingLocate() {
@@ -97,6 +103,7 @@ export function usePreviewBridge(content: Ref<string>) {
     lineToAnchor,
     locate,
     syncNow,
+    isCurrent,
     attachPreview,
     renderPreview,
     refreshPreview,

@@ -10,6 +10,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   "locate-source": [sourceLine: number];
+  "open-link": [url: string];
 }>();
 
 const container = ref<HTMLElement | null>(null);
@@ -24,13 +25,29 @@ function clearFlashTimer() {
 }
 
 function onPreviewClick(event: MouseEvent) {
-  if (!isLocateModifier(event)) {
-    return;
-  }
   const target = event.target;
   if (!(target instanceof Element)) {
     return;
   }
+
+  if (!isLocateModifier(event)) {
+    const link = target.closest("a[href]");
+    if (!(link instanceof HTMLAnchorElement)) {
+      return;
+    }
+    const rawHref = link.getAttribute("href")?.trim() ?? "";
+    const protocol = link.protocol.toLowerCase();
+    if (rawHref.startsWith("#")) {
+      return;
+    }
+    // Never let rendered Markdown replace the editor's own webview.
+    event.preventDefault();
+    if (["http:", "https:", "mailto:", "tel:"].includes(protocol)) {
+      emit("open-link", link.href);
+    }
+    return;
+  }
+
   const anchored = target.closest("[data-source-line]");
   if (!(anchored instanceof HTMLElement)) {
     return;

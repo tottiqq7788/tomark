@@ -65,6 +65,34 @@ describe("headingTree", () => {
     const tree = buildHeadingTree(src);
     expect(tree[0].bodyStart).toBe(3);
   });
+
+  it("matches CommonMark heading boundaries instead of treating rules as headings", () => {
+    const src = `#\n\n   ## Indented\n\n- list item\n---\n\nafter\n`;
+    const headings = extractHeadings(src);
+
+    expect(headings).toEqual([
+      { line: 1, headingEndLine: 1, level: 1, text: "" },
+      {
+        line: 3,
+        headingEndLine: 3,
+        level: 2,
+        text: "Indented",
+      },
+    ]);
+  });
+
+  it("uses the complete paragraph for a multiline setext heading", () => {
+    const headings = extractHeadings("first line\nsecond line\n---\n\nbody\n");
+
+    expect(headings).toEqual([
+      {
+        line: 1,
+        headingEndLine: 3,
+        level: 2,
+        text: "first line second line",
+      },
+    ]);
+  });
 });
 
 describe("renderMarkdown + line anchors", () => {

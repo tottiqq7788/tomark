@@ -38,6 +38,15 @@ describe("useDocumentSession", () => {
     vi.useRealTimers();
   });
 
+  it("marks pristine untitled content as not persisted", () => {
+    const session = useDocumentSession();
+
+    expect(session.dirty.value).toBe(false);
+    expect(session.path.value).toBeNull();
+    expect(session.saveStatus.value).toBe("unsaved");
+    session.dispose();
+  });
+
   it("keeps edits made while an existing file is being saved dirty", async () => {
     const write = deferred<void>();
     nativeMocks.saveMarkdownFile.mockReturnValue(write.promise);

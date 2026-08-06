@@ -71,4 +71,37 @@ describe("PreviewPane locate", () => {
     expect(wrapper.emitted("locate-source")).toBeUndefined();
     wrapper.unmount();
   });
+
+  it("emits external links instead of navigating the editor webview", async () => {
+    const source = `[site](https://example.com/docs)\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    await wrapper.get("a").trigger("click");
+
+    expect(wrapper.emitted("open-link")).toEqual([
+      ["https://example.com/docs"],
+    ]);
+    expect(wrapper.emitted("locate-source")).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it("keeps same-document footnote links inside the preview", async () => {
+    const source = `Ref[^n]\n\n[^n]: note\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    await wrapper.get('a[href^="#"]').trigger("click");
+
+    expect(wrapper.emitted("open-link")).toBeUndefined();
+    wrapper.unmount();
+  });
 });

@@ -18,6 +18,9 @@
             "dialog:default",
             "fs:allow-read-text-file",
             "allow-atomic-write-text-file",
+            "allow-confirm-app-exit",
+            "opener:allow-open-url",
+            "opener:allow-default-urls",
             "wdio:default",
             "wdio-webdriver:default"
           ]

@@ -1,4 +1,5 @@
 import { Text } from "@codemirror/state";
+import { commonmarkLanguage } from "@codemirror/lang-markdown";
 
 export interface HeadingNode {
   /** 1-based document line of the heading title text */
@@ -16,94 +17,79 @@ export interface HeadingNode {
   children: HeadingNode[];
 }
 
-const ATX_RE = /^(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/;
-const SETEXT_RE = /^(=+|-+)[ \t]*$/;
+const ATX_LINE_RE = /^ {0,3}#{1,6}(?:[ \t]|$)/;
+const SETEXT_LINE_RE = /^ {0,3}(?:=+|-+)[ \t]*$/;
+const FENCE_LINE_RE = /^ {0,3}(?:`{3,}|~{3,})/;
+const ATX_NODE_RE = /^ATXHeading([1-6])$/;
+const SETEXT_NODE_RE = /^SetextHeading([12])$/;
 
 type RawHeading = Pick<HeadingNode, "line" | "headingEndLine" | "level" | "text">;
 
-function isFencedFence(line: string): { open: boolean; marker: string; info: string } | null {
-  const m = /^( {0,3})(`{3,}|~{3,})(.*)$/.exec(line);
-  if (!m) {
-    return null;
-  }
-  return { open: true, marker: m[2][0], info: m[3] ?? "" };
-}
-
 export function looksLikeHeadingOrFenceLine(line: string): boolean {
-  if (isFencedFence(line)) {
-    return true;
-  }
-  if (ATX_RE.test(line)) {
-    return true;
-  }
-  return SETEXT_RE.test(line);
+  return (
+    FENCE_LINE_RE.test(line) ||
+    ATX_LINE_RE.test(line) ||
+    SETEXT_LINE_RE.test(line)
+  );
 }
 
 /**
- * Parse ATX / Setext headings while skipping fenced code blocks.
+ * Parse top-level CommonMark headings with the same grammar used by CodeMirror.
+ * A Text-backed input avoids materializing the whole document as one string.
  */
 export function extractHeadingsFromDoc(doc: Text): RawHeading[] {
   const result: RawHeading[] = [];
-  let inFence: { marker: string; length: number } | null = null;
-  const total = doc.lines;
+  const tree = commonmarkLanguage.parser.parse({
+    length: doc.length,
+    lineChunks: false,
+    chunk(from: number) {
+      return doc.sliceString(from, Math.min(doc.length, from + 4096));
+    },
+    read(from: number, to: number) {
+      return doc.sliceString(from, to);
+    },
+  });
+  const cursor = tree.cursor();
 
-  for (let i = 1; i <= total; i += 1) {
-    const line = doc.line(i).text;
-    const fence = isFencedFence(line);
-    if (inFence) {
-      if (fence && fence.marker === inFence.marker) {
-        const m = /^( {0,3})(`{3,}|~{3,})\s*$/.exec(line);
-        if (m && m[2].length >= inFence.length) {
-          inFence = null;
-        }
-      }
+  do {
+    if (cursor.node.parent?.name !== "Document") {
       continue;
     }
-    if (fence) {
-      const m = /^( {0,3})(`{3,}|~{3,})/.exec(line);
-      if (m) {
-        inFence = { marker: m[2][0], length: m[2].length };
-      }
-      continue;
-    }
-
-    const atx = ATX_RE.exec(line);
-    if (atx) {
-      result.push({
-        line: i,
-        headingEndLine: i,
-        level: atx[1].length,
-        text: atx[2].trim(),
-      });
+    const atx = ATX_NODE_RE.exec(cursor.name);
+    const setext = SETEXT_NODE_RE.exec(cursor.name);
+    const match = atx ?? setext;
+    if (!match) {
       continue;
     }
 
-    if (
-      i + 1 <= total &&
-      line.trim() !== "" &&
-      !line.startsWith(" ") &&
-      !line.startsWith("\t") &&
-      !line.startsWith("#")
-    ) {
-      const under = SETEXT_RE.exec(doc.line(i + 1).text);
-      if (under) {
-        const level = under[1][0] === "=" ? 1 : 2;
-        result.push({
-          line: i,
-          headingEndLine: i + 1,
-          level,
-          text: line.trim(),
-        });
-        i += 1;
-      }
-    }
-  }
+    const node = cursor.node;
+    const marks = node.getChildren("HeaderMark");
+    const openingMark = marks[0];
+    const closingMark = atx && marks.length > 1 ? marks[marks.length - 1] : null;
+    const textFrom = atx ? (openingMark?.to ?? node.from) : node.from;
+    const textTo = atx
+      ? (closingMark?.from ?? node.to)
+      : (marks[marks.length - 1]?.from ?? node.to);
+    const text = doc
+      .sliceString(textFrom, textTo)
+      .replace(/[ \t]*\n[ \t]*/g, " ")
+      .trim();
+
+    result.push({
+      line: doc.lineAt(node.from).number,
+      headingEndLine: doc.lineAt(Math.max(node.from, node.to - 1)).number,
+      level: Number(match[1]),
+      text,
+    });
+  } while (cursor.next());
 
   return result;
 }
 
 export function extractHeadings(source: string): RawHeading[] {
-  const doc = Text.of(source.length === 0 ? [""] : source.split(/\r?\n/));
+  const doc = Text.of(
+    source.length === 0 ? [""] : source.split(/\r\n?|\n/),
+  );
   return extractHeadingsFromDoc(doc);
 }
 
@@ -183,7 +169,9 @@ export function buildHeadingTreeFromDoc(doc: Text): HeadingNode[] {
 }
 
 export function buildHeadingTree(source: string): HeadingNode[] {
-  const doc = Text.of(source.length === 0 ? [""] : source.split(/\r?\n/));
+  const doc = Text.of(
+    source.length === 0 ? [""] : source.split(/\r\n?|\n/),
+  );
   return buildHeadingTreeFromDoc(doc);
 }
 

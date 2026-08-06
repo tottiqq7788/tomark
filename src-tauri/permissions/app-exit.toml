@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-confirm-app-exit"
+description = "Allows the guarded frontend flow to confirm application exit."
+commands.allow = ["confirm_app_exit"]

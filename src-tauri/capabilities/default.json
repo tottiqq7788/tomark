@@ -8,6 +8,9 @@
     "core:window:allow-destroy",
     "dialog:default",
     "fs:allow-read-text-file",
-    "allow-atomic-write-text-file"
+    "allow-atomic-write-text-file",
+    "allow-confirm-app-exit",
+    "opener:allow-open-url",
+    "opener:allow-default-urls"
   ]
 }
