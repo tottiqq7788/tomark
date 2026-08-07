@@ -1,7 +1,7 @@
 {
   "name": "tomark",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.10.1",
   "type": "module",
   "scripts": {
     "dev": "vite --config ../src/vite.config.mts",
@@ -13,9 +13,10 @@
     "test:e2e:native": "npm run tauri:e2e:build && npm run test:e2e:native:run",
     "test:e2e:native:run": "cd .. && deps/node_modules/.bin/wdio run tests/e2e/wdio.native.conf.ts",
     "test:all": "npm test && npm run test:e2e && npm run test:e2e:native",
+    "sync:version": "node ./sync-version-from-git.mjs",
     "tauri": "cd .. && deps/node_modules/.bin/tauri",
     "tauri:dev": "cd .. && deps/node_modules/.bin/tauri dev --config src-tauri/tauri.conf.json",
-    "tauri:build": "cd .. && deps/node_modules/.bin/tauri build --config src-tauri/tauri.conf.json",
+    "tauri:build": "npm run sync:version && cd .. && deps/node_modules/.bin/tauri build --config src-tauri/tauri.conf.json",
     "tauri:e2e:build": "VITE_WDIO=1 npm run build && cd .. && deps/node_modules/.bin/tauri build --debug --config src-tauri/tauri.e2e.conf.json"
   },
   "dependencies": {

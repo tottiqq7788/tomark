@@ -1,6 +1,6 @@
 [package]
 name = "tomark"
-version = "0.1.0"
+version = "1.10.1"
 description = "Lightweight cross-platform Markdown editor"
 authors = ["tomark"]
 edition = "2021"

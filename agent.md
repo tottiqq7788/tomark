@@ -72,19 +72,44 @@
 
 原则：按**当前设备**打出发行安装包；命令在 `deps/` 下执行（或 `npm --prefix deps run …`）。首次或依赖变更后先：`cd deps && npm install --legacy-peer-deps`。
 
+### 版本号（强制，以 git 为准）
+
+安装包文件名与产品版本**必须**对齐 git 中的 `vX.Y.Z`，**不要**沿用配置文件里过期的 `0.1.0` 等占位值。
+
+解析顺序：
+
+1. 本地 git tag：`git describe --tags --match 'v*' --abbrev=0`（有 tag 时优先）。
+2. 否则：`git log` 中最近一次**提交说明以 `vX.Y.Z` 开头**的版本（与「提交到git」约定一致）。
+3. 若都没有：停止打包，提示先执行「提交到git」；禁止用配置里的旧版本硬打。
+
+写入位置（去掉前缀 `v`，写入纯 semver，如 `1.10.1`）：
+
+- `src-tauri/tauri.conf.json` → `version`（决定 dmg/exe 文件名中的版本段）
+- `src-tauri/Cargo.toml` → `[package].version`
+- `deps/package.json` 与 `deps/package-lock.json` → `version`
+
+命令：`npm run sync:version`（`deps/sync-version-from-git.mjs`）。`npm run tauri:build` 已内置先跑同步，勿绕过。
+
+同步可能改动上述文件；打包后若 working tree 有版本 diff，属预期，可在下次「提交到git」一并提交，不要为此单独发明版本提交。
+
+### 平台命令与产物
+
 | 当前设备 | 命令 | 产物 |
 |----------|------|------|
 | **macOS（须打两套）** | `npm run tauri:build -- --target x86_64-apple-darwin` | Intel：`src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg` |
 | | `npm run tauri:build -- --target aarch64-apple-darwin` | Apple 芯片：`src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg` |
 | **Windows** | `npm run tauri:build`（或显式 `--bundles nsis`） | `src-tauri/target/release/bundle/nsis/*.exe`（以实际日志为准） |
 
+预期文件名形态示例：`tomark_1.10.1_aarch64.dmg` / `tomark_1.10.1_x64.dmg`（版本段与当前 git `vX.Y.Z` 一致）。
+
 补充：
 
 1. mac 交叉架构前确认已安装对应 Rust target，例如：`rustup target add x86_64-apple-darwin`、`rustup target add aarch64-apple-darwin`。缺则先安装再打包。
 2. 本机已是 Apple 芯片时打 Intel、或本机是 Intel 时打 arm64，均属交叉编译，耗时更长，属正常。
 3. 不要用 `tauri:dev` 或仅前端 `build` 代替安装包；用户要的是可分发的 dmg / exe。
-4. 完成后向用户回报**每个**安装包的绝对路径。
+4. 完成后向用户回报所用 **git 版本**（`vX.Y.Z`）与**每个**安装包的绝对路径；核对路径中的版本段是否一致。
 5. 签名 / 公证未配置时，打出的包仍可用于本机或未签名分发测试；若签名失败，在回复中说明，并尽量保留已生成的未签名产物路径。
+6. 若残留旧挂载卷（如 macOS `/Volumes/tomark`）导致 dmg 失败，先卸载再重打。
 
 快捷任务入口：`.ai/tasks/devTasks/打包安装包.md`。
 
