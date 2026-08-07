@@ -1,6 +1,6 @@
 import { nextTick, ref, watch, type Ref } from "vue";
-import type { FormatRangeChange } from "@/editor/createEditor";
 import type {
+  FormatRangeChange,
   PreviewFormatAction,
   PreviewFormatSelection,
 } from "@/shared/previewFormatting";
@@ -105,11 +105,13 @@ export function usePaneLocate(options: {
       statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
       return;
     }
-    const source =
-      preview.renderedSource.value ??
-      editorPaneRef.value?.getValue?.() ??
-      null;
+    const source = preview.renderedSource.value;
     if (source == null) {
+      return;
+    }
+    const editorValue = editorPaneRef.value?.getValue?.();
+    if (editorValue == null || editorValue !== source) {
+      statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
       return;
     }
     const { action, selection } = payload;
@@ -149,6 +151,10 @@ export function usePaneLocate(options: {
       statusMessage.value = "无法应用该格式，请调整选区后重试";
       return;
     }
+    change = {
+      ...change,
+      expectedText: source.slice(change.from, change.to),
+    };
 
     const applied = editorPaneRef.value?.applyFormatChange?.(change) ?? false;
     if (!applied) {

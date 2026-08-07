@@ -1,4 +1,5 @@
 import type { Element, Parents, Root, RootContent, Text } from "hast";
+import { isSafeLinkHref } from "@/shared/previewFormatting";
 
 const SKIP_WRAP_ANCESTORS = new Set(["pre", "script", "style"]);
 
@@ -97,7 +98,9 @@ export function attachSourceRanges(tree: Root): void {
           };
           if (format === "link") {
             const href = node.properties.href;
-            if (typeof href === "string" && href.length > 0) {
+            // Only mirror hrefs that already pass the same safety check used
+            // by the toolbar — never leave javascript:/data: in data-tm-href.
+            if (typeof href === "string" && isSafeLinkHref(href)) {
               node.properties.dataTmHref = href;
             }
           }

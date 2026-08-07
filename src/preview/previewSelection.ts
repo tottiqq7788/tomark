@@ -60,11 +60,16 @@ function offsetInMappedSpan(span: HTMLElement, node: Node, offset: number): numb
     return from + offset;
   }
   if (node === span) {
-    const len = span.textContent?.length ?? 0;
-    if (offset < 0 || offset > len) {
+    // For Element containers, Range offset is a child index — not a char offset.
+    const children = span.childNodes;
+    if (offset < 0 || offset > children.length) {
       return null;
     }
-    return from + offset;
+    let walked = 0;
+    for (let i = 0; i < offset; i += 1) {
+      walked += children[i]?.textContent?.length ?? 0;
+    }
+    return from + walked;
   }
   // Selection landed on a descendant without its own map — walk text length.
   let walked = 0;

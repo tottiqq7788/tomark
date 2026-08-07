@@ -51,6 +51,8 @@ const toolbarActive = ref<ActiveFormats>({
 const currentSelection = ref<PreviewFormatSelection | null>(null);
 /** Keep selection alive while interacting with the toolbar. */
 let suppressSelectionClear = false;
+/** Keep toolbar visible while the link URL input has focus (selection collapses). */
+const linkEditing = ref(false);
 
 function clearFlashTimer() {
   if (flashTimer) {
@@ -61,6 +63,7 @@ function clearFlashTimer() {
 
 function hideToolbar() {
   toolbarVisible.value = false;
+  linkEditing.value = false;
   currentSelection.value = null;
   toolbarActive.value = {
     bold: false,
@@ -74,7 +77,7 @@ function hideToolbar() {
 }
 
 function refreshToolbarFromSelection() {
-  if (suppressSelectionClear) {
+  if (suppressSelectionClear || linkEditing.value) {
     return;
   }
   const resolved = resolvePreviewSelection(container.value);
@@ -88,6 +91,15 @@ function refreshToolbarFromSelection() {
   toolbarTop.value = pos.top;
   toolbarLeft.value = pos.left;
   toolbarVisible.value = true;
+}
+
+function onLinkEditing(open: boolean) {
+  linkEditing.value = open;
+  if (open) {
+    suppressSelectionClear = true;
+  } else {
+    suppressSelectionClear = false;
+  }
 }
 
 function onSelectionChange() {
@@ -280,6 +292,7 @@ onBeforeUnmount(() => {
       @apply-link="onApplyLink"
       @remove-link="onRemoveLink"
       @dismiss="onDismissToolbar"
+      @link-editing="onLinkEditing"
     />
   </div>
 </template>

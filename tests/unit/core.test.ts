@@ -114,6 +114,12 @@ describe("renderMarkdown + line anchors", () => {
     expect(html).not.toContain("onclick=");
   });
 
+  it("does not mirror unsafe link hrefs into data-tm-href", () => {
+    const { html } = renderMarkdown("[x](javascript:alert(1))\n");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data-tm-href");
+  });
+
   it("maps empty lines to nearest anchor preferring previous", () => {
     const anchors: PreviewAnchor[] = [
       { id: "a1", sourceLineStart: 1, sourceLineEnd: 1, blockType: "h1" },

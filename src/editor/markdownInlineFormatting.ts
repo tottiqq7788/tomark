@@ -1,19 +1,38 @@
-import type { InlineFormat } from "@/shared/previewFormatting";
+import {
+  isSafeLinkHref,
+  type FormatRangeChange,
+  type InlineFormat,
+} from "@/shared/previewFormatting";
 
-export interface FormatChange {
-  from: number;
-  to: number;
-  insert: string;
-  /** Selection to restore after the change (offsets in the new document). */
-  selectionFrom: number;
-  selectionTo: number;
-}
+export type FormatChange = Required<
+  Pick<FormatRangeChange, "from" | "to" | "insert" | "selectionFrom" | "selectionTo">
+>;
+
+export { isSafeLinkHref };
 
 const MARKERS: Record<Exclude<InlineFormat, "link">, { open: string; close: string }> = {
   bold: { open: "**", close: "**" },
   italic: { open: "*", close: "*" },
   strike: { open: "~~", close: "~~" },
   code: { open: "`", close: "`" },
+};
+
+/** Marker pairs accepted when unwrapping from outer source offsets. */
+const UNWRAP_MARKERS: Record<Exclude<InlineFormat, "link">, Array<{ open: string; close: string }>> = {
+  bold: [
+    { open: "**", close: "**" },
+    { open: "__", close: "__" },
+  ],
+  italic: [
+    { open: "*", close: "*" },
+    { open: "_", close: "_" },
+  ],
+  strike: [{ open: "~~", close: "~~" }],
+  code: [
+    { open: "`", close: "`" },
+    { open: "``", close: "``" },
+    { open: "```", close: "```" },
+  ],
 };
 
 function trimEdges(
@@ -63,22 +82,6 @@ function escapeLinkText(text: string): string {
 
 function escapeLinkHref(href: string): string {
   return href.replace(/[()\s]/g, (ch) => encodeURIComponent(ch));
-}
-
-/** Reject javascript:/data: and other unsafe schemes. */
-export function isSafeLinkHref(href: string): boolean {
-  const trimmed = href.trim();
-  if (!trimmed) {
-    return false;
-  }
-  if (trimmed.startsWith("#") || trimmed.startsWith("/") || trimmed.startsWith("./") || trimmed.startsWith("../")) {
-    return true;
-  }
-  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
-    return /^(https?|mailto|tel):/i.test(trimmed);
-  }
-  // Scheme-less relative / bare path / domain-looking text is allowed.
-  return !trimmed.includes(":");
 }
 
 function findWrappingMarkers(
@@ -234,34 +237,65 @@ export function toggleInlineFormat(
   const wantUnwrap = options?.active === true;
 
   if (wantUnwrap && options?.outerFrom != null && options?.outerTo != null) {
-    const viaOuter = unwrapUsingOuter(
-      source,
-      from,
-      to,
-      options.outerFrom,
-      options.outerTo,
-      open,
-      close,
+    // Try longer markers first so ** wins over * and __ over _.
+    const candidates = [...UNWRAP_MARKERS[format]].sort(
+      (a, b) => b.open.length - a.open.length,
     );
-    if (viaOuter) {
-      return viaOuter;
+    for (const marker of candidates) {
+      const viaOuter = unwrapUsingOuter(
+        source,
+        from,
+        to,
+        options.outerFrom,
+        options.outerTo,
+        marker.open,
+        marker.close,
+      );
+      if (viaOuter) {
+        return viaOuter;
+      }
     }
   }
 
-  const immediate = findWrappingMarkers(source, from, to, open, close);
-  if (immediate && wantUnwrap !== false) {
-    // Prefer unwrap when markers hug the selection.
-    const inner = source.slice(from, to);
-    return {
-      from: immediate.openFrom,
-      to: immediate.closeTo,
-      insert: inner,
-      selectionFrom: immediate.openFrom,
-      selectionTo: immediate.openFrom + inner.length,
-    };
-  }
-
   if (wantUnwrap) {
+    const unwrapCandidates = [...UNWRAP_MARKERS[format]].sort(
+      (a, b) => b.open.length - a.open.length,
+    );
+    for (const marker of unwrapCandidates) {
+      const immediate = findWrappingMarkers(
+        source,
+        from,
+        to,
+        marker.open,
+        marker.close,
+      );
+      if (!immediate) {
+        continue;
+      }
+      // Avoid peeling one * off **bold** when toggling italic.
+      const beforeExtra = source[immediate.openFrom - 1];
+      const afterExtra = source[immediate.closeTo];
+      if (
+        marker.open === "*" &&
+        (beforeExtra === "*" || afterExtra === "*")
+      ) {
+        continue;
+      }
+      if (
+        marker.open === "_" &&
+        (beforeExtra === "_" || afterExtra === "_")
+      ) {
+        continue;
+      }
+      const inner = source.slice(from, to);
+      return {
+        from: immediate.openFrom,
+        to: immediate.closeTo,
+        insert: inner,
+        selectionFrom: immediate.openFrom,
+        selectionTo: immediate.openFrom + inner.length,
+      };
+    }
     // Active but couldn't locate markers — refuse rather than double-wrap.
     return null;
   }

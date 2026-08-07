@@ -82,8 +82,26 @@ describe("markdownInlineFormatting", () => {
   it("rejects unsafe link protocols", () => {
     expect(isSafeLinkHref("javascript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("data:text/html,hi")).toBe(false);
+    expect(isSafeLinkHref("//evil.example/x")).toBe(false);
     expect(isSafeLinkHref("https://ok")).toBe(true);
     expect(isSafeLinkHref("#section")).toBe(true);
+    expect(isSafeLinkHref("/abs/path")).toBe(true);
     expect(isSafeLinkHref("../rel.md")).toBe(true);
+  });
+
+  it("unwraps underscore italic and bold from outer ranges", () => {
+    const italic = toggleInlineFormat("_hello_", 1, 6, "italic", {
+      active: true,
+      outerFrom: 0,
+      outerTo: 7,
+    });
+    expect(italic?.insert).toBe("hello");
+
+    const bold = toggleInlineFormat("__hello__", 2, 7, "bold", {
+      active: true,
+      outerFrom: 0,
+      outerTo: 9,
+    });
+    expect(bold?.insert).toBe("hello");
   });
 });

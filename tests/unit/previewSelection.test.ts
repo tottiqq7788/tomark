@@ -128,4 +128,34 @@ describe("previewSelection", () => {
     expect(pos.left).toBeGreaterThanOrEqual(8);
     expect(pos.left + 180).toBeLessThanOrEqual(200);
   });
+
+  it("maps element-container offsets by child index, not as char offsets", () => {
+    const source = "Hello world\n";
+    const { html } = renderMarkdown(source);
+    const root = mountHtml(html);
+    const span = root.querySelector("[data-tm-from]") as HTMLElement;
+    expect(span).toBeTruthy();
+    const text = span.firstChild!;
+    // Equivalent end-of-span selections: (text, length) vs (span, childIndex 1).
+    const viaText = document.createRange();
+    viaText.setStart(text, 0);
+    viaText.setEnd(text, text.textContent!.length);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(viaText);
+    const a = resolvePreviewSelection(root);
+
+    const viaElement = document.createRange();
+    viaElement.setStart(span, 0);
+    viaElement.setEnd(span, span.childNodes.length);
+    selection?.removeAllRanges();
+    selection?.addRange(viaElement);
+    const b = resolvePreviewSelection(root);
+
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(b!.from).toBe(a!.from);
+    expect(b!.to).toBe(a!.to);
+    root.remove();
+  });
 });

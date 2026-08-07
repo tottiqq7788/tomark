@@ -24,6 +24,9 @@ import {
   revealSourceLineEffect,
 } from "./headingFoldExtension";
 import { isLocateModifier } from "@/shared/locateModifier";
+import type { FormatRangeChange } from "@/shared/previewFormatting";
+
+export type { FormatRangeChange };
 
 export type LocateHandler = (sourceLine: number) => void;
 
@@ -33,14 +36,6 @@ export interface CreateEditorOptions {
   onChange: (value: string) => void;
   onLocate: LocateHandler;
   extensions?: Extension[];
-}
-
-export interface FormatRangeChange {
-  from: number;
-  to: number;
-  insert: string;
-  selectionFrom?: number;
-  selectionTo?: number;
 }
 
 export interface EditorHandle {
@@ -237,6 +232,12 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         change.to < change.from ||
         !Number.isFinite(change.from) ||
         !Number.isFinite(change.to)
+      ) {
+        return false;
+      }
+      if (
+        change.expectedText != null &&
+        view.state.doc.sliceString(change.from, change.to) !== change.expectedText
       ) {
         return false;
       }

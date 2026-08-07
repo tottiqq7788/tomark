@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from "vue";
-import type { ActiveFormats, InlineFormat } from "@/shared/previewFormatting";
-import { isSafeLinkHref } from "@/editor/markdownInlineFormatting";
+import {
+  isSafeLinkHref,
+  type ActiveFormats,
+  type InlineFormat,
+} from "@/shared/previewFormatting";
 
 const props = defineProps<{
   visible: boolean;
@@ -15,6 +18,7 @@ const emit = defineEmits<{
   "apply-link": [href: string];
   "remove-link": [];
   dismiss: [];
+  "link-editing": [open: boolean];
 }>();
 
 const linkOpen = ref(false);
@@ -22,13 +26,20 @@ const linkHref = ref("");
 const linkInput = ref<HTMLInputElement | null>(null);
 const linkError = ref<string | null>(null);
 
+function setLinkOpen(open: boolean) {
+  linkOpen.value = open;
+  emit("link-editing", open);
+  if (!open) {
+    linkHref.value = "";
+    linkError.value = null;
+  }
+}
+
 watch(
   () => props.visible,
   (visible) => {
     if (!visible) {
-      linkOpen.value = false;
-      linkHref.value = "";
-      linkError.value = null;
+      setLinkOpen(false);
     }
   },
 );
@@ -47,7 +58,7 @@ async function onLinkClick() {
     emit("remove-link");
     return;
   }
-  linkOpen.value = true;
+  setLinkOpen(true);
   linkHref.value = props.active.linkHref ?? "https://";
   linkError.value = null;
   await nextTick();
@@ -63,7 +74,7 @@ function submitLink() {
   }
   linkError.value = null;
   emit("apply-link", href);
-  linkOpen.value = false;
+  setLinkOpen(false);
 }
 
 function onLinkKeydown(event: KeyboardEvent) {
@@ -72,8 +83,7 @@ function onLinkKeydown(event: KeyboardEvent) {
     submitLink();
   } else if (event.key === "Escape") {
     event.preventDefault();
-    linkOpen.value = false;
-    linkError.value = null;
+    setLinkOpen(false);
     emit("dismiss");
   }
 }
@@ -82,8 +92,7 @@ function onToolbarKeydown(event: KeyboardEvent) {
   if (event.key === "Escape") {
     event.preventDefault();
     if (linkOpen.value) {
-      linkOpen.value = false;
-      linkError.value = null;
+      setLinkOpen(false);
       return;
     }
     emit("dismiss");

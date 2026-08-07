@@ -1,9 +1,45 @@
 /** Inline formats supported by the preview selection toolbar. */
 export type InlineFormat = "bold" | "italic" | "strike" | "code" | "link";
 
+/** Local edit produced by preview formatting and applied via CodeMirror. */
+export interface FormatRangeChange {
+  from: number;
+  to: number;
+  insert: string;
+  selectionFrom?: number;
+  selectionTo?: number;
+  /** When set, apply only if the current document slice still matches. */
+  expectedText?: string;
+}
+
 export interface SourceRange {
   from: number;
   to: number;
+}
+
+/** Reject javascript:/data:/protocol-relative and other unsafe schemes. */
+export function isSafeLinkHref(href: string): boolean {
+  const trimmed = href.trim();
+  if (!trimmed) {
+    return false;
+  }
+  // Protocol-relative URLs inherit the page scheme — reject.
+  if (trimmed.startsWith("//")) {
+    return false;
+  }
+  if (
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("./") ||
+    trimmed.startsWith("../")
+  ) {
+    return true;
+  }
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+    return /^(https?|mailto|tel):/i.test(trimmed);
+  }
+  // Scheme-less relative / bare path / domain-looking text is allowed.
+  return !trimmed.includes(":");
 }
 
 export interface FormatOuterRange extends SourceRange {

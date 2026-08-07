@@ -1,10 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import {
-  createEditor,
-  type EditorHandle,
-  type FormatRangeChange,
-} from "./createEditor";
+import { createEditor, type EditorHandle } from "./createEditor";
+import type { FormatRangeChange } from "@/shared/previewFormatting";
 
 const props = defineProps<{
   modelValue: string;
