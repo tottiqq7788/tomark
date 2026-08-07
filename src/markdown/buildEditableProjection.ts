@@ -1296,12 +1296,12 @@ function buildReadonlyBlock(
   const range = nodeRange(node) ?? { from: 0, to: 0 };
   const blockId = `block-${++state.blockCounter}`;
   const label = readonlyLabel(node);
+  const isMermaid =
+    node.type === "code" && node.lang?.toLowerCase() === "mermaid";
   const pmNode = editablePreviewSchema.nodes.readonly_block.create({
-    kind:
-      node.type === "code" && node.lang?.toLowerCase() === "mermaid"
-        ? "mermaid"
-        : node.type,
+    kind: isMermaid ? "mermaid" : node.type,
     label,
+    code: isMermaid ? (node.value ?? "") : "",
     sourceFrom: range.from,
     sourceTo: range.to,
     reason: `${node.type}-read-only`,

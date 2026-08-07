@@ -15,6 +15,10 @@ import type {
 import { isLocateModifier } from "@/shared/locateModifier";
 import { matchPreviewFormatShortcut } from "@/shared/previewFormatShortcuts";
 import {
+  bumpMermaidGeneration,
+  currentMermaidGeneration,
+} from "@/preview/mermaidGeneration";
+import {
   clampToolbarPosition,
   resolvePreviewSelection,
 } from "./previewSelection";
@@ -66,6 +70,8 @@ const editableHost = ref<{
 
 const flashId = ref<string | null>(null);
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
+let mermaidReady: Promise<void> = Promise.resolve();
+let mermaidReadyResolve: (() => void) | null = null;
 
 const toolbarVisible = ref(false);
 const toolbarTop = ref(0);
@@ -132,6 +138,67 @@ function clearFlashTimer() {
     clearTimeout(flashTimer);
     flashTimer = null;
   }
+}
+
+function beginMermaidCycle() {
+  if (mermaidReadyResolve) {
+    // Previous cycle already has a waiter; resolve it so locate doesn't hang
+    // forever when superseded by a newer html update.
+    mermaidReadyResolve();
+    mermaidReadyResolve = null;
+  }
+  mermaidReady = new Promise<void>((resolve) => {
+    mermaidReadyResolve = resolve;
+  });
+}
+
+function finishMermaidCycle() {
+  if (mermaidReadyResolve) {
+    mermaidReadyResolve();
+    mermaidReadyResolve = null;
+  }
+}
+
+function hasPendingMermaid(root: HTMLElement): boolean {
+  // Duplicates hasMermaidBlocks() intentionally: a static import of
+  // renderMermaid would pull the mermaid chunk graph into PreviewPane.
+  return Boolean(root.querySelector("pre > code.language-mermaid"));
+}
+
+async function mountMermaid(generation: number) {
+  const root = fallbackContainer.value;
+  if (!root) {
+    finishMermaidCycle();
+    return;
+  }
+  if (!hasPendingMermaid(root)) {
+    finishMermaidCycle();
+    return;
+  }
+  try {
+    // Keep mermaid out of this module's static graph; only pull the mount
+    // chunk after a diagram fence is present.
+    const { mountMermaidDiagrams } = await import("@/preview/mountMermaid");
+    if (generation !== currentMermaidGeneration()) {
+      return;
+    }
+    await mountMermaidDiagrams(root, generation);
+  } finally {
+    if (generation === currentMermaidGeneration()) {
+      finishMermaidCycle();
+    }
+  }
+}
+
+async function refreshMermaid() {
+  flashId.value = null;
+  clearFlashTimer();
+  // Shared counter cancels in-flight renderMermaid work even before the
+  // dynamic mount chunk finishes loading.
+  const generation = bumpMermaidGeneration();
+  beginMermaidCycle();
+  await nextTick();
+  await mountMermaid(generation);
 }
 
 function hideToolbar() {
@@ -406,6 +473,18 @@ function onFormatKeyDown(event: KeyboardEvent) {
   onToggle(action);
 }
 
+async function waitForMermaidReady() {
+  // Mermaid SVG height can shift after async mount. Wait for the current
+  // cycle; if a newer cycle started while waiting, wait for that one too.
+  for (let i = 0; i < 5; i += 1) {
+    const waiting = mermaidReady;
+    await waiting;
+    if (mermaidReady === waiting) {
+      break;
+    }
+  }
+}
+
 async function scrollToSourceLine(sourceLine: number) {
   if (useEditable.value && editableHost.value) {
     await editableHost.value.scrollToSourceLine(sourceLine);
@@ -416,6 +495,10 @@ async function scrollToSourceLine(sourceLine: number) {
     return;
   }
   await nextTick();
+  await waitForMermaidReady();
+  if (!fallbackContainer.value) {
+    return;
+  }
   const el = fallbackContainer.value.querySelector(
     `[data-anchor-id="${CSS.escape(anchor.id)}"]`,
   ) as HTMLElement | null;
@@ -487,9 +570,15 @@ defineExpose({
 watch(
   () => [props.html, props.editableSyncToken, props.renderMode] as const,
   () => {
-    flashId.value = null;
-    clearFlashTimer();
     hideToolbar();
+    if (useEditable.value) {
+      flashId.value = null;
+      clearFlashTimer();
+      bumpMermaidGeneration();
+      finishMermaidCycle();
+      return;
+    }
+    void refreshMermaid();
   },
 );
 
@@ -500,10 +589,15 @@ onMounted(() => {
   scrollRoot.value?.addEventListener("scroll", onScrollOrResize, {
     passive: true,
   });
+  if (!useEditable.value) {
+    void refreshMermaid();
+  }
 });
 
 onBeforeUnmount(() => {
   clearFlashTimer();
+  bumpMermaidGeneration();
+  finishMermaidCycle();
   document.removeEventListener("selectionchange", onSelectionChange);
   window.removeEventListener("resize", onScrollOrResize);
   window.removeEventListener("keydown", onFormatKeyDown, true);

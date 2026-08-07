@@ -12,6 +12,7 @@ export const config: Options.Testrunner = {
     "./specs/dirty-dialog.spec.ts",
     "./specs/preview-formatting.spec.ts",
     "./specs/preview-editable.spec.ts",
+    "./specs/preview-mermaid.spec.ts",
   ],
   maxInstances: 1,
   framework: "mocha",

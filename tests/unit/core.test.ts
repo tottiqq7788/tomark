@@ -144,6 +144,27 @@ describe("renderMarkdown + line anchors", () => {
     expect(html).toContain('id="user-content-fnref-n"');
     expect(html).not.toContain("user-content-user-content-");
   });
+
+  it("keeps mermaid fences as identifiable code blocks with anchors", () => {
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n\nAfter\n`;
+    const { html, lineToAnchor, anchors } = renderMarkdown(source);
+    expect(html).toContain('class="language-mermaid"');
+    expect(html).toContain("<pre");
+    expect(html).not.toContain("<svg");
+
+    const fenceAnchor = anchors.find((a) => a.blockType === "pre");
+    expect(fenceAnchor).toBeTruthy();
+    expect(fenceAnchor?.sourceLineStart).toBe(3);
+    expect(fenceAnchor?.sourceLineEnd).toBe(6);
+    expect(lineToAnchor.get(4)?.id).toBe(fenceAnchor?.id);
+    expect(lineToAnchor.get(5)?.id).toBe(fenceAnchor?.id);
+  });
+
+  it("leaves ordinary fenced code unchanged", () => {
+    const { html } = renderMarkdown("```js\nconsole.log(1)\n```\n");
+    expect(html).toContain('class="language-js"');
+    expect(html).not.toContain("language-mermaid");
+  });
 });
 
 describe("file format", () => {

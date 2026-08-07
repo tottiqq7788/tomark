@@ -1,9 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { flushPromises, mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import PreviewPane from "@/preview/PreviewPane.vue";
 import { buildEditableProjection } from "@/markdown/buildEditableProjection";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
+import {
+  __resetMermaidStateForTests,
+  __setMermaidLoaderForTests,
+} from "@/preview/renderMermaid";
+import { __resetEditableMermaidPendingForTests } from "@/preview/editing/mermaidNodeView";
 
 function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
   const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -79,6 +84,12 @@ function selectNeedle(wrapper: ReturnType<typeof mount>, needle: string) {
 }
 
 describe("PreviewPane locate", () => {
+  afterEach(() => {
+    __setMermaidLoaderForTests(null);
+    __resetMermaidStateForTests();
+    __resetEditableMermaidPendingForTests();
+  });
+
   it("scrolls to anchored block for source line in editable mode", async () => {
     const source = `# Alpha\n\nPara.\n\n## Beta\n\nTail.\n`;
     const wrapper = mountEditablePreview(source);
@@ -213,6 +224,116 @@ describe("PreviewPane locate", () => {
     );
     expect(wrapper.find(".ProseMirror").exists()).toBe(true);
     expect(buildEditableProjection("Hello editable\n").doc.childCount).toBe(1);
+    wrapper.unmount();
+  });
+
+  it("locates mermaid diagrams after async mount and Cmd/Ctrl+click on fallback", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async (id: string) => ({
+          svg: `<svg data-testid="m-${id}"><text>diagram</text></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const wrapper = mountFallbackPreview(source);
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-diagram svg").exists()).toBe(true);
+    });
+
+    const diagram = wrapper.find(".mermaid-diagram");
+    expect(diagram.attributes("data-source-line")).toBe("3");
+    await diagram.trigger("click", locateModifierInit());
+    expect(wrapper.emitted("locate-source")?.[0]?.[0]).toBe(3);
+
+    const calls: Array<{ id: string | null }> = [];
+    const realScroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      calls.push({ id: (this as HTMLElement).getAttribute("data-anchor-id") });
+    };
+    const pane = wrapper.vm as unknown as {
+      scrollToSourceLine: (line: number) => Promise<void>;
+    };
+    await pane.scrollToSourceLine(4);
+    Element.prototype.scrollIntoView = realScroll;
+    expect(calls[0]?.id).toBe(diagram.attributes("data-anchor-id"));
+
+    wrapper.unmount();
+  });
+
+  it("keeps locate anchors on mermaid error blocks in fallback", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async () => {
+          throw new Error("bad diagram");
+        }),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A ->\n\`\`\`\n`;
+    const wrapper = mountFallbackPreview(source);
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-error").exists()).toBe(true);
+    });
+
+    const err = wrapper.find(".mermaid-error");
+    expect(err.attributes("data-source-line")).toBe("3");
+    await err.trigger("click", locateModifierInit());
+    expect(wrapper.emitted("locate-source")?.[0]?.[0]).toBe(3);
+
+    wrapper.unmount();
+  });
+
+  it("mounts mermaid diagrams via editable readonly NodeView", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async (id: string) => ({
+          svg: `<svg data-testid="m-edit-${id}"><text>diagram</text></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const projection = buildEditableProjection(source);
+    const mermaidNode = [...Array(projection.doc.childCount)].map((_, i) =>
+      projection.doc.child(i),
+    ).find((child) => child.type.name === "readonly_block" && child.attrs.kind === "mermaid");
+    expect(mermaidNode).toBeTruthy();
+    expect(String(mermaidNode?.attrs.code)).toContain("graph TD");
+
+    const wrapper = mountEditablePreview(source);
+    await flushPromises();
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".tm-readonly-mermaid .mermaid-diagram svg").exists()).toBe(
+        true,
+      );
+    });
+
+    const host = wrapper.find(".tm-readonly-mermaid");
+    expect(host.attributes("contenteditable")).toBe("false");
+    expect(host.attributes("data-tm-readonly")).toContain("read-only");
+
+    const calls: unknown[] = [];
+    const realScroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      calls.push(this);
+    };
+    const pane = wrapper.vm as unknown as {
+      scrollToSourceLine: (line: number) => Promise<void>;
+    };
+    await pane.scrollToSourceLine(4);
+    Element.prototype.scrollIntoView = realScroll;
+    expect(calls.length).toBeGreaterThan(0);
+
     wrapper.unmount();
   });
 });

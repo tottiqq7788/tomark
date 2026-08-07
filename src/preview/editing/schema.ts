@@ -139,6 +139,8 @@ const nodes: Record<string, NodeSpec> = {
     attrs: {
       kind: { default: "unsupported" },
       label: { default: "" },
+      /** Mermaid fence body (and similar); empty for ordinary readonly atoms. */
+      code: { default: "" },
       sourceFrom: { default: 0 },
       sourceTo: { default: 0 },
       reason: { default: "read-only" },

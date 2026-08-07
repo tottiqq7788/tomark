@@ -24,6 +24,11 @@ import {
 } from "./transactionToSourcePatches";
 import { editablePreviewSchema } from "./schema";
 import {
+  createReadonlyBlockNodeView,
+  isEditableMermaidPending,
+  waitForEditableMermaidReady,
+} from "./mermaidNodeView";
+import {
   resolveEditableFormatSelection,
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
@@ -769,6 +774,9 @@ export function createPreviewEditSession(
       doc: projection.doc,
       plugins,
     }),
+    nodeViews: {
+      readonly_block: createReadonlyBlockNodeView,
+    },
     dispatchTransaction(tr) {
       if (destroyed) {
         return;
@@ -923,6 +931,15 @@ export function createPreviewEditSession(
   }
 
   async function scrollToSourceLine(sourceLine: number) {
+    // Mermaid NodeViews mount SVG asynchronously; wait so scroll targets the
+    // final diagram height instead of the label placeholder. Re-await a few
+    // times in case a rebuild starts while we are waiting.
+    for (let i = 0; i < 5; i += 1) {
+      await waitForEditableMermaidReady();
+      if (!isEditableMermaidPending()) {
+        break;
+      }
+    }
     const blocks = projection.sourceMap.blocks
       .filter((block) => block.sourceLine <= sourceLine)
       .sort((a, b) => b.sourceLine - a.sourceLine);
