@@ -103,7 +103,7 @@ npm run tauri:dev
 
 ### Mermaid 图表
 
-使用 \`\`\`mermaid 围栏即可在右侧预览中渲染。
+使用 \`\`\`mermaid 围栏即可在右侧预览中渲染。下面按图类型各给一例（含柱状/折线 XY Chart，以及 Mermaid 11 里较新的雷达、树图、泳道等）。
 
 流程图：
 
@@ -265,6 +265,279 @@ quadrantChart
   Mermaid 预览: [0.55, 0.7]
   主题系统: [0.75, 0.45]
   导出 PDF: [0.85, 0.35]
+\`\`\`
+
+柱状图（XY Chart）：
+
+\`\`\`mermaid
+xychart-beta
+  title "一周编辑字数"
+  x-axis ["周一", "周二", "周三", "周四", "周五"]
+  y-axis "字数" 0 --> 1400
+  bar [820, 960, 740, 1180, 980]
+\`\`\`
+
+折线图（XY Chart）：
+
+\`\`\`mermaid
+xychart-beta
+  title "预览刷新耗时 (ms)"
+  x-axis [1k, 5k, 10k, 30k, 50k]
+  y-axis "毫秒" 0 --> 120
+  line [12, 18, 28, 55, 92]
+\`\`\`
+
+柱 + 折线：
+
+\`\`\`mermaid
+xychart-beta
+  title "保存次数 vs 目标"
+  x-axis ["周一", "周二", "周三", "周四", "周五"]
+  y-axis "次数" 0 --> 30
+  bar [12, 18, 15, 22, 19]
+  line [15, 15, 18, 20, 20]
+\`\`\`
+
+横向柱状图：
+
+\`\`\`mermaid
+xychart-beta horizontal
+  title "模块体积占比示意"
+  x-axis ["编辑器", Markdown, Mermaid, "其它"]
+  y-axis "相对体积" 0 --> 100
+  bar [35, 22, 28, 15]
+\`\`\`
+
+雷达图：
+
+\`\`\`mermaid
+radar-beta
+  title tomark 能力对比
+  axis edit["编辑"], preview["预览"], locate["定位"]
+  axis perf["性能"], theme["主题"]
+  curve a["当前"]{4, 5, 5, 3, 2}
+  curve b["目标"]{5, 5, 5, 4, 4}
+  max 5
+  min 0
+\`\`\`
+
+树图：
+
+\`\`\`mermaid
+treemap-beta
+"应用"
+  "编辑器": 35
+  "预览"
+    "Markdown": 22
+    "Mermaid": 28
+  "其它": 15
+\`\`\`
+
+块图：
+
+\`\`\`mermaid
+block-beta
+  columns 3
+  docs["文档会话"]:2
+  preview["预览"]
+  editor["编辑器"]:2
+  locate["双向定位"]
+  docs --> editor
+  docs --> preview
+  editor --> locate
+  preview --> locate
+\`\`\`
+
+桑基图（节点名需 ASCII，Mermaid CSV 词法限制）：
+
+\`\`\`mermaid
+sankey-beta
+Open,Edit,40
+Open,Preview,20
+Edit,Autosave,30
+Edit,SaveAs,10
+Preview,Close,20
+Autosave,Continue,25
+Autosave,Close,5
+\`\`\`
+
+看板：
+
+\`\`\`mermaid
+kanban
+  Todo
+    [主题系统]
+    [导出 PDF]
+  Doing
+    [Mermaid 图例扩充]
+  Done
+    [双栏布局]
+    [标题折叠]
+    [双向定位]
+\`\`\`
+
+泳道图：
+
+\`\`\`mermaid
+swimlane-beta LR
+  subgraph 用户
+    open[打开文档]
+    edit[编辑源码]
+    see[查看预览]
+  end
+  subgraph 编辑器
+    parse[解析 Markdown]
+    save[自动保存]
+  end
+  subgraph 预览
+    html[注入 HTML]
+    mermaid[渲染 Mermaid]
+  end
+  open --> edit --> parse
+  parse --> html --> mermaid --> see
+  edit --> save
+\`\`\`
+
+需求图：
+
+\`\`\`mermaid
+requirementDiagram
+    requirement autosave {
+    id: REQ_1
+    text: autosave after ~2s idle
+    risk: low
+    verifymethod: test
+    }
+    element Editor {
+    type: module
+    }
+    Editor - satisfies -> autosave
+\`\`\`
+
+C4 上下文：
+
+\`\`\`mermaid
+C4Context
+  title tomark 系统上下文
+  Person(user, "用户", "编写 Markdown")
+  System(tomark, "tomark", "桌面 Markdown 编辑器")
+  System_Ext(fs, "本地文件系统", "读写 .md")
+  Rel(user, tomark, "编辑 / 预览")
+  Rel(tomark, fs, "打开 / 保存")
+\`\`\`
+
+架构图：
+
+\`\`\`mermaid
+architecture-beta
+  group desktop(cloud)[Desktop]
+  service ui(server)[Vue UI] in desktop
+  service shell(server)[Tauri Shell] in desktop
+  service disk(disk)[Local Disk]
+  ui:R -- L:shell
+  shell:R -- L:disk
+\`\`\`
+
+韦恩图：
+
+\`\`\`mermaid
+venn-beta
+  title 关注点重叠
+  set Edit["编辑体验"]
+  set Preview["预览准确"]
+  set Perf["性能"]
+  union Edit,Preview["源码定位"]
+  union Edit,Perf["大文档折叠"]
+  union Preview,Perf["Mermaid 懒加载"]
+\`\`\`
+
+鱼骨图（Ishikawa）：
+
+\`\`\`mermaid
+ishikawa-beta
+  预览未刷新
+  输入侧
+    防抖未触发
+    内容未变更
+  渲染侧
+    Markdown 抛错
+    Mermaid chunk 失败
+  环境
+    CSP
+    WebView 兼容
+\`\`\`
+
+数据包图：
+
+\`\`\`mermaid
+packet-beta
+  0-15: "Source Port"
+  16-31: "Destination Port"
+  32-63: "Sequence Number"
+  64-95: "Acknowledgment Number"
+  96-99: "Data Offset"
+  100-105: "Reserved"
+  106: "URG"
+  107: "ACK"
+  108: "PSH"
+  109: "RST"
+  110: "SYN"
+  111: "FIN"
+  112-127: "Window"
+\`\`\`
+
+Wardley 地图：
+
+\`\`\`mermaid
+wardley-beta
+  title tomark 价值链
+  anchor User [0.95, 0.70]
+  component Editor [0.80, 0.65]
+  component Preview [0.78, 0.45]
+  component Markdown [0.55, 0.50]
+  component Mermaid [0.45, 0.35]
+  component Filesystem [0.25, 0.75]
+  User -> Editor
+  User -> Preview
+  Editor -> Markdown
+  Preview -> Markdown
+  Preview -> Mermaid
+  Editor -> Filesystem
+\`\`\`
+
+Cynefin 框架：
+
+\`\`\`mermaid
+cynefin-beta
+  title 问题域示意
+  clear
+    "快捷键映射"
+    "文件另存为"
+  complicated
+    "编码探测"
+    "大文档定位"
+  complex
+    "折叠状态保留"
+  chaotic
+    "WebView 崩溃"
+  confusion
+    "偶发预览空白"
+\`\`\`
+
+语法铁路图（EBNF）：
+
+\`\`\`mermaid
+railroad-ebnf-beta
+  title "简易标题行"
+  heading = hashes text ;
+  hashes = "#" | "##" | "###" ;
+  text = "标题文字" ;
+\`\`\`
+
+信息卡（Mermaid 版本）：
+
+\`\`\`mermaid
+info
 \`\`\`
 
 ### 表格（宽内容）
