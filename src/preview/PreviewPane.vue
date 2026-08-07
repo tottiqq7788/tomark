@@ -38,7 +38,9 @@ let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 const toolbarVisible = ref(false);
 const toolbarTop = ref(0);
-const toolbarLeft = ref(0);
+/** Horizontal center of the toolbar (paired with translateX(-50%)). */
+const toolbarCenterX = ref(0);
+const toolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
 const toolbarActive = ref<ActiveFormats>({
   bold: false,
   italic: false,
@@ -53,6 +55,42 @@ const currentSelection = ref<PreviewFormatSelection | null>(null);
 let suppressSelectionClear = false;
 /** Keep toolbar visible while the link URL input has focus (selection collapses). */
 const linkEditing = ref(false);
+
+/** Fallback before the toolbar has been painted and measured. */
+const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
+
+function measureToolbarSize(): { width: number; height: number } {
+  const el = toolbarRef.value?.root ?? null;
+  if (!el) {
+    return FALLBACK_TOOLBAR_SIZE;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return FALLBACK_TOOLBAR_SIZE;
+  }
+  return { width: rect.width, height: rect.height };
+}
+
+function placeToolbar(rect: PreviewFormatSelection["rect"]) {
+  const pos = clampToolbarPosition(rect, measureToolbarSize());
+  toolbarTop.value = pos.top;
+  toolbarCenterX.value = pos.centerX;
+  toolbarVisible.value = true;
+  // Remeasure after paint so centering uses the real toolbar width.
+  void nextTick(() => {
+    requestAnimationFrame(() => {
+      if (!toolbarVisible.value || !currentSelection.value) {
+        return;
+      }
+      const refined = clampToolbarPosition(
+        currentSelection.value.rect,
+        measureToolbarSize(),
+      );
+      toolbarTop.value = refined.top;
+      toolbarCenterX.value = refined.centerX;
+    });
+  });
+}
 
 function clearFlashTimer() {
   if (flashTimer) {
@@ -87,10 +125,7 @@ function refreshToolbarFromSelection() {
   }
   currentSelection.value = resolved;
   toolbarActive.value = { ...resolved.active };
-  const pos = clampToolbarPosition(resolved.rect, { width: 180, height: 40 });
-  toolbarTop.value = pos.top;
-  toolbarLeft.value = pos.left;
-  toolbarVisible.value = true;
+  placeToolbar(resolved.rect);
 }
 
 function onLinkEditing(open: boolean) {
@@ -99,6 +134,14 @@ function onLinkEditing(open: boolean) {
     suppressSelectionClear = true;
   } else {
     suppressSelectionClear = false;
+  }
+  // Link panel changes toolbar width — re-center on the saved selection.
+  if (toolbarVisible.value && currentSelection.value) {
+    void nextTick(() => {
+      if (currentSelection.value) {
+        placeToolbar(currentSelection.value.rect);
+      }
+    });
   }
 }
 
@@ -130,9 +173,7 @@ function onScrollOrResize() {
     return;
   }
   currentSelection.value = resolved;
-  const pos = clampToolbarPosition(resolved.rect, { width: 180, height: 40 });
-  toolbarTop.value = pos.top;
-  toolbarLeft.value = pos.left;
+  placeToolbar(resolved.rect);
 }
 
 function onPreviewClick(event: MouseEvent) {
@@ -284,9 +325,10 @@ onBeforeUnmount(() => {
       @pointerup="onPreviewPointerUp"
     />
     <PreviewFormatToolbar
+      ref="toolbarRef"
       :visible="toolbarVisible"
       :top="toolbarTop"
-      :left="toolbarLeft"
+      :center-x="toolbarCenterX"
       :active="toolbarActive"
       @toggle="onToggle"
       @apply-link="onApplyLink"

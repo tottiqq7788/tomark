@@ -9,9 +9,13 @@ import {
 const props = defineProps<{
   visible: boolean;
   top: number;
-  left: number;
+  /** Viewport X of the selection center; toolbar is translated -50%. */
+  centerX: number;
   active: ActiveFormats;
 }>();
+
+const root = ref<HTMLElement | null>(null);
+defineExpose({ root });
 
 const emit = defineEmits<{
   toggle: [format: Exclude<InlineFormat, "link">];
@@ -107,11 +111,12 @@ function retainSelection(event: MouseEvent) {
 
 <template>
   <div
+    ref="root"
     v-show="visible"
     class="format-toolbar"
     role="toolbar"
     aria-label="预览文字格式"
-    :style="{ top: `${top}px`, left: `${left}px` }"
+    :style="{ top: `${top}px`, left: `${centerX}px` }"
     data-testid="preview-format-toolbar"
     @keydown="onToolbarKeydown"
   >
@@ -235,6 +240,8 @@ function retainSelection(event: MouseEvent) {
   gap: 2px;
   padding: 4px;
   max-width: min(360px, calc(100vw - 16px));
+  /* left is the selection center; shift back by half the real width. */
+  transform: translateX(-50%);
   background: #111827;
   color: #f9fafb;
   border-radius: 8px;

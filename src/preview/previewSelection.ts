@@ -351,7 +351,12 @@ function selectionFullyMapped(
   return true;
 }
 
-/** Keep the toolbar near the selection while clamping into the viewport. */
+/**
+ * Place the toolbar above (or below) the selection, centered on it.
+ * Returns a vertical `top` and a horizontal `centerX` (use with
+ * `transform: translateX(-50%)`) so centering does not depend on guessing
+ * the toolbar width up front.
+ */
 export function clampToolbarPosition(
   selectionRect: PreviewFormatSelection["rect"],
   toolbarSize: { width: number; height: number },
@@ -360,16 +365,19 @@ export function clampToolbarPosition(
     height: window.innerHeight,
   },
   gap = 8,
-): { top: number; left: number } {
+): { top: number; centerX: number } {
   const preferredTop = selectionRect.top - toolbarSize.height - gap;
   const top =
     preferredTop >= gap
       ? preferredTop
-      : Math.min(selectionRect.bottom + gap, viewport.height - toolbarSize.height - gap);
-  const centerLeft = selectionRect.left + selectionRect.width / 2 - toolbarSize.width / 2;
-  const left = Math.min(
-    Math.max(gap, centerLeft),
-    Math.max(gap, viewport.width - toolbarSize.width - gap),
-  );
-  return { top: Math.max(gap, top), left };
+      : Math.min(
+          selectionRect.bottom + gap,
+          viewport.height - toolbarSize.height - gap,
+        );
+  const selectionCenter = selectionRect.left + selectionRect.width / 2;
+  const half = Math.max(0, toolbarSize.width / 2);
+  const minCenter = gap + half;
+  const maxCenter = Math.max(minCenter, viewport.width - gap - half);
+  const centerX = Math.min(Math.max(minCenter, selectionCenter), maxCenter);
+  return { top: Math.max(gap, top), centerX };
 }

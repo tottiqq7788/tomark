@@ -117,16 +117,32 @@ describe("previewSelection", () => {
     root.remove();
   });
 
-  it("clamps toolbar position into the viewport", () => {
-    const pos = clampToolbarPosition(
+  it("centers the toolbar on the selection and clamps into the viewport", () => {
+    const selection = {
+      top: 40,
+      left: 300,
+      bottom: 56,
+      right: 390,
+      width: 90,
+      height: 16,
+    };
+    const centered = clampToolbarPosition(
+      selection,
+      { width: 166, height: 38 },
+      { width: 800, height: 600 },
+      8,
+    );
+    expect(centered.centerX).toBe(selection.left + selection.width / 2);
+
+    const nearEdge = clampToolbarPosition(
       { top: 4, left: 10, bottom: 20, right: 100, width: 90, height: 16 },
-      { width: 180, height: 40 },
+      { width: 166, height: 38 },
       { width: 200, height: 100 },
       8,
     );
-    expect(pos.top).toBeGreaterThanOrEqual(8);
-    expect(pos.left).toBeGreaterThanOrEqual(8);
-    expect(pos.left + 180).toBeLessThanOrEqual(200);
+    expect(nearEdge.top).toBeGreaterThanOrEqual(8);
+    expect(nearEdge.centerX - 166 / 2).toBeGreaterThanOrEqual(8);
+    expect(nearEdge.centerX + 166 / 2).toBeLessThanOrEqual(200 - 8);
   });
 
   it("maps element-container offsets by child index, not as char offsets", () => {
