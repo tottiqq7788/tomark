@@ -4143,7 +4143,7 @@ dependencies = [
 
 [[package]]
 name = "tomark"
-version = "2.1.0"
+version = "2.1.2"
 dependencies = [
  "atomic-write-file",
  "block2",

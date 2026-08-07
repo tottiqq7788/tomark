@@ -117,6 +117,21 @@
 
 快捷任务入口：`.ai/tasks/devTasks/打包安装包.md`。
 
+## 提交 release
+
+原则：把**当前设备**上、**最新 git 版本** `vX.Y.Z` 的安装包发到 GitHub Release；远程以 `.ai/remote/` 为准。
+
+1. 版本：与「打包安装包」相同解析规则；tag / Release 名用 `vX.Y.Z`。
+2. macOS：上传该版本下的 `tomark_<semver>_aarch64.dmg` 与 `tomark_<semver>_x64.dmg`（缺哪个说明哪个未找到，不要用旧版本凑数）。
+3. Windows：上传该版本 `.exe`（NSIS 等，以实际产物为准）。
+4. 命令（GitHub，需已 `gh auth login`）：
+   - 尚无该 Release：`gh release create vX.Y.Z <资产…> --repo <owner/name> --title 'vX.Y.Z' --notes '…'`
+   - 已有同名 Release：`gh release upload vX.Y.Z <资产…> --repo <owner/name> --clobber`（仅更新本机应传资产，不要删其它平台已有包）。
+5. 缺安装包时提示先执行「打包安装包」；本任务不重新打包。
+6. 完成后回报 Release URL、版本号与已上传资产名。
+
+快捷任务入口：`.ai/tasks/projectTasks/提交release.md`。
+
 ## 禁止事项
 
 - 不要把密钥、token、内网地址写入 `readme.md` 或其它公开文档。
