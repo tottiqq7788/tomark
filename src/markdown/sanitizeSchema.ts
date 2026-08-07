@@ -11,6 +11,11 @@ export const sanitizeSchema: Schema = {
       "dataSourceLine",
       "dataSourceEnd",
       "dataAnchorId",
+      // Preview selection → source offset mapping (numeric / enum only).
+      "dataTmFrom",
+      "dataTmTo",
+      "dataTmFormat",
+      "dataTmHref",
       "className",
     ],
     code: [...(defaultSchema.attributes?.code ?? []), "className"],

@@ -57,6 +57,7 @@ const {
 const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
 const previewLineToAnchor = preview.lineToAnchor;
+const previewRenderedSource = preview.renderedSource;
 
 const {
   containerRef,
@@ -142,6 +143,7 @@ const {
   setEditorPaneRef,
   onLocateSource,
   onLocatePreview,
+  onFormatSelection,
 } = usePaneLocate({
   preview,
   isSourceVisible,
@@ -156,6 +158,8 @@ const { fileOpsViaMenu } = useShellLifecycle(
     saving,
     dirtyDialogOpen,
     statusMessage,
+    content,
+    documentVersion,
     setContent,
     guardDirty,
     flushAutosave,
@@ -381,8 +385,10 @@ useAppShortcuts({
             :ref="setPreviewRef"
             :html="previewHtml"
             :line-to-anchor="previewLineToAnchor"
+            :rendered-source="previewRenderedSource"
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
+            @format-selection="onFormatSelection"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>

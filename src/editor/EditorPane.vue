@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { createEditor, type EditorHandle } from "./createEditor";
+import {
+  createEditor,
+  type EditorHandle,
+  type FormatRangeChange,
+} from "./createEditor";
 
 const props = defineProps<{
   modelValue: string;
@@ -58,7 +62,15 @@ function requestMeasure() {
   editor?.requestMeasure();
 }
 
-defineExpose({ revealSourceLine, requestMeasure });
+function applyFormatChange(change: FormatRangeChange): boolean {
+  return editor?.applyFormatChange(change) ?? false;
+}
+
+function getValue(): string {
+  return editor?.getValue() ?? props.modelValue;
+}
+
+defineExpose({ revealSourceLine, requestMeasure, applyFormatChange, getValue });
 </script>
 
 <template>

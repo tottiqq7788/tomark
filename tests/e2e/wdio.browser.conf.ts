@@ -7,7 +7,11 @@ const depsDir = path.join(root, "deps");
 
 export const config: Options.Testrunner = {
   runner: "local",
-  specs: ["./specs/shortcuts.spec.ts", "./specs/dirty-dialog.spec.ts"],
+  specs: [
+    "./specs/shortcuts.spec.ts",
+    "./specs/dirty-dialog.spec.ts",
+    "./specs/preview-formatting.spec.ts",
+  ],
   maxInstances: 1,
   framework: "mocha",
   reporters: ["spec"],

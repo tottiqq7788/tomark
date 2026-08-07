@@ -6,6 +6,7 @@ import rehypeSanitize from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
 import type { Root as HastRoot } from "hast";
 import { attachAnchors, buildLineAnchorMap } from "./buildLineAnchorMap";
+import { attachSourceRanges } from "./attachSourceRanges";
 import { sanitizeSchema } from "./sanitizeSchema";
 import type { RenderResult } from "@/shared/types";
 
@@ -18,6 +19,7 @@ export function renderMarkdown(source: string): RenderResult {
     .use(remarkRehype, { allowDangerousHtml: false })
     .use(() => (tree: HastRoot) => {
       anchors = attachAnchors(tree);
+      attachSourceRanges(tree);
     })
     .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeStringify);

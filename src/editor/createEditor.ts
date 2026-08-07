@@ -1,4 +1,5 @@
 import {
+  EditorSelection,
   EditorState,
   Compartment,
   StateEffect,
@@ -34,10 +35,20 @@ export interface CreateEditorOptions {
   extensions?: Extension[];
 }
 
+export interface FormatRangeChange {
+  from: number;
+  to: number;
+  insert: string;
+  selectionFrom?: number;
+  selectionTo?: number;
+}
+
 export interface EditorHandle {
   view: EditorView;
   setDocument: (doc: string, options?: { collapseHeadings?: boolean }) => void;
   revealSourceLine: (line: number) => void;
+  /** Apply a local Markdown edit as one undoable transaction. */
+  applyFormatChange: (change: FormatRangeChange) => boolean;
   /** Re-measure geometry after the editor pane was hidden or resized. */
   requestMeasure: () => void;
   getValue: () => string;
@@ -217,6 +228,32 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         effects,
         annotations: Transaction.addToHistory.of(false),
       });
+    },
+    applyFormatChange: (change) => {
+      const docLen = view.state.doc.length;
+      if (
+        change.from < 0 ||
+        change.to > docLen ||
+        change.to < change.from ||
+        !Number.isFinite(change.from) ||
+        !Number.isFinite(change.to)
+      ) {
+        return false;
+      }
+      const selectionFrom = change.selectionFrom ?? change.from;
+      const selectionTo = change.selectionTo ?? change.from + change.insert.length;
+      const nextLen = docLen - (change.to - change.from) + change.insert.length;
+      const selFrom = Math.max(0, Math.min(selectionFrom, nextLen));
+      const selTo = Math.max(selFrom, Math.min(selectionTo, nextLen));
+      view.dispatch({
+        changes: {
+          from: change.from,
+          to: change.to,
+          insert: change.insert,
+        },
+        selection: EditorSelection.range(selFrom, selTo),
+      });
+      return true;
     },
     revealSourceLine: (line) => {
       if (line < 1 || line > view.state.doc.lines) {

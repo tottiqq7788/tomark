@@ -11,9 +11,10 @@ export function usePreviewBridge(content: Ref<string>) {
   const html = ref("");
   const lineToAnchor = ref<Map<number, PreviewAnchor>>(new Map());
   const previewError = ref<string | null>(null);
+  /** Source string that produced the current `html` (null before first paint). */
+  const renderedSource = ref<string | null>(null);
   let renderMarkdownFn: ((source: string) => RenderResult) | null = null;
   let previewVersion = 0;
-  let renderedSource: string | null = null;
   let pendingLocateLine: number | null = null;
   let locateGeneration = 0;
 
@@ -32,7 +33,7 @@ export function usePreviewBridge(content: Ref<string>) {
   ): Promise<boolean> {
     if (
       !options?.force &&
-      source === renderedSource &&
+      source === renderedSource.value &&
       previewError.value === null &&
       html.value.length > 0
     ) {
@@ -60,7 +61,7 @@ export function usePreviewBridge(content: Ref<string>) {
       }
       html.value = result.html;
       lineToAnchor.value = result.lineToAnchor;
-      renderedSource = source;
+      renderedSource.value = source;
       previewError.value = null;
       return true;
     } catch (error) {
@@ -72,7 +73,7 @@ export function usePreviewBridge(content: Ref<string>) {
       previewError.value = message;
       html.value = `<p data-preview-error="1">预览渲染失败：${escapeHtml(message)}</p>`;
       lineToAnchor.value = new Map();
-      renderedSource = source;
+      renderedSource.value = source;
       return false;
     }
   }
@@ -110,7 +111,7 @@ export function usePreviewBridge(content: Ref<string>) {
   }
 
   function isCurrent(): boolean {
-    return renderedSource === content.value;
+    return renderedSource.value === content.value;
   }
 
   async function flushPendingLocate() {
@@ -153,6 +154,7 @@ export function usePreviewBridge(content: Ref<string>) {
     html,
     lineToAnchor,
     previewError,
+    renderedSource,
     locate,
     syncNow,
     isCurrent,

@@ -97,4 +97,29 @@ describe("createEditor", () => {
     editor.requestMeasure();
     expect(spy).toHaveBeenCalledOnce();
   });
+
+  it("applies a format change as one undoable transaction", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "Hello world\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(
+      editor.applyFormatChange({
+        from: 6,
+        to: 11,
+        insert: "**world**",
+        selectionFrom: 8,
+        selectionTo: 13,
+      }),
+    ).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+    expect(undoDepth(editor.view.state)).toBe(1);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.getValue()).toBe("Hello world\n");
+  });
 });

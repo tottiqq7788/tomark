@@ -1,8 +1,19 @@
 import { nextTick, ref, watch, type Ref } from "vue";
+import type { FormatRangeChange } from "@/editor/createEditor";
+import type {
+  PreviewFormatAction,
+  PreviewFormatSelection,
+} from "@/shared/previewFormatting";
+import {
+  toggleInlineFormat,
+  toggleLink,
+} from "@/editor/markdownInlineFormatting";
 
 export type EditorPaneExpose = {
   revealSourceLine: (line: number) => void;
   requestMeasure?: () => void;
+  applyFormatChange?: (change: FormatRangeChange) => boolean;
+  getValue?: () => string;
 };
 
 export type PreviewLocateApi = {
@@ -12,6 +23,7 @@ export type PreviewLocateApi = {
   syncNow: () => Promise<boolean>;
   locate: (line: number) => void;
   isCurrent: () => boolean;
+  renderedSource: Ref<string | null>;
 };
 
 /**
@@ -85,6 +97,67 @@ export function usePaneLocate(options: {
     void preview.locate(line);
   }
 
+  async function onFormatSelection(payload: {
+    action: PreviewFormatAction;
+    selection: PreviewFormatSelection;
+  }) {
+    if (!preview.isCurrent()) {
+      statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
+      return;
+    }
+    const source =
+      preview.renderedSource.value ??
+      editorPaneRef.value?.getValue?.() ??
+      null;
+    if (source == null) {
+      return;
+    }
+    const { action, selection } = payload;
+    if (
+      selection.from < 0 ||
+      selection.to > source.length ||
+      selection.to <= selection.from
+    ) {
+      return;
+    }
+
+    let change: FormatRangeChange | null = null;
+    if (action.type === "toggle") {
+      const outer = selection.active.ranges[action.format];
+      change = toggleInlineFormat(
+        source,
+        selection.from,
+        selection.to,
+        action.format,
+        {
+          active: selection.active[action.format],
+          outerFrom: outer?.from,
+          outerTo: outer?.to,
+        },
+      );
+    } else {
+      const outer = selection.active.ranges.link;
+      change = toggleLink(source, selection.from, selection.to, {
+        active: selection.active.link && action.href == null,
+        href: action.href,
+        outerFrom: outer?.from,
+        outerTo: outer?.to,
+      });
+    }
+
+    if (!change) {
+      statusMessage.value = "无法应用该格式，请调整选区后重试";
+      return;
+    }
+
+    const applied = editorPaneRef.value?.applyFormatChange?.(change) ?? false;
+    if (!applied) {
+      statusMessage.value = "应用格式失败";
+      return;
+    }
+    await preview.syncNow();
+  }
+
   function scheduleEditorMeasure() {
     if (!isSourceVisible.value) {
       return;
@@ -106,6 +179,7 @@ export function usePaneLocate(options: {
     setEditorPaneRef,
     onLocateSource,
     onLocatePreview,
+    onFormatSelection,
     scheduleEditorMeasure,
   };
 }

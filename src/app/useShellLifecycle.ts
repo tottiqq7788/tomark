@@ -6,6 +6,8 @@ export type ShellLifecycleSession = {
   saving: Ref<boolean>;
   dirtyDialogOpen: Ref<boolean>;
   statusMessage: Ref<string>;
+  content: Ref<string>;
+  documentVersion: Ref<number>;
   setContent: (value: string) => void;
   guardDirty: () => Promise<boolean>;
   flushAutosave: () => Promise<void> | void;
@@ -77,11 +79,18 @@ export function useShellLifecycle(
         window as unknown as {
           __tomarkE2e?: {
             setContent: (value: string) => void;
+            replaceContent: (value: string) => void;
+            getContent: () => string;
             isDirty: () => boolean;
           };
         }
       ).__tomarkE2e = {
         setContent: session.setContent,
+        replaceContent: (value: string) => {
+          session.setContent(value);
+          session.documentVersion.value += 1;
+        },
+        getContent: () => session.content.value,
         isDirty: () => session.dirty.value,
       };
     }

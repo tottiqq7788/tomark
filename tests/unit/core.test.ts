@@ -105,6 +105,15 @@ describe("renderMarkdown + line anchors", () => {
     expect(lineToAnchor.get(1)?.blockType).toBe("h1");
   });
 
+  it("stamps character source offsets for inline text and formats", () => {
+    const { html } = renderMarkdown("Hello **world** and `code`\n");
+    expect(html).toContain('data-tm-from="');
+    expect(html).toContain('data-tm-to="');
+    expect(html).toContain('data-tm-format="bold"');
+    expect(html).toContain('data-tm-format="code"');
+    expect(html).not.toContain("onclick=");
+  });
+
   it("maps empty lines to nearest anchor preferring previous", () => {
     const anchors: PreviewAnchor[] = [
       { id: "a1", sourceLineStart: 1, sourceLineEnd: 1, blockType: "h1" },
@@ -118,7 +127,7 @@ describe("renderMarkdown + line anchors", () => {
   it("sanitizes dangerous html", () => {
     const { html } = renderMarkdown(`Hello <script>alert(1)</script> **x**`);
     expect(html).not.toContain("<script");
-    expect(html).toContain("<strong>");
+    expect(html).toMatch(/<strong\b/);
   });
 
   it("keeps footnote links aligned with their sanitized targets", () => {
