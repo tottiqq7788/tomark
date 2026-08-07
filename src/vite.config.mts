@@ -66,6 +66,9 @@ export default defineConfig({
     minify: !process.env.TAURI_ENV_DEBUG ? "oxc" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
     chunkSizeWarningLimit: 500,
+    // Keep the Vite preload helper out of the huge mermaid async chunk; otherwise
+    // PreviewPane/renderMermaid gain a static import of mermaid and load ~3MB early.
+    modulePreload: false,
     rolldownOptions: {
       output: {
         chunkFileNames: "assets/[name]-[hash].js",
@@ -91,6 +94,9 @@ export default defineConfig({
               test: /node_modules[\\/](unified|remark-|rehype-|mdast-|micromark|hast-|unist-|vfile|bail|trough|devlop|property-information|space-separated-tokens|comma-separated-tokens|html-void-elements|stringify-entities|character-entities|decode-named-character-reference|ccount|longest-streak|zwitch|is-plain-obj|extend)/,
               priority: 20,
             },
+            // Intentionally no forced "mermaid" group: a named group made Vite place
+            // __vitePreload inside the huge mermaid chunk, so PreviewPane gained a
+            // static import of ~3MB. Mermaid 11 already splits diagram types itself.
             {
               name: "tauri",
               test: /node_modules[\\/]@tauri-apps[\\/]/,

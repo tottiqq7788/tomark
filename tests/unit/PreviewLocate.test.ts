@@ -1,8 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount } from "@vue/test-utils";
 import { nextTick } from "vue";
 import PreviewPane from "@/preview/PreviewPane.vue";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
+import {
+  __resetMermaidStateForTests,
+  __setMermaidLoaderForTests,
+} from "@/preview/renderMermaid";
 
 function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
   const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -12,6 +16,11 @@ function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
 }
 
 describe("PreviewPane locate", () => {
+  afterEach(() => {
+    __setMermaidLoaderForTests(null);
+    __resetMermaidStateForTests();
+  });
+
   it("scrolls to anchored block for source line", async () => {
     const source = `# Alpha\n\nPara.\n\n## Beta\n\nTail.\n`;
     const { html, lineToAnchor } = renderMarkdown(source);
@@ -102,6 +111,48 @@ describe("PreviewPane locate", () => {
     await wrapper.get('a[href^="#"]').trigger("click");
 
     expect(wrapper.emitted("open-link")).toBeUndefined();
+    wrapper.unmount();
+  });
+
+  it("locates mermaid diagrams after async mount and Cmd/Ctrl+click", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async (id: string) => ({
+          svg: `<svg data-testid="m-${id}"><text>diagram</text></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-diagram svg").exists()).toBe(true);
+    });
+
+    const diagram = wrapper.find(".mermaid-diagram");
+    expect(diagram.attributes("data-source-line")).toBe("3");
+    await diagram.trigger("click", locateModifierInit());
+    expect(wrapper.emitted("locate-source")?.[0]?.[0]).toBe(3);
+
+    const calls: Array<{ id: string | null }> = [];
+    const realScroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      calls.push({ id: (this as HTMLElement).getAttribute("data-anchor-id") });
+    };
+    const pane = wrapper.vm as unknown as {
+      scrollToSourceLine: (line: number) => Promise<void>;
+    };
+    await pane.scrollToSourceLine(4);
+    Element.prototype.scrollIntoView = realScroll;
+    expect(calls[0]?.id).toBe(diagram.attributes("data-anchor-id"));
+
     wrapper.unmount();
   });
 });

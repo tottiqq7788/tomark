@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, ref, watch } from "vue";
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PreviewAnchor } from "@/shared/types";
 import { isLocateModifier } from "@/shared/locateModifier";
 
@@ -16,11 +16,62 @@ const emit = defineEmits<{
 const container = ref<HTMLElement | null>(null);
 const flashId = ref<string | null>(null);
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
+let mermaidReady: Promise<void> = Promise.resolve();
+let mermaidReadyResolve: (() => void) | null = null;
+let renderGeneration = 0;
 
 function clearFlashTimer() {
   if (flashTimer) {
     clearTimeout(flashTimer);
     flashTimer = null;
+  }
+}
+
+function beginMermaidCycle() {
+  if (mermaidReadyResolve) {
+    // Previous cycle already has a waiter; resolve it so locate doesn't hang
+    // forever when superseded by a newer html update.
+    mermaidReadyResolve();
+    mermaidReadyResolve = null;
+  }
+  mermaidReady = new Promise<void>((resolve) => {
+    mermaidReadyResolve = resolve;
+  });
+}
+
+function finishMermaidCycle() {
+  if (mermaidReadyResolve) {
+    mermaidReadyResolve();
+    mermaidReadyResolve = null;
+  }
+}
+
+function hasPendingMermaid(root: HTMLElement): boolean {
+  return Boolean(root.querySelector("pre > code.language-mermaid"));
+}
+
+async function mountMermaid(generation: number) {
+  const root = container.value;
+  if (!root) {
+    finishMermaidCycle();
+    return;
+  }
+  if (!hasPendingMermaid(root)) {
+    finishMermaidCycle();
+    return;
+  }
+  try {
+    // Keep mermaid out of this module's static graph; only pull the mount
+    // chunk after a diagram fence is present.
+    const { mountMermaidDiagrams } = await import("@/preview/mountMermaid");
+    if (generation !== renderGeneration) {
+      return;
+    }
+    await mountMermaidDiagrams(root, generation);
+  } finally {
+    if (generation === renderGeneration) {
+      finishMermaidCycle();
+    }
   }
 }
 
@@ -73,6 +124,12 @@ async function scrollToSourceLine(sourceLine: number) {
     return;
   }
   await nextTick();
+  // Mermaid SVG height can shift after async mount; wait for the in-flight
+  // cycle so scrollIntoView lands on the final layout.
+  await mermaidReady;
+  if (!container.value) {
+    return;
+  }
   const el = container.value.querySelector(
     `[data-anchor-id="${CSS.escape(anchor.id)}"]`,
   ) as HTMLElement | null;
@@ -97,16 +154,31 @@ async function scrollToSourceLine(sourceLine: number) {
 
 defineExpose({ scrollToSourceLine });
 
+async function refreshMermaid() {
+  flashId.value = null;
+  clearFlashTimer();
+  renderGeneration += 1;
+  const generation = renderGeneration;
+  beginMermaidCycle();
+  await nextTick();
+  await mountMermaid(generation);
+}
+
 watch(
   () => props.html,
   () => {
-    flashId.value = null;
-    clearFlashTimer();
+    void refreshMermaid();
   },
 );
 
+onMounted(() => {
+  void refreshMermaid();
+});
+
 onBeforeUnmount(() => {
   clearFlashTimer();
+  renderGeneration += 1;
+  finishMermaidCycle();
 });
 </script>
 
