@@ -27,6 +27,7 @@ import {
   resolveEditableFormatSelection,
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
+import { resolveTrailingClickCaret } from "./resolveTrailingClickCaret";
 
 export type PreviewEditStatusKind =
   | "editing"
@@ -233,6 +234,8 @@ export function createPreviewEditSession(
   /** Hold an empty editable paragraph that would otherwise collapse on rebuild. */
   let heldEmptyBlockId: string | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Trailing-blank click clamp; reapplied on mouseup if the browser drifts. */
+  let pendingTrailingCaret: number | null = null;
 
   const emitSelection = () => {
     handlers.onSelectionChange?.(
@@ -530,6 +533,56 @@ export function createPreviewEditSession(
               }
             });
             return false;
+          },
+          mousedown(view, event) {
+            if (!(event instanceof MouseEvent)) {
+              return false;
+            }
+            if (isLocateModifier(event)) {
+              pendingTrailingCaret = null;
+              return false;
+            }
+            const caret = resolveTrailingClickCaret(view, event, projection);
+            if (caret == null) {
+              pendingTrailingCaret = null;
+              return false;
+            }
+            pendingTrailingCaret = caret;
+            event.preventDefault();
+            view.dispatch(
+              view.state.tr.setSelection(
+                TextSelection.create(view.state.doc, caret),
+              ),
+            );
+            if (!view.hasFocus()) {
+              view.focus();
+            }
+            emitSelection();
+            return true;
+          },
+          mouseup(view, event) {
+            if (pendingTrailingCaret == null) {
+              return false;
+            }
+            const caret = pendingTrailingCaret;
+            pendingTrailingCaret = null;
+            if (!(event instanceof MouseEvent)) {
+              return false;
+            }
+            event.preventDefault();
+            if (
+              view.state.selection.empty &&
+              view.state.selection.head === caret
+            ) {
+              return true;
+            }
+            view.dispatch(
+              view.state.tr.setSelection(
+                TextSelection.create(view.state.doc, caret),
+              ),
+            );
+            emitSelection();
+            return true;
           },
           click(view, event) {
             if (!(event.target instanceof Element)) {
