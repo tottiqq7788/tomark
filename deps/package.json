@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config ../src/vite.config.mts",
-    "build": "vue-tsc --noEmit -p ../src/tsconfig.json && vite build --config ../src/vite.config.mts",
+    "build": "vue-tsc --noEmit -p ../src/tsconfig.json && vite build --config ../src/vite.config.mts && node ../scripts/check-pdf-wasm-sync.mjs",
+    "check:pdf-wasm": "node ../scripts/check-pdf-wasm-sync.mjs",
     "preview": "vite preview --config ../src/vite.config.mts",
     "test": "cd .. && deps/node_modules/.bin/vitest run --config deps/vitest.config.ts",
     "test:watch": "cd .. && deps/node_modules/.bin/vitest --config deps/vitest.config.ts",

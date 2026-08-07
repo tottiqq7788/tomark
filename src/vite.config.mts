@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { fileURLToPath, URL } from "node:url";
 
@@ -23,13 +23,122 @@ const connectSrc = host
       "https://ipc.localhost",
     ].join(" ");
 
-export default defineConfig({
+/** Dev-only: POST /__tomark/force-export triggers export inside the Tauri webview. */
+function tomarkForceExportPlugin(): Plugin {
+  return {
+    name: "tomark-force-export",
+    configureServer(server) {
+      type Pending = {
+        resolve: (value: unknown) => void;
+        reject: (error: Error) => void;
+        timer: ReturnType<typeof setTimeout>;
+      };
+      let pending: Pending | null = null;
+
+      const hot = server.hot;
+      hot.on("tomark:force-export-result", (data: unknown) => {
+        if (!pending) {
+          return;
+        }
+        clearTimeout(pending.timer);
+        const current = pending;
+        pending = null;
+        current.resolve(data);
+      });
+
+      server.middlewares.use((req, res, next) => {
+        if (req.url?.split("?")[0] !== "/__tomark/force-export") {
+          next();
+          return;
+        }
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("POST only");
+          return;
+        }
+
+        const chunks: Buffer[] = [];
+        req.on("data", (chunk) => {
+          chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        });
+        req.on("end", () => {
+          void (async () => {
+            try {
+              const job = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
+              if (pending) {
+                clearTimeout(pending.timer);
+                pending.reject(new Error("superseded by a newer force-export request"));
+                pending = null;
+              }
+              const result = await new Promise<unknown>((resolve, reject) => {
+                const timer = setTimeout(() => {
+                  pending = null;
+                  reject(new Error("force-export timed out after 180s"));
+                }, 180_000);
+                pending = { resolve, reject, timer };
+                hot.send("tomark:force-export", job);
+              });
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+              res.end(JSON.stringify(result));
+            } catch (error) {
+              res.statusCode = 500;
+              res.setHeader("Content-Type", "application/json; charset=utf-8");
+              res.end(
+                JSON.stringify({
+                  ok: false,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+            }
+          })();
+        });
+      });
+    },
+  };
+}
+
+export default defineConfig(({ command }) => ({
   root: srcDir,
-  cacheDir: fileURLToPath(new URL("../deps/.vite-cache", import.meta.url)),
-  plugins: [vue()],
+  // Browser E2E may run beside tauri:dev on another port. Sharing optimizer
+  // output lets one server replace hashes still referenced by the other.
+  cacheDir: fileURLToPath(
+    new URL(
+      `../deps/.vite-cache/${
+        command === "build"
+          ? "build"
+          : process.env.VITE_WDIO === "1"
+            ? "wdio"
+            : "app"
+      }`,
+      import.meta.url,
+    ),
+  ),
+  plugins: [vue(), ...(command === "serve" ? [tomarkForceExportPlugin()] : [])],
   resolve: {
     alias: {
       "@": srcDir,
+    },
+  },
+  // Browser shims for Node-oriented export packages (html-to-docx, etc.).
+  define: {
+    global: "globalThis",
+  },
+  optimizeDeps: {
+    // These renderers are only reached through lazy export actions. If Vite
+    // discovers them on first click, WebKit can keep the transient optimizer
+    // URL after the dependency cache is committed and report the unhelpful
+    // "Importing a module script failed." Prebundle stable URLs at startup.
+    include: [
+      "@imggion/html2realpdf",
+      "@turbodocx/html-to-docx",
+      "html2canvas",
+    ],
+    rolldownOptions: {
+      transform: {
+        define: {
+          global: "globalThis",
+        },
+      },
     },
   },
   clearScreen: false,
@@ -117,4 +226,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

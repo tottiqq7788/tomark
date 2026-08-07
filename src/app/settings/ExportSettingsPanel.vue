@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { nextTick, ref } from "vue";
 import {
   ExportCancelledError,
   type ExportFormatId,
@@ -31,6 +31,11 @@ const actions: {
     id: "pdf",
     title: "导出 PDF（单页长页）",
     description: "矢量文字、中文可选择搜索；整篇一页，不分页。",
+  },
+  {
+    id: "pdf-paged",
+    title: "导出 PDF（矢量分页）",
+    description: "A4 纵向分页；矢量可搜索；图片/图表尽量整块换页，避免从中间切开。",
   },
   {
     id: "html-embedded",
@@ -69,6 +74,13 @@ async function onExport(format: ExportFormatId) {
   lastWarnings.value = [];
   lastMessage.value = "";
   emit("busy", true);
+  emit("status-message", "正在导出…");
+  // Let the settings drawer close and release its focus trap before any
+  // native save dialog (otherwise macOS can leave the export looking stuck).
+  await nextTick();
+  await new Promise<void>((resolve) => {
+    window.setTimeout(resolve, 50);
+  });
   try {
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
@@ -76,6 +88,7 @@ async function onExport(format: ExportFormatId) {
       markdownSource: props.markdownSource,
       documentPath: props.documentPath,
       fileName: props.fileName,
+      onProgress: (message) => emit("status-message", message),
     });
     lastWarnings.value = result.warnings;
     const warningText =

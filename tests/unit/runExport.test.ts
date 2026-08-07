@@ -1,25 +1,24 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ExportCancelledError } from "@/export/types";
 
-const saveBytesWithDialog = vi.fn();
 const pickExportPath = vi.fn();
 const writeHtmlAssetBundle = vi.fn();
+const writeExportBytes = vi.fn();
 
 vi.mock("@/native/exportFileService", () => ({
-  saveBytesWithDialog: (...args: unknown[]) => saveBytesWithDialog(...args),
   pickExportPath: (...args: unknown[]) => pickExportPath(...args),
   writeHtmlAssetBundle: (...args: unknown[]) => writeHtmlAssetBundle(...args),
+  writeExportBytes: (...args: unknown[]) => writeExportBytes(...args),
 }));
 
+const createRenderer = vi.fn();
 const renderMock = vi.fn();
 const disposeRenderer = vi.fn();
 const disposePdf = vi.fn();
 
 vi.mock("@imggion/html2realpdf", () => ({
-  createRenderer: vi.fn(async () => ({
-    render: renderMock,
-    dispose: disposeRenderer,
-  })),
+  createRenderer: (...args: unknown[]) => createRenderer(...args),
 }));
 
 vi.mock("@turbodocx/html-to-docx", () => ({
@@ -38,25 +37,54 @@ vi.mock("html2canvas", () => ({
   }),
 }));
 
+const fontsDir = path.join(process.cwd(), "src/assets/fonts");
+const fontFiles: Record<string, ArrayBuffer> = {
+  "SourceCodePro-Regular.ttf": toArrayBuffer("SourceCodePro-Regular.ttf"),
+  "SourceCodePro-Bold.ttf": toArrayBuffer("SourceCodePro-Bold.ttf"),
+  "SourceHanSansSC-VF.ttf": toArrayBuffer("SourceHanSansSC-VF.ttf"),
+  "NotoSansSymbols2-Regular.ttf": toArrayBuffer("NotoSansSymbols2-Regular.ttf"),
+  "NotoEmoji-Regular.ttf": toArrayBuffer("NotoEmoji-Regular.ttf"),
+};
+
+function toArrayBuffer(name: string): ArrayBuffer {
+  const bytes = readFileSync(path.join(fontsDir, name));
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+function installFontFetchMock() {
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+    const href = String(input);
+    const fileName = Object.keys(fontFiles).find((name) => href.includes(name));
+    if (!fileName) {
+      return new Response(null, { status: 404 });
+    }
+    return new Response(fontFiles[fileName], { status: 200 });
+  }) as typeof fetch;
+}
+
 describe("runExport generators", () => {
-  beforeEach(() => {
-    saveBytesWithDialog.mockReset();
+  beforeEach(async () => {
     pickExportPath.mockReset();
     writeHtmlAssetBundle.mockReset();
+    writeExportBytes.mockReset();
+    createRenderer.mockReset();
     renderMock.mockReset();
     disposeRenderer.mockReset();
     disposePdf.mockReset();
-    saveBytesWithDialog.mockResolvedValue({
-      path: "/tmp/out.pdf",
-      fileName: "out.pdf",
-    });
+    pickExportPath.mockResolvedValue("/tmp/out.pdf");
+    writeExportBytes.mockResolvedValue(undefined);
+    createRenderer.mockImplementation(async () => ({
+      render: renderMock,
+      dispose: disposeRenderer,
+    }));
+    installFontFetchMock();
+    vi.resetModules();
+    const mod = await import("@/export/runExport");
+    mod.resetExportFontCache();
   });
 
   it("exports embedded html bytes", async () => {
-    saveBytesWithDialog.mockResolvedValue({
-      path: "/tmp/note.html",
-      fileName: "note.html",
-    });
+    pickExportPath.mockResolvedValue("/tmp/note.html");
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
       format: "html-embedded",
@@ -65,16 +93,19 @@ describe("runExport generators", () => {
       fileName: "note.md",
     });
     expect(result.fileName).toBe("note.html");
-    expect(saveBytesWithDialog).toHaveBeenCalledWith(
+    expect(pickExportPath).toHaveBeenCalledWith(
       expect.objectContaining({
         defaultPath: "note.html",
         filters: [{ name: "HTML", extensions: ["html", "htm"] }],
       }),
     );
-    const bytes = saveBytesWithDialog.mock.calls[0][0].bytes as Uint8Array;
+    expect(writeExportBytes).toHaveBeenCalledOnce();
+    expect(writeExportBytes.mock.calls[0][0]).toBe("/tmp/note.html");
+    const bytes = writeExportBytes.mock.calls[0][1] as Uint8Array;
     const html = new TextDecoder().decode(bytes);
     expect(html).toContain("<!DOCTYPE html>");
     expect(html).toContain("你好");
+    expect(html).toContain("Source Code Pro");
     expect(html).not.toContain("data-source-line");
   });
 
@@ -110,27 +141,41 @@ describe("runExport generators", () => {
         documentPath: null,
         fileName: "a.md",
       }),
-    ).rejects.toBeInstanceOf(ExportCancelledError);
+    ).rejects.toThrow(/已取消导出/);
   });
 
-  it("renders a single-page PDF with custom long-page size", async () => {
+  it("renders a single-page PDF with wasmUrl and ordered font fallbacks", async () => {
     renderMock.mockResolvedValue({
       pageCount: 1,
       toUint8Array: () => new Uint8Array([0x25, 0x50, 0x44, 0x46]),
       dispose: disposePdf,
     });
-    globalThis.fetch = vi.fn(async () =>
-      new Response(new Uint8Array([0, 1, 2, 3]).buffer, { status: 200 }),
-    ) as typeof fetch;
 
-    const { runExport } = await import("@/export/runExport");
+    const { runExport, resolvePdfWasmUrl } = await import("@/export/runExport");
     const result = await runExport({
       format: "pdf",
-      markdownSource: "# 中文标题\n\n可搜索",
+      markdownSource: "# 中文标题\n\n可搜索 `中文代码` 😀🚀⚙️",
       documentPath: null,
       fileName: "中文.md",
     });
     expect(result.fileName).toBe("out.pdf");
+    expect(createRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wasmUrl: resolvePdfWasmUrl(),
+        execution: "main",
+      }),
+    );
+    const fonts = createRenderer.mock.calls[0][0].fonts as { family: string }[];
+    expect(fonts.map((font) => font.family)).toEqual([
+      "Source Code Pro",
+      "Source Code Pro",
+      "Source Han Sans SC",
+      "Source Han Sans SC",
+      "Noto Sans Symbols 2",
+      "Noto Emoji",
+    ]);
+    expect(resolvePdfWasmUrl()).toContain("libhtml2realpdf.wasm");
+    expect(resolvePdfWasmUrl()).not.toContain("@fs");
     expect(renderMock).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
@@ -147,15 +192,66 @@ describe("runExport generators", () => {
     expect(disposeRenderer).toHaveBeenCalled();
   });
 
+  it("renders a multi-page A4 vector PDF with page-break protection", async () => {
+    pickExportPath.mockResolvedValue("/tmp/note-分页.pdf");
+    renderMock.mockResolvedValue({
+      pageCount: 3,
+      toUint8Array: () => new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      dispose: disposePdf,
+    });
+
+    const { runExport, resolvePdfWasmUrl } = await import("@/export/runExport");
+    const result = await runExport({
+      format: "pdf-paged",
+      markdownSource:
+        "# 分页\n\n![x](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==)\n\n图注\n",
+      documentPath: null,
+      fileName: "note.md",
+    });
+    expect(result.fileName).toBe("note-分页.pdf");
+    expect(result.note).toMatch(/共 3 页/);
+    expect(createRenderer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wasmUrl: resolvePdfWasmUrl(),
+      }),
+    );
+    expect(renderMock).toHaveBeenCalledWith(
+      expect.any(HTMLElement),
+      expect.objectContaining({
+        mediaType: "print",
+        layoutContext: "page",
+        fallback: "error",
+        page: expect.objectContaining({
+          format: "a4",
+          orientation: "portrait",
+          unit: "mm",
+          margin: [12, 13, 12, 13],
+        }),
+        pageBreak: expect.objectContaining({
+          avoid: expect.arrayContaining([".pdf-atomic", "thead", "tr"]),
+          legacy: false,
+        }),
+      }),
+    );
+    const article = renderMock.mock.calls[0][0] as HTMLElement;
+    expect(article.classList.contains("export-root-paged")).toBe(true);
+    expect(pickExportPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: "note-分页.pdf",
+      }),
+    );
+    expect(writeExportBytes).toHaveBeenCalledWith(
+      "/tmp/note-分页.pdf",
+      expect.any(Uint8Array),
+    );
+  });
+
   it("refuses multi-page PDF without bitmap fallback", async () => {
     renderMock.mockResolvedValue({
       pageCount: 2,
       toUint8Array: () => new Uint8Array([0x25, 0x50, 0x44, 0x46]),
       dispose: disposePdf,
     });
-    globalThis.fetch = vi.fn(async () =>
-      new Response(new Uint8Array([0, 1, 2, 3]).buffer, { status: 200 }),
-    ) as typeof fetch;
 
     const { runExport } = await import("@/export/runExport");
     await expect(
@@ -166,14 +262,24 @@ describe("runExport generators", () => {
         fileName: "x.md",
       }),
     ).rejects.toThrow(/单页长页/);
-    expect(saveBytesWithDialog).not.toHaveBeenCalled();
+    expect(writeExportBytes).not.toHaveBeenCalled();
+  });
+
+  it("preflights uncovered glyphs with U+XXXX before rendering", async () => {
+    const { runExport } = await import("@/export/runExport");
+    await expect(
+      runExport({
+        format: "pdf",
+        markdownSource: "# rare\n\n𒀀",
+        documentPath: null,
+        fileName: "rare.md",
+      }),
+    ).rejects.toThrow(/U\+/);
+    expect(createRenderer).not.toHaveBeenCalled();
   });
 
   it("exports docx bytes", async () => {
-    saveBytesWithDialog.mockResolvedValue({
-      path: "/tmp/note.docx",
-      fileName: "note.docx",
-    });
+    pickExportPath.mockResolvedValue("/tmp/note.docx");
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
       format: "docx",
@@ -182,19 +288,20 @@ describe("runExport generators", () => {
       fileName: "note.md",
     });
     expect(result.fileName).toBe("note.docx");
-    expect(saveBytesWithDialog).toHaveBeenCalledWith(
+    expect(pickExportPath).toHaveBeenCalledWith(
       expect.objectContaining({
         defaultPath: "note.docx",
         filters: [{ name: "Word", extensions: ["docx"] }],
       }),
     );
+    expect(writeExportBytes).toHaveBeenCalledWith(
+      "/tmp/note.docx",
+      expect.any(Uint8Array),
+    );
   });
 
   it("exports png bytes", async () => {
-    saveBytesWithDialog.mockResolvedValue({
-      path: "/tmp/note.png",
-      fileName: "note.png",
-    });
+    pickExportPath.mockResolvedValue("/tmp/note.png");
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
       format: "png",
@@ -203,11 +310,15 @@ describe("runExport generators", () => {
       fileName: "note.md",
     });
     expect(result.fileName).toBe("note.png");
-    expect(saveBytesWithDialog).toHaveBeenCalledWith(
+    expect(pickExportPath).toHaveBeenCalledWith(
       expect.objectContaining({
         defaultPath: "note.png",
         filters: [{ name: "PNG", extensions: ["png"] }],
       }),
+    );
+    expect(writeExportBytes).toHaveBeenCalledWith(
+      "/tmp/note.png",
+      expect.any(Uint8Array),
     );
   });
 

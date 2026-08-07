@@ -2,26 +2,52 @@ import { mockAppIpc } from "../helpers/tauriMocks";
 
 describe("settings export drawer", () => {
   beforeEach(async () => {
-    await browser.url("http://localhost:1420/");
+    await browser.url("/");
     await mockAppIpc({
       savePath: "/tmp/tomark-export-e2e.html",
     });
     await $(".toolbar-title").waitForExist({ timeout: 30_000 });
   });
 
-  it("opens settings from the footer gear and shows five export actions", async () => {
+  async function openExportPanel() {
     const settings = await $('[data-testid="status-settings"]');
     await settings.waitForExist({ timeout: 10_000 });
     await settings.click();
 
     const drawer = await $('[data-testid="settings-drawer"]');
     await drawer.waitForDisplayed({ timeout: 10_000 });
+  }
+
+  it("opens settings from the footer gear and shows export actions including paged PDF", async () => {
+    await openExportPanel();
 
     await expect($('[data-testid="export-settings-panel"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-pdf"]')).toBeDisplayed();
+    await expect($('[data-testid="export-action-pdf-paged"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-html-embedded"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-html-assets"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-docx"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-png"]')).toBeDisplayed();
+  });
+
+  it("loads every lazy renderer module before exporting", async () => {
+    await browser.setTimeout({ script: 30_000 });
+    const errorMessage = await browser.executeAsync((done) => {
+      const api = (
+        window as unknown as {
+          __tomarkE2e?: { preloadExportRenderers: () => Promise<void> };
+        }
+      ).__tomarkE2e;
+      if (!api) {
+        done("E2E bridge is unavailable");
+        return;
+      }
+      void api.preloadExportRenderers().then(
+        () => done(null),
+        (error: unknown) =>
+          done(error instanceof Error ? error.message : String(error)),
+      );
+    });
+    expect(errorMessage).toBeNull();
   });
 });

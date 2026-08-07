@@ -7,7 +7,7 @@ const appBinary = path.join(root, "src-tauri/target/debug/tomark");
 
 export const config: Options.Testrunner = {
   runner: "local",
-  specs: ["./specs/window-close.spec.ts"],
+  specs: ["./specs/window-close.spec.ts", "./specs/native-export.spec.ts"],
   maxInstances: 1,
   framework: "mocha",
   reporters: ["spec"],

@@ -1,9 +1,9 @@
-import { invoke } from "@tauri-apps/api/core";
 import type {
   ImageResolutionResult,
   ImageWarning,
   ResolvedImage,
 } from "./types";
+import { invokeTauri } from "@/native/tauriRuntime";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([
@@ -145,7 +145,7 @@ async function readLocalImage(
   }
 
   try {
-    const payload = await invoke<NativeImagePayload>("read_export_image", {
+    const payload = await invokeTauri<NativeImagePayload>("read_export_image", {
       documentPath,
       relativePath: relativeSrc,
       maxBytes: MAX_IMAGE_BYTES,

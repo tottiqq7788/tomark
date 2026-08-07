@@ -3,6 +3,7 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
 use atomic_write_file::AtomicWriteFile;
+use base64::Engine;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_fs::FsExt;
 
@@ -50,15 +51,33 @@ pub struct ExportImagePayload {
 #[serde(rename_all = "camelCase")]
 pub struct HtmlExportAsset {
     pub relative_path: String,
-    pub contents: Vec<u8>,
+    /// Standard base64 (JSON-safe). Avoids multi‑MB `Vec<u8>` over JSON IPC.
+    pub contents_base64: String,
+}
+
+fn decode_base64_bytes(input: &str) -> Result<Vec<u8>, ExportIoError> {
+    base64::engine::general_purpose::STANDARD
+        .decode(input.trim())
+        .map_err(|error| ExportIoError::Message(format!("无效的二进制数据：{error}")))
 }
 
 fn ensure_allowed<R: Runtime>(app: &AppHandle<R>, path: &Path) -> Result<(), ExportIoError> {
     if app.fs_scope().is_allowed(path) {
-        Ok(())
-    } else {
-        Err(ExportIoError::PathForbidden)
+        return Ok(());
     }
+    // Save-dialog selections are granted by the dialog plugin. Dev force-export
+    // skips the dialog, so allow concrete temp-dir targets in debug builds only.
+    #[cfg(debug_assertions)]
+    {
+        let temp = std::env::temp_dir();
+        if path.starts_with(&temp) {
+            let _ = app.fs_scope().allow_file(path);
+            if app.fs_scope().is_allowed(path) {
+                return Ok(());
+            }
+        }
+    }
+    Err(ExportIoError::PathForbidden)
 }
 
 fn extension_of(path: &Path) -> String {
@@ -147,8 +166,9 @@ fn assets_dir_name_valid(name: &str) -> bool {
 pub fn atomic_write_bytes_file<R: Runtime>(
     app: AppHandle<R>,
     path: String,
-    contents: Vec<u8>,
+    contents_base64: String,
 ) -> Result<(), ExportIoError> {
+    let contents = decode_base64_bytes(&contents_base64)?;
     let target = resolve_write_target(Path::new(&path))?;
     ensure_allowed(&app, &target)?;
     write_bytes(&target, &contents)?;
@@ -231,15 +251,69 @@ pub fn write_html_export_bundle<R: Runtime>(
     // HTML file that points at a missing sibling directory.
     for asset in assets {
         let name = sanitize_asset_name(&asset.relative_path)?;
+        let bytes = decode_base64_bytes(&asset.contents_base64)?;
         let target = assets_dir.join(name);
         let mut file = AtomicWriteFile::options().open(&target)?;
-        file.write_all(&asset.contents)?;
+        file.write_all(&bytes)?;
         file.as_file().sync_all()?;
         file.commit()?;
     }
 
     write_bytes(&html_target, html_content.as_bytes())?;
     Ok(())
+}
+
+/// Dev force-export: frontend polls this to pick up a job written by scripts/.
+#[tauri::command]
+pub fn poll_force_export_job() -> Result<Option<String>, ExportIoError> {
+    #[cfg(not(debug_assertions))]
+    {
+        return Ok(None);
+    }
+    #[cfg(debug_assertions)]
+    {
+        let path = std::env::temp_dir().join("tomark-force-export-job.json");
+        if !path.is_file() {
+            return Ok(None);
+        }
+        let contents = fs::read_to_string(&path)?;
+        let _ = fs::remove_file(&path);
+        Ok(Some(contents))
+    }
+}
+
+/// Dev force-export: frontend writes the JSON result for the waiting script.
+#[tauri::command]
+pub fn write_force_export_result(payload: String) -> Result<(), ExportIoError> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = payload;
+        return Err(ExportIoError::Message(
+            "force-export result is only available in debug builds".into(),
+        ));
+    }
+    #[cfg(debug_assertions)]
+    {
+        let path = std::env::temp_dir().join("tomark-force-export-result.json");
+        write_bytes(&path, payload.as_bytes())?;
+        Ok(())
+    }
+}
+
+/// Dev force-export: progress breadcrumbs for the waiting script.
+#[tauri::command]
+pub fn write_force_export_status(message: String) -> Result<(), ExportIoError> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = message;
+        return Ok(());
+    }
+    #[cfg(debug_assertions)]
+    {
+        let path = std::env::temp_dir().join("tomark-force-export-status.txt");
+        write_bytes(&path, message.as_bytes())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]

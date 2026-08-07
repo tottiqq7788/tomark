@@ -19,8 +19,11 @@ describe("export smoke fixture", () => {
 
     expect(document.fullHtml).toContain("<!DOCTYPE html>");
     expect(document.fullHtml).toContain("导出冒烟 Fixture");
+    expect(document.fullHtml).toContain("😀");
     expect(document.fullHtml).toContain("<table>");
     expect(document.fullHtml).toContain("<pre>");
+    expect(document.fullHtml).toContain("Source Code Pro");
+    expect(document.fullHtml).toContain("Noto Emoji");
     expect(document.fullHtml).toContain("data:image/png;base64");
     expect(document.fullHtml).not.toContain("data-source-line");
     expect(document.warnings.some((warning) => warning.src.includes("missing-sample.png"))).toBe(

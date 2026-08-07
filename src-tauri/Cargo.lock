@@ -4146,6 +4146,7 @@ name = "tomark"
 version = "1.10.1"
 dependencies = [
  "atomic-write-file",
+ "base64 0.22.1",
  "block2",
  "chardetng",
  "encoding_rs",

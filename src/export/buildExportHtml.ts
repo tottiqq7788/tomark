@@ -2,6 +2,7 @@ import markdownBodyCss from "@/preview/markdownBody.css?raw";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
 import {
   EXPORT_CONTENT_WIDTH_PX,
+  PDF_PAGED_CONTENT_WIDTH_MM,
   type BuiltExportDocument,
   type ExportDocumentOptions,
   type HtmlAssetsBundle,
@@ -24,6 +25,12 @@ export function defaultExportBaseName(fileName: string): string {
   return trimmed.replace(/\.(md|markdown)$/i, "") || "未命名";
 }
 
+const EXPORT_BODY_FONT_STACK =
+  '"Source Han Sans SC", "Noto Sans Symbols 2", "Noto Emoji", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei", sans-serif';
+
+const EXPORT_CODE_FONT_STACK =
+  '"Source Code Pro", "Source Han Sans SC", "Noto Sans Symbols 2", "Noto Emoji", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+
 export function exportShellCss(): string {
   return `${markdownBodyCss}
 
@@ -35,14 +42,85 @@ export function exportShellCss(): string {
   padding: 24px 28px 48px;
   background: #fff;
   color: #1f2937;
-  font-family: "Source Han Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Microsoft YaHei",
-    sans-serif;
+  font-family: ${EXPORT_BODY_FONT_STACK};
+}
+
+.export-root code,
+.export-root pre,
+.export-root kbd,
+.export-root samp {
+  font-family: ${EXPORT_CODE_FONT_STACK};
 }
 
 .export-root img {
   max-width: 100%;
   height: auto;
+}
+`;
+}
+
+/** Print-oriented shell for A4 vector pagination (margins owned by page.margin). */
+export function exportPagedPdfCss(): string {
+  return `${markdownBodyCss}
+
+.export-root.export-root-paged {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: ${PDF_PAGED_CONTENT_WIDTH_MM}mm;
+  margin: 0 auto;
+  padding: 0;
+  background: #fff;
+  color: #1f2937;
+  font-family: ${EXPORT_BODY_FONT_STACK};
+  font-size: 10.5pt;
+  line-height: 1.55;
+}
+
+.export-root.export-root-paged code,
+.export-root.export-root-paged pre,
+.export-root.export-root-paged kbd,
+.export-root.export-root-paged samp {
+  font-family: ${EXPORT_CODE_FONT_STACK};
+}
+
+.export-root.export-root-paged img,
+.export-root.export-root-paged svg,
+.export-root.export-root-paged canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.export-root.export-root-paged h1,
+.export-root.export-root-paged h2,
+.export-root.export-root-paged h3,
+.export-root.export-root-paged h4,
+.export-root.export-root-paged h5,
+.export-root.export-root-paged h6 {
+  break-after: avoid;
+  page-break-after: avoid;
+}
+
+.export-root.export-root-paged thead,
+.export-root.export-root-paged tr {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.export-root.export-root-paged .pdf-atomic,
+.export-root.export-root-paged figure.pdf-atomic {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.export-root.export-root-paged .pdf-flow {
+  break-inside: auto;
+  page-break-inside: auto;
+}
+
+.export-root.export-root-paged figcaption {
+  margin-top: 0.35em;
+  color: #4b5563;
+  font-size: 0.92em;
 }
 `;
 }

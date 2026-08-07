@@ -1,6 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { save } from "@tauri-apps/plugin-dialog";
 import { ExportCancelledError } from "@/export/types";
+import { assertTauriIpcReady, invokeTauri } from "@/native/tauriRuntime";
 
 function fileNameFromPath(path: string): string {
   const parts = path.replace(/\\/g, "/").split("/");
@@ -17,10 +16,29 @@ function mapInvokeError(error: unknown): Error {
   return new Error(String(error));
 }
 
+/**
+ * Encode binary for Tauri JSON IPC. Do not pass Uint8Array / number[] for
+ * multi‑MB PDFs — WKWebView freezes building or serializing huge arrays.
+ */
+export function bytesToBase64(bytes: Uint8Array): string {
+  const chunkSize = 0x8000;
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode.apply(
+      null,
+      chunk as unknown as number[],
+    );
+  }
+  return btoa(binary);
+}
+
 export async function pickExportPath(options: {
   defaultPath: string;
   filters: { name: string; extensions: string[] }[];
 }): Promise<string | null> {
+  assertTauriIpcReady("导出");
+  const { save } = await import("@tauri-apps/plugin-dialog");
   const path = await save({
     defaultPath: options.defaultPath,
     filters: options.filters,
@@ -36,9 +54,9 @@ export async function writeExportBytes(
   bytes: Uint8Array,
 ): Promise<void> {
   try {
-    await invoke("atomic_write_bytes_file", {
+    await invokeTauri("atomic_write_bytes_file", {
       path,
-      contents: Array.from(bytes),
+      contentsBase64: bytesToBase64(bytes),
     });
   } catch (error) {
     throw mapInvokeError(error);
@@ -57,13 +75,13 @@ export async function writeHtmlAssetBundle(options: {
   assets: { relativePath: string; bytes: Uint8Array }[];
 }): Promise<void> {
   try {
-    await invoke("write_html_export_bundle", {
+    await invokeTauri("write_html_export_bundle", {
       htmlPath: options.htmlPath,
       htmlContent: options.htmlContent,
       assetsDirName: options.assetsDirName,
       assets: options.assets.map((asset) => ({
         relativePath: asset.relativePath,
-        contents: Array.from(asset.bytes),
+        contentsBase64: bytesToBase64(asset.bytes),
       })),
     });
   } catch (error) {

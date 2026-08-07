@@ -12,3 +12,18 @@ commands.allow = ["read_export_image"]
 identifier = "allow-write-html-export-bundle"
 description = "Allows writing an HTML export file and its sibling asset directory."
 commands.allow = ["write_html_export_bundle"]
+
+[[permission]]
+identifier = "allow-poll-force-export-job"
+description = "Allows the debug frontend to poll for a force-export job file."
+commands.allow = ["poll_force_export_job"]
+
+[[permission]]
+identifier = "allow-write-force-export-result"
+description = "Allows the debug frontend to write a force-export result file."
+commands.allow = ["write_force_export_result"]
+
+[[permission]]
+identifier = "allow-write-force-export-status"
+description = "Allows the debug frontend to write force-export progress status."
+commands.allow = ["write_force_export_status"]
