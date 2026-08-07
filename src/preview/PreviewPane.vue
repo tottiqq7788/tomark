@@ -1,6 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { PreviewAnchor } from "@/shared/types";
+import type { EditableProjection } from "@/markdown/buildEditableProjection";
+import type {
+  ApplySourceTransactionResult,
+  SourcePatchTransaction,
+} from "@/shared/previewEditing";
 import type {
   ActiveFormats,
   InlineFormat,
@@ -14,12 +19,23 @@ import {
   resolvePreviewSelection,
 } from "./previewSelection";
 import PreviewFormatToolbar from "./PreviewFormatToolbar.vue";
+import PreviewEditableHost from "./editing/PreviewEditableHost.vue";
+import type { PreviewEditStatus } from "./editing/usePreviewEditSession";
+import "./editing/editablePreview.css";
 
 const props = defineProps<{
   html: string;
   lineToAnchor: Map<number, PreviewAnchor>;
-  /** Source that produced `html`; formatting is refused when stale. */
+  /** Source that produced the current preview; formatting is refused when stale. */
   renderedSource: string | null;
+  projection: EditableProjection | null;
+  renderMode: "editable" | "fallback";
+  editableSyncToken: number;
+  selectionRecovery?: { anchor: number; head: number } | null;
+  getRevision: () => number;
+  applySourceTransaction: (
+    transaction: SourcePatchTransaction,
+  ) => ApplySourceTransactionResult;
 }>();
 
 const emit = defineEmits<{
@@ -31,15 +47,27 @@ const emit = defineEmits<{
       selection: PreviewFormatSelection;
     },
   ];
+  "edit-status": [status: PreviewEditStatus];
+  "composing-change": [composing: boolean];
 }>();
 
-const container = ref<HTMLElement | null>(null);
+const scrollRoot = ref<HTMLElement | null>(null);
+const fallbackContainer = ref<HTMLElement | null>(null);
+const editableHost = ref<{
+  scrollToSourceLine: (line: number) => Promise<void>;
+  hideFormatToolbar: () => void;
+  flushComposition: () => void;
+  isComposing: () => boolean;
+  getFormatSelection: () => PreviewFormatSelection | null;
+  setSourceSelection: (anchor: number, head: number) => boolean;
+  focus: () => void;
+} | null>(null);
+
 const flashId = ref<string | null>(null);
 let flashTimer: ReturnType<typeof setTimeout> | null = null;
 
 const toolbarVisible = ref(false);
 const toolbarTop = ref(0);
-/** Horizontal center of the toolbar (paired with translateX(-50%)). */
 const toolbarCenterX = ref(0);
 const toolbarRef = ref<{
   root?: HTMLElement | null;
@@ -55,12 +83,13 @@ const toolbarActive = ref<ActiveFormats>({
   ranges: {},
 });
 const currentSelection = ref<PreviewFormatSelection | null>(null);
-/** Keep selection alive while interacting with the toolbar. */
 let suppressSelectionClear = false;
-/** Keep toolbar visible while the link URL input has focus (selection collapses). */
 const linkEditing = ref(false);
 
-/** Fallback before the toolbar has been painted and measured. */
+const useEditable = computed(
+  () => props.renderMode === "editable" && props.projection != null,
+);
+
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
@@ -80,7 +109,6 @@ function placeToolbar(rect: PreviewFormatSelection["rect"]) {
   toolbarTop.value = pos.top;
   toolbarCenterX.value = pos.centerX;
   toolbarVisible.value = true;
-  // Remeasure after paint so centering uses the real toolbar width.
   void nextTick(() => {
     requestAnimationFrame(() => {
       if (!toolbarVisible.value || !currentSelection.value) {
@@ -118,12 +146,20 @@ function hideToolbar() {
   };
 }
 
-function refreshToolbarFromSelection() {
+function applyResolvedSelection(resolved: PreviewFormatSelection | null) {
   if (suppressSelectionClear || linkEditing.value) {
     return;
   }
-  const resolved = resolvePreviewSelection(container.value);
   if (!resolved) {
+    // Keep the last selection while the floating toolbar holds pointer focus.
+    const active = document.activeElement;
+    if (
+      toolbarVisible.value &&
+      active instanceof Element &&
+      active.closest('[data-testid="preview-format-toolbar"]')
+    ) {
+      return;
+    }
     hideToolbar();
     return;
   }
@@ -132,14 +168,56 @@ function refreshToolbarFromSelection() {
   placeToolbar(resolved.rect);
 }
 
+function onToolbarPointerDown() {
+  suppressSelectionClear = true;
+}
+
+function onToolbarPointerUp() {
+  window.requestAnimationFrame(() => {
+    suppressSelectionClear = linkEditing.value;
+  });
+}
+
+function onEditableSelectionChange(selection: PreviewFormatSelection | null) {
+  applyResolvedSelection(selection);
+}
+
+function refreshFallbackToolbarFromSelection() {
+  if (useEditable.value || suppressSelectionClear || linkEditing.value) {
+    return;
+  }
+  const resolved = resolvePreviewSelection(fallbackContainer.value);
+  applyResolvedSelection(resolved);
+}
+
+function onSelectionChange() {
+  try {
+    if (useEditable.value) {
+      window.requestAnimationFrame(() => {
+        applyResolvedSelection(
+          editableHost.value?.getFormatSelection() ?? null,
+        );
+      });
+      return;
+    }
+    refreshFallbackToolbarFromSelection();
+  } catch {
+    hideToolbar();
+  }
+}
+
+function onFallbackPointerUp(event: PointerEvent) {
+  if (useEditable.value || isLocateModifier(event)) {
+    return;
+  }
+  window.requestAnimationFrame(() => {
+    refreshFallbackToolbarFromSelection();
+  });
+}
+
 function onLinkEditing(open: boolean) {
   linkEditing.value = open;
-  if (open) {
-    suppressSelectionClear = true;
-  } else {
-    suppressSelectionClear = false;
-  }
-  // Link panel changes toolbar width — re-center on the saved selection.
+  suppressSelectionClear = open;
   if (toolbarVisible.value && currentSelection.value) {
     void nextTick(() => {
       if (currentSelection.value) {
@@ -149,29 +227,21 @@ function onLinkEditing(open: boolean) {
   }
 }
 
-function onSelectionChange() {
-  try {
-    refreshToolbarFromSelection();
-  } catch {
-    hideToolbar();
-  }
-}
-
-function onPreviewPointerUp(event: PointerEvent) {
-  if (isLocateModifier(event)) {
-    return;
-  }
-  // Defer until the browser finalizes the selection.
-  window.requestAnimationFrame(() => {
-    refreshToolbarFromSelection();
-  });
-}
-
 function onScrollOrResize() {
   if (!toolbarVisible.value || !currentSelection.value) {
     return;
   }
-  const resolved = resolvePreviewSelection(container.value);
+  if (useEditable.value) {
+    const resolved = editableHost.value?.getFormatSelection() ?? null;
+    if (!resolved) {
+      hideToolbar();
+      return;
+    }
+    currentSelection.value = resolved;
+    placeToolbar(resolved.rect);
+    return;
+  }
+  const resolved = resolvePreviewSelection(fallbackContainer.value);
   if (!resolved) {
     hideToolbar();
     return;
@@ -180,7 +250,7 @@ function onScrollOrResize() {
   placeToolbar(resolved.rect);
 }
 
-function onPreviewClick(event: MouseEvent) {
+function onFallbackClick(event: MouseEvent) {
   const target = event.target;
   if (!(target instanceof Element)) {
     return;
@@ -196,7 +266,6 @@ function onPreviewClick(event: MouseEvent) {
     if (rawHref.startsWith("#")) {
       return;
     }
-    // Never let rendered Markdown replace the editor's own webview.
     event.preventDefault();
     if (["http:", "https:", "mailto:", "tel:"].includes(protocol)) {
       emit("open-link", link.href);
@@ -218,7 +287,7 @@ function onPreviewClick(event: MouseEvent) {
   emit("locate-source", line);
 }
 
-function onPreviewContextMenu(event: MouseEvent) {
+function onFallbackContextMenu(event: MouseEvent) {
   if (isLocateModifier(event)) {
     event.preventDefault();
   }
@@ -242,7 +311,6 @@ function emitFormat(action: PreviewFormatAction) {
   window.requestAnimationFrame(() => {
     suppressSelectionClear = false;
     hideToolbar();
-    window.getSelection()?.removeAllRanges();
   });
 }
 
@@ -260,7 +328,6 @@ function onRemoveLink() {
 
 function onDismissToolbar() {
   hideToolbar();
-  window.getSelection()?.removeAllRanges();
 }
 
 function onFormatKeyDown(event: KeyboardEvent) {
@@ -271,8 +338,15 @@ function onFormatKeyDown(event: KeyboardEvent) {
   if (!action || action === "undo" || action === "redo") {
     return;
   }
-  // Only when there is an active preview selection (toolbar would be shown).
-  if (!toolbarVisible.value || !currentSelection.value) {
+  if (!currentSelection.value) {
+    const resolved = useEditable.value
+      ? editableHost.value?.getFormatSelection() ?? null
+      : resolvePreviewSelection(fallbackContainer.value);
+    if (resolved) {
+      applyResolvedSelection(resolved);
+    }
+  }
+  if (!currentSelection.value) {
     return;
   }
   event.preventDefault();
@@ -284,18 +358,22 @@ function onFormatKeyDown(event: KeyboardEvent) {
 }
 
 async function scrollToSourceLine(sourceLine: number) {
+  if (useEditable.value && editableHost.value) {
+    await editableHost.value.scrollToSourceLine(sourceLine);
+    return;
+  }
   const anchor = props.lineToAnchor.get(sourceLine);
-  if (!anchor || !container.value) {
+  if (!anchor || !fallbackContainer.value) {
     return;
   }
   await nextTick();
-  const el = container.value.querySelector(
+  const el = fallbackContainer.value.querySelector(
     `[data-anchor-id="${CSS.escape(anchor.id)}"]`,
   ) as HTMLElement | null;
   if (!el) {
     return;
   }
-  container.value
+  fallbackContainer.value
     .querySelectorAll(".preview-flash")
     .forEach((node) => node.classList.remove("preview-flash"));
   el.classList.add("preview-flash");
@@ -311,10 +389,42 @@ async function scrollToSourceLine(sourceLine: number) {
   }, 1200);
 }
 
-defineExpose({ scrollToSourceLine, hideFormatToolbar: hideToolbar });
+function hideFormatToolbar() {
+  hideToolbar();
+  editableHost.value?.hideFormatToolbar();
+}
+
+function flushComposition() {
+  editableHost.value?.flushComposition();
+}
+
+function isComposing(): boolean {
+  return editableHost.value?.isComposing() ?? false;
+}
+
+/** Place a source-offset selection and show the format toolbar when non-empty. */
+function selectSourceRange(from: number, to: number): boolean {
+  if (!useEditable.value || !editableHost.value) {
+    return false;
+  }
+  const ok = editableHost.value.setSourceSelection(from, to);
+  if (!ok) {
+    return false;
+  }
+  applyResolvedSelection(editableHost.value.getFormatSelection());
+  return currentSelection.value != null;
+}
+
+defineExpose({
+  scrollToSourceLine,
+  hideFormatToolbar,
+  flushComposition,
+  isComposing,
+  selectSourceRange,
+});
 
 watch(
-  () => props.html,
+  () => [props.html, props.editableSyncToken, props.renderMode] as const,
   () => {
     flashId.value = null;
     clearFlashTimer();
@@ -326,7 +436,7 @@ onMounted(() => {
   document.addEventListener("selectionchange", onSelectionChange);
   window.addEventListener("resize", onScrollOrResize);
   window.addEventListener("keydown", onFormatKeyDown, true);
-  container.value?.addEventListener("scroll", onScrollOrResize, {
+  scrollRoot.value?.addEventListener("scroll", onScrollOrResize, {
     passive: true,
   });
 });
@@ -336,19 +446,36 @@ onBeforeUnmount(() => {
   document.removeEventListener("selectionchange", onSelectionChange);
   window.removeEventListener("resize", onScrollOrResize);
   window.removeEventListener("keydown", onFormatKeyDown, true);
-  container.value?.removeEventListener("scroll", onScrollOrResize);
+  scrollRoot.value?.removeEventListener("scroll", onScrollOrResize);
 });
 </script>
 
 <template>
-  <div class="preview-pane" @scroll="onScrollOrResize">
+  <div ref="scrollRoot" class="preview-pane" @scroll="onScrollOrResize">
+    <PreviewEditableHost
+      v-if="useEditable && projection"
+      ref="editableHost"
+      class="preview-content"
+      :projection="projection"
+      :sync-token="editableSyncToken"
+      :selection-recovery="selectionRecovery"
+      :get-revision="getRevision"
+      :apply-source-transaction="applySourceTransaction"
+      @status="emit('edit-status', $event)"
+      @selection-change="onEditableSelectionChange"
+      @composing-change="emit('composing-change', $event)"
+      @locate-source="emit('locate-source', $event)"
+      @open-link="emit('open-link', $event)"
+    />
     <div
-      ref="container"
+      v-else
+      ref="fallbackContainer"
       class="preview-content markdown-body"
+      data-testid="preview-html-fallback"
       v-html="html"
-      @click="onPreviewClick"
-      @contextmenu="onPreviewContextMenu"
-      @pointerup="onPreviewPointerUp"
+      @click="onFallbackClick"
+      @contextmenu="onFallbackContextMenu"
+      @pointerup="onFallbackPointerUp"
     />
     <PreviewFormatToolbar
       ref="toolbarRef"
@@ -356,6 +483,8 @@ onBeforeUnmount(() => {
       :top="toolbarTop"
       :center-x="toolbarCenterX"
       :active="toolbarActive"
+      @pointerdown="onToolbarPointerDown"
+      @pointerup="onToolbarPointerUp"
       @toggle="onToggle"
       @apply-link="onApplyLink"
       @remove-link="onRemoveLink"
@@ -387,7 +516,8 @@ onBeforeUnmount(() => {
   max-width: 920px;
 }
 
-.preview-content :deep([data-anchor-id]) {
+.preview-content :deep([data-anchor-id]),
+.preview-content :deep(.preview-flash) {
   scroll-margin-top: 12px;
 }
 

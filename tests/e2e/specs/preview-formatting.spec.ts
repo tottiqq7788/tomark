@@ -26,41 +26,42 @@ describe("preview formatting toolbar", () => {
     await browser.waitUntil(
       async () =>
         browser.execute(() => {
-          const root = document.querySelector(".preview-content");
-          return Boolean(root?.textContent?.includes("world"));
+          return Boolean(
+            document.querySelector(".tm-editable-preview")?.textContent?.includes(
+              "world",
+            ),
+          );
         }),
       { timeout: 10_000 },
     );
 
     const selected = await browser.execute(() => {
-      const root = document.querySelector(".preview-content");
-      if (!(root instanceof HTMLElement)) {
-        return false;
-      }
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        const text = node.textContent ?? "";
-        const index = text.indexOf("world");
-        if (index >= 0) {
-          const range = document.createRange();
-          range.setStart(node, index);
-          range.setEnd(node, index + 5);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          document.dispatchEvent(new Event("selectionchange"));
-          return true;
+      const api = (
+        window as unknown as {
+          __tomarkE2e?: {
+            getContent: () => string;
+            selectPreviewRange?: (from: number, to: number) => boolean;
+          };
         }
-        node = walker.nextNode();
+      ).__tomarkE2e;
+      if (!api?.selectPreviewRange) {
+        return { ok: false, reason: "missing-select-hook" };
       }
-      return false;
+      const content = api.getContent();
+      const from = content.indexOf("world");
+      if (from < 0) {
+        return { ok: false, reason: "missing-needle", content };
+      }
+      return {
+        ok: api.selectPreviewRange(from, from + 5),
+        from,
+      };
     });
-    expect(selected).toBe(true);
+    expect(selected).toMatchObject({ ok: true });
 
-    const toolbar = await $('[data-testid="preview-format-toolbar"]');
-    await toolbar.waitForDisplayed({ timeout: 5_000 });
-    await $('[data-testid="format-bold"]').click();
+    const boldBtn = await $('[data-testid="format-bold"]');
+    await boldBtn.waitForDisplayed({ timeout: 10_000 });
+    await boldBtn.click();
 
     await browser.waitUntil(
       async () =>
@@ -70,13 +71,15 @@ describe("preview formatting toolbar", () => {
           ).__tomarkE2e.getContent();
           return content.includes("**world**");
         }),
-      { timeout: 10_000, timeoutMsg: "source was not bolded" },
+      { timeout: 10_000, timeoutMsg: "toolbar bold did not patch source" },
     );
 
     await browser.waitUntil(
       async () =>
         browser.execute(() => {
-          return Boolean(document.querySelector(".preview-content strong"));
+          return Boolean(
+            document.querySelector(".tm-editable-preview strong"),
+          );
         }),
       { timeout: 10_000, timeoutMsg: "preview did not re-render bold" },
     );

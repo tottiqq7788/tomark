@@ -12,6 +12,8 @@ export interface AppShortcutHandlers {
   undo?: () => boolean;
   redo?: () => boolean;
   isBlocked?: () => boolean;
+  /** Flush preview IME / pending edit session before file or history actions. */
+  beforeAction?: () => void | Promise<void>;
   /** When true, New/Open/Save As are handled by the native File menu. */
   fileOpsViaMenu?: boolean | (() => boolean);
 }
@@ -69,6 +71,7 @@ export function useAppShortcuts(handlers: AppShortcutHandlers) {
         event.preventDefault();
         return;
       }
+      handlers.beforeAction?.();
       const ran =
         historyAction === "undo"
           ? handlers.undo?.() ?? false
@@ -90,6 +93,7 @@ export function useAppShortcuts(handlers: AppShortcutHandlers) {
       return;
     }
     event.preventDefault();
+    handlers.beforeAction?.();
     void handlers[action]();
   };
 

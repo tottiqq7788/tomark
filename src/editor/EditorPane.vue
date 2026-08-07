@@ -2,6 +2,10 @@
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { createEditor, type EditorHandle } from "./createEditor";
 import type { FormatRangeChange } from "@/shared/previewFormatting";
+import type {
+  ApplySourceTransactionResult,
+  SourcePatchTransaction,
+} from "@/shared/previewEditing";
 
 const props = defineProps<{
   modelValue: string;
@@ -63,8 +67,28 @@ function applyFormatChange(change: FormatRangeChange): boolean {
   return editor?.applyFormatChange(change) ?? false;
 }
 
+function applySourceTransaction(
+  transaction: SourcePatchTransaction,
+): ApplySourceTransactionResult {
+  return (
+    editor?.applySourceTransaction(transaction) ?? {
+      ok: false,
+      reason: "stale-revision",
+      revision: 0,
+    }
+  );
+}
+
+function getRevision(): number {
+  return editor?.getRevision() ?? 0;
+}
+
 function getValue(): string {
   return editor?.getValue() ?? props.modelValue;
+}
+
+function getSelection(): { anchor: number; head: number } {
+  return editor?.getSelection() ?? { anchor: 0, head: 0 };
 }
 
 function undo(): boolean {
@@ -79,7 +103,10 @@ defineExpose({
   revealSourceLine,
   requestMeasure,
   applyFormatChange,
+  applySourceTransaction,
+  getRevision,
   getValue,
+  getSelection,
   undo,
   redo,
 });

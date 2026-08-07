@@ -1,31 +1,37 @@
 import { nextTick, ref, watch, type Ref } from "vue";
 import type {
-  FormatRangeChange,
-  PreviewFormatAction,
-  PreviewFormatSelection,
-} from "@/shared/previewFormatting";
-import {
-  toggleInlineFormat,
-  toggleLink,
-} from "@/editor/markdownInlineFormatting";
+  ApplySourceTransactionResult,
+  SourcePatchTransaction,
+} from "@/shared/previewEditing";
+import type { FormatRangeChange } from "@/shared/previewFormatting";
 
 export type EditorPaneExpose = {
   revealSourceLine: (line: number) => void;
   requestMeasure?: () => void;
   applyFormatChange?: (change: FormatRangeChange) => boolean;
+  applySourceTransaction?: (
+    transaction: SourcePatchTransaction,
+  ) => ApplySourceTransactionResult;
+  getRevision?: () => number;
   getValue?: () => string;
+  getSelection?: () => { anchor: number; head: number };
   undo?: () => boolean;
   redo?: () => boolean;
 };
 
 export type PreviewLocateApi = {
   attachPreview: (
-    el: { scrollToSourceLine: (line: number) => Promise<void> } | null,
+    el: {
+      scrollToSourceLine: (line: number) => Promise<void>;
+      flushComposition?: () => void;
+      isComposing?: () => boolean;
+    } | null,
   ) => void;
   syncNow: () => Promise<boolean>;
   locate: (line: number) => void;
   isCurrent: () => boolean;
   renderedSource: Ref<string | null>;
+  flushEditSession?: () => Promise<void>;
 };
 
 /**
@@ -37,21 +43,36 @@ export function usePaneLocate(options: {
   isPreviewVisible: Ref<boolean>;
   viewMode: Ref<unknown>;
   statusMessage: Ref<string>;
+  /** Optional: flush preview composition before locate / view switches. */
+  flushPreviewEdit?: () => Promise<void>;
 }) {
-  const { preview, isSourceVisible, isPreviewVisible, viewMode, statusMessage } =
-    options;
+  const {
+    preview,
+    isSourceVisible,
+    isPreviewVisible,
+    viewMode,
+    statusMessage,
+    flushPreviewEdit,
+  } = options;
 
   const editorPaneRef = ref<EditorPaneExpose | null>(null);
   let pendingRevealLine: number | null = null;
 
   function setPreviewRef(el: unknown) {
-    preview.attachPreview(
-      (el as { scrollToSourceLine?: (line: number) => Promise<void> } | null) &&
-        typeof (el as { scrollToSourceLine?: unknown }).scrollToSourceLine ===
-          "function"
-        ? (el as { scrollToSourceLine: (line: number) => Promise<void> })
-        : null,
-    );
+    const candidate = el as {
+      scrollToSourceLine?: (line: number) => Promise<void>;
+      flushComposition?: () => void;
+      isComposing?: () => boolean;
+    } | null;
+    if (candidate && typeof candidate.scrollToSourceLine === "function") {
+      preview.attachPreview({
+        scrollToSourceLine: candidate.scrollToSourceLine,
+        flushComposition: candidate.flushComposition,
+        isComposing: candidate.isComposing,
+      });
+      return;
+    }
+    preview.attachPreview(null);
   }
 
   function setEditorPaneRef(el: unknown) {
@@ -70,6 +91,8 @@ export function usePaneLocate(options: {
   }
 
   async function onLocateSource(line: number) {
+    await flushPreviewEdit?.();
+    await preview.flushEditSession?.();
     if (!isSourceVisible.value) {
       statusMessage.value = "当前为渲染视图，请切换到源码或双栏后再定位";
       return;
@@ -99,73 +122,6 @@ export function usePaneLocate(options: {
     void preview.locate(line);
   }
 
-  async function onFormatSelection(payload: {
-    action: PreviewFormatAction;
-    selection: PreviewFormatSelection;
-  }) {
-    if (!preview.isCurrent()) {
-      statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
-      return;
-    }
-    const source = preview.renderedSource.value;
-    if (source == null) {
-      return;
-    }
-    const editorValue = editorPaneRef.value?.getValue?.();
-    if (editorValue == null || editorValue !== source) {
-      statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
-      return;
-    }
-    const { action, selection } = payload;
-    if (
-      selection.from < 0 ||
-      selection.to > source.length ||
-      selection.to <= selection.from
-    ) {
-      return;
-    }
-
-    let change: FormatRangeChange | null = null;
-    if (action.type === "toggle") {
-      const outer = selection.active.ranges[action.format];
-      change = toggleInlineFormat(
-        source,
-        selection.from,
-        selection.to,
-        action.format,
-        {
-          active: selection.active[action.format],
-          outerFrom: outer?.from,
-          outerTo: outer?.to,
-        },
-      );
-    } else {
-      const outer = selection.active.ranges.link;
-      change = toggleLink(source, selection.from, selection.to, {
-        active: selection.active.link && action.href == null,
-        href: action.href,
-        outerFrom: outer?.from,
-        outerTo: outer?.to,
-      });
-    }
-
-    if (!change) {
-      statusMessage.value = "无法应用该格式，请调整选区后重试";
-      return;
-    }
-    change = {
-      ...change,
-      expectedText: source.slice(change.from, change.to),
-    };
-
-    const applied = editorPaneRef.value?.applyFormatChange?.(change) ?? false;
-    if (!applied) {
-      statusMessage.value = "应用格式失败";
-      return;
-    }
-    await preview.syncNow();
-  }
-
   function scheduleEditorMeasure() {
     if (!isSourceVisible.value) {
       return;
@@ -178,6 +134,7 @@ export function usePaneLocate(options: {
   }
 
   watch(viewMode, () => {
+    void flushPreviewEdit?.();
     scheduleEditorMeasure();
   });
 
@@ -195,7 +152,6 @@ export function usePaneLocate(options: {
     setEditorPaneRef,
     onLocateSource,
     onLocatePreview,
-    onFormatSelection,
     undoEdit,
     redoEdit,
     scheduleEditorMeasure,

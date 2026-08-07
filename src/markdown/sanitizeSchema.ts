@@ -16,6 +16,8 @@ export const sanitizeSchema: Schema = {
       "dataTmTo",
       "dataTmFormat",
       "dataTmHref",
+      "dataTmSourceBlock",
+      "dataTmReadonly",
       "className",
     ],
     code: [...(defaultSchema.attributes?.code ?? []), "className"],

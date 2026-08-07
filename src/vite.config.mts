@@ -84,6 +84,12 @@ export default defineConfig({
               maxSize: 480_000,
             },
             {
+              name: "prosemirror",
+              test: /node_modules[\\/](prosemirror-|orderedmap|w3c-keyname|crelt)/,
+              priority: 25,
+              maxSize: 480_000,
+            },
+            {
               name: "markdown",
               // Keep unified/remark/rehype in ONE chunk. Splitting with maxSize
               // created circular cross-chunk imports that leave `extend`/`unified`

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, watch } from "vue";
+import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
@@ -8,6 +8,7 @@ import type { EncodingHint } from "@/shared/types";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
 import { usePreviewBridge } from "./usePreviewBridge";
+import { usePreviewEditBridge } from "./usePreviewEditBridge";
 import { usePaneSplit } from "./usePaneSplit";
 import { useViewMode } from "./useViewMode";
 import { useToolbarTitle } from "./useToolbarTitle";
@@ -58,6 +59,10 @@ const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
 const previewLineToAnchor = preview.lineToAnchor;
 const previewRenderedSource = preview.renderedSource;
+const previewProjection = preview.projection;
+const previewRenderMode = preview.renderMode;
+const previewEditableSyncToken = preview.editableSyncToken;
+const previewSelectionRecovery = preview.selectionRecovery;
 
 const {
   containerRef,
@@ -143,14 +148,55 @@ const {
   setEditorPaneRef,
   onLocateSource,
   onLocatePreview,
-  onFormatSelection,
-  undoEdit,
-  redoEdit,
+  editorPaneRef,
 } = usePaneLocate({
   preview,
   isSourceVisible,
   isPreviewVisible,
   viewMode,
+  statusMessage,
+  flushPreviewEdit: () => preview.flushEditSession(),
+});
+
+const previewPaneApi = ref<{
+  selectSourceRange?: (from: number, to: number) => boolean;
+} | null>(null);
+
+function setPreviewPaneRef(el: unknown) {
+  setPreviewRef(el);
+  previewPaneApi.value =
+    el &&
+    typeof (el as { selectSourceRange?: unknown }).selectSourceRange ===
+      "function"
+      ? (el as { selectSourceRange: (from: number, to: number) => boolean })
+      : null;
+}
+
+const editBridge = usePreviewEditBridge({
+  getEditor: () => {
+    const pane = editorPaneRef.value;
+    if (
+      !pane ||
+      typeof pane.applySourceTransaction !== "function" ||
+      typeof pane.getRevision !== "function" ||
+      typeof pane.getValue !== "function" ||
+      typeof pane.getSelection !== "function" ||
+      typeof pane.undo !== "function" ||
+      typeof pane.redo !== "function"
+    ) {
+      return null;
+    }
+    return {
+      applySourceTransaction: pane.applySourceTransaction,
+      getRevision: pane.getRevision,
+      getValue: pane.getValue,
+      getSelection: pane.getSelection,
+      undo: pane.undo,
+      redo: pane.redo,
+      applyFormatChange: pane.applyFormatChange,
+    };
+  },
+  preview,
   statusMessage,
 });
 
@@ -219,6 +265,66 @@ watch(documentVersion, () => {
   void preview.syncNow();
 });
 
+if (import.meta.env.VITE_WDIO === "1") {
+  onMounted(() => {
+    const install = () => {
+      const e2e = (
+        window as unknown as {
+          __tomarkE2e?: {
+            formatPreviewRange?: (
+              from: number,
+              to: number,
+              format: "bold" | "italic" | "strike" | "code",
+            ) => void;
+            selectPreviewRange?: (from: number, to: number) => boolean;
+            triggerSave?: () => void;
+          };
+        }
+      ).__tomarkE2e;
+      if (!e2e) {
+        window.requestAnimationFrame(install);
+        return;
+      }
+      e2e.formatPreviewRange = (from, to, format) => {
+        void editBridge.onFormatSelection({
+          action: { type: "toggle", format },
+          selection: {
+            from,
+            to,
+            blockAnchorId: "e2e",
+            sourceLine: 1,
+            active: {
+              bold: false,
+              italic: false,
+              strike: false,
+              code: false,
+              link: false,
+              linkHref: null,
+              ranges: {},
+            },
+            rect: {
+              top: 8,
+              left: 8,
+              bottom: 24,
+              right: 80,
+              width: 72,
+              height: 16,
+            },
+          },
+        });
+      };
+      e2e.selectPreviewRange = (from, to) => {
+        return previewPaneApi.value?.selectSourceRange?.(from, to) ?? false;
+      };
+      e2e.triggerSave = () => {
+        editBridge.flushCompositionBeforeAction();
+        void save();
+      };
+    };
+    install();
+  });
+}
+
 useAppShortcuts({
   save: () => {
     void save();
@@ -228,8 +334,9 @@ useAppShortcuts({
   },
   newDocument,
   openDocument,
-  undo: undoEdit,
-  redo: redoEdit,
+  undo: editBridge.undoEdit,
+  redo: editBridge.redoEdit,
+  beforeAction: () => editBridge.flushCompositionBeforeAction(),
   fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () =>
     saving.value || dirtyDialogOpen.value || encodingDialogOpen.value,
@@ -386,13 +493,21 @@ useAppShortcuts({
       >
         <Suspense>
           <PreviewPane
-            :ref="setPreviewRef"
+            :ref="setPreviewPaneRef"
             :html="previewHtml"
             :line-to-anchor="previewLineToAnchor"
             :rendered-source="previewRenderedSource"
+            :projection="previewProjection"
+            :render-mode="previewRenderMode"
+            :editable-sync-token="previewEditableSyncToken"
+            :selection-recovery="previewSelectionRecovery"
+            :get-revision="editBridge.getRevision"
+            :apply-source-transaction="editBridge.applySourceTransaction"
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
-            @format-selection="onFormatSelection"
+            @format-selection="editBridge.onFormatSelection"
+            @edit-status="editBridge.onEditStatus"
+            @composing-change="editBridge.onComposingChange"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>
