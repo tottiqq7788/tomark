@@ -73,6 +73,7 @@ const SAMPLE = `# tomark
 - [x] 双栏布局
 - [x] 标题折叠
 - [x] 行级预览定位
+- [x] Mermaid 图表预览
 - [ ] 更多主题与字体设置（示例待办）
 
 ### 引用
@@ -98,6 +99,445 @@ console.log(greet("tomark"));
 \`\`\`bash
 cd deps
 npm run tauri:dev
+\`\`\`
+
+### Mermaid 图表
+
+使用 \`\`\`mermaid 围栏即可在右侧预览中渲染。下面按图类型各给一例（含柱状/折线 XY Chart，以及 Mermaid 11 里较新的雷达、树图、泳道等）。
+
+流程图：
+
+\`\`\`mermaid
+flowchart TD
+  Start[打开文档] --> Edit[编辑源码]
+  Edit --> Preview[刷新预览]
+  Preview --> Locate{Cmd/Ctrl 点击?}
+  Locate -->|源码 → 预览| ScrollP[滚动预览块]
+  Locate -->|预览 → 源码| ScrollS[展开并滚到源码行]
+\`\`\`
+
+时序图：
+
+\`\`\`mermaid
+sequenceDiagram
+  participant U as 用户
+  participant E as 编辑器
+  participant P as 预览
+  U->>E: 输入 Markdown
+  E->>P: 防抖渲染 HTML
+  P->>P: 懒加载 Mermaid
+  P-->>U: 显示 SVG 图表
+\`\`\`
+
+类图：
+
+\`\`\`mermaid
+classDiagram
+  class EditorPane {
+    +content: string
+    +revealSourceLine(line)
+  }
+  class PreviewPane {
+    +html: string
+    +scrollToSourceLine(line)
+  }
+  EditorPane --> PreviewPane : drives
+\`\`\`
+
+饼图：
+
+\`\`\`mermaid
+pie title 示例时间分配
+  "写作" : 40
+  "预览校对" : 35
+  "休息" : 25
+\`\`\`
+
+状态图：
+
+\`\`\`mermaid
+stateDiagram-v2
+  [*] --> Idle: 启动
+  Idle --> Editing: 输入
+  Editing --> Saving: 空闲约 2s
+  Saving --> Idle: 已保存
+  Editing --> DirtyDialog: 关闭/新建
+  DirtyDialog --> Idle: 取消
+  DirtyDialog --> [*]: 退出
+\`\`\`
+
+ER 图：
+
+\`\`\`mermaid
+erDiagram
+  DOCUMENT ||--o{ ANCHOR : contains
+  DOCUMENT {
+    string path
+    string content
+    bool dirty
+  }
+  ANCHOR {
+    string id
+    int sourceLine
+    string blockType
+  }
+  PREVIEW ||--|{ ANCHOR : indexes
+\`\`\`
+
+甘特图：
+
+\`\`\`mermaid
+gantt
+  title tomark 示例迭代
+  dateFormat  YYYY-MM-DD
+  section 核心
+  双栏布局           :done,    a1, 2026-01-01, 7d
+  标题折叠           :done,    a2, after a1, 5d
+  双向定位           :done,    a3, after a2, 5d
+  section 扩展
+  Mermaid 预览       :active,  b1, after a3, 4d
+  主题与字体         :         b2, after b1, 6d
+\`\`\`
+
+思维导图：
+
+\`\`\`mermaid
+mindmap
+  root((tomark))
+    编辑
+      CodeMirror
+      标题折叠
+    预览
+      Markdown
+      Mermaid
+    桌面
+      Tauri
+      文件读写
+\`\`\`
+
+时间线：
+
+\`\`\`mermaid
+timeline
+  title 文档打开到预览
+  打开文件 : 读盘解码
+  解析 Markdown : 生成 HTML 与锚点
+  注入预览 : v-html 挂载
+  渲染图表 : 懒加载 Mermaid
+\`\`\`
+
+用户旅程：
+
+\`\`\`mermaid
+journey
+  title 首次使用 tomark
+  section 起步
+    打开应用: 5: 用户
+    阅读示例: 4: 用户
+  section 编辑
+    改写段落: 5: 用户
+    看右侧预览: 5: 用户
+  section 保存
+    另存为: 4: 用户
+\`\`\`
+
+Git 图：
+
+\`\`\`mermaid
+gitGraph
+  commit id: "init"
+  branch feature
+  checkout feature
+  commit id: "mermaid"
+  checkout main
+  merge feature id: "merge"
+  commit id: "release"
+\`\`\`
+
+象限图：
+
+\`\`\`mermaid
+quadrantChart
+  title 功能优先级示意
+  x-axis 实现成本低 --> 实现成本高
+  y-axis 使用频率低 --> 使用频率高
+  标题折叠: [0.3, 0.8]
+  Mermaid 预览: [0.55, 0.7]
+  主题系统: [0.75, 0.45]
+  导出 PDF: [0.85, 0.35]
+\`\`\`
+
+柱状图（XY Chart）：
+
+\`\`\`mermaid
+xychart-beta
+  title "一周编辑字数"
+  x-axis ["周一", "周二", "周三", "周四", "周五"]
+  y-axis "字数" 0 --> 1400
+  bar [820, 960, 740, 1180, 980]
+\`\`\`
+
+折线图（XY Chart）：
+
+\`\`\`mermaid
+xychart-beta
+  title "预览刷新耗时 (ms)"
+  x-axis [1k, 5k, 10k, 30k, 50k]
+  y-axis "毫秒" 0 --> 120
+  line [12, 18, 28, 55, 92]
+\`\`\`
+
+柱 + 折线：
+
+\`\`\`mermaid
+xychart-beta
+  title "保存次数 vs 目标"
+  x-axis ["周一", "周二", "周三", "周四", "周五"]
+  y-axis "次数" 0 --> 30
+  bar [12, 18, 15, 22, 19]
+  line [15, 15, 18, 20, 20]
+\`\`\`
+
+横向柱状图：
+
+\`\`\`mermaid
+xychart-beta horizontal
+  title "模块体积占比示意"
+  x-axis ["编辑器", Markdown, Mermaid, "其它"]
+  y-axis "相对体积" 0 --> 100
+  bar [35, 22, 28, 15]
+\`\`\`
+
+雷达图：
+
+\`\`\`mermaid
+radar-beta
+  title tomark 能力对比
+  axis edit["编辑"], preview["预览"], locate["定位"]
+  axis perf["性能"], theme["主题"]
+  curve a["当前"]{4, 5, 5, 3, 2}
+  curve b["目标"]{5, 5, 5, 4, 4}
+  max 5
+  min 0
+\`\`\`
+
+树图：
+
+\`\`\`mermaid
+treemap-beta
+"应用"
+  "编辑器": 35
+  "预览"
+    "Markdown": 22
+    "Mermaid": 28
+  "其它": 15
+\`\`\`
+
+块图：
+
+\`\`\`mermaid
+block-beta
+  columns 3
+  docs["文档会话"]:2
+  preview["预览"]
+  editor["编辑器"]:2
+  locate["双向定位"]
+  docs --> editor
+  docs --> preview
+  editor --> locate
+  preview --> locate
+\`\`\`
+
+桑基图（节点名需 ASCII，Mermaid CSV 词法限制）：
+
+\`\`\`mermaid
+sankey-beta
+Open,Edit,40
+Open,Preview,20
+Edit,Autosave,30
+Edit,SaveAs,10
+Preview,Close,20
+Autosave,Continue,25
+Autosave,Close,5
+\`\`\`
+
+看板：
+
+\`\`\`mermaid
+kanban
+  Todo
+    [主题系统]
+    [导出 PDF]
+  Doing
+    [Mermaid 图例扩充]
+  Done
+    [双栏布局]
+    [标题折叠]
+    [双向定位]
+\`\`\`
+
+泳道图：
+
+\`\`\`mermaid
+swimlane-beta LR
+  subgraph 用户
+    open[打开文档]
+    edit[编辑源码]
+    see[查看预览]
+  end
+  subgraph 编辑器
+    parse[解析 Markdown]
+    save[自动保存]
+  end
+  subgraph 预览
+    html[注入 HTML]
+    mermaid[渲染 Mermaid]
+  end
+  open --> edit --> parse
+  parse --> html --> mermaid --> see
+  edit --> save
+\`\`\`
+
+需求图：
+
+\`\`\`mermaid
+requirementDiagram
+    requirement autosave {
+    id: REQ_1
+    text: autosave after ~2s idle
+    risk: low
+    verifymethod: test
+    }
+    element Editor {
+    type: module
+    }
+    Editor - satisfies -> autosave
+\`\`\`
+
+C4 上下文：
+
+\`\`\`mermaid
+C4Context
+  title tomark 系统上下文
+  Person(user, "用户", "编写 Markdown")
+  System(tomark, "tomark", "桌面 Markdown 编辑器")
+  System_Ext(fs, "本地文件系统", "读写 .md")
+  Rel(user, tomark, "编辑 / 预览")
+  Rel(tomark, fs, "打开 / 保存")
+\`\`\`
+
+架构图：
+
+\`\`\`mermaid
+architecture-beta
+  group desktop(cloud)[Desktop]
+  service ui(server)[Vue UI] in desktop
+  service shell(server)[Tauri Shell] in desktop
+  service disk(disk)[Local Disk]
+  ui:R -- L:shell
+  shell:R -- L:disk
+\`\`\`
+
+韦恩图：
+
+\`\`\`mermaid
+venn-beta
+  title 关注点重叠
+  set Edit["编辑体验"]
+  set Preview["预览准确"]
+  set Perf["性能"]
+  union Edit,Preview["源码定位"]
+  union Edit,Perf["大文档折叠"]
+  union Preview,Perf["Mermaid 懒加载"]
+\`\`\`
+
+鱼骨图（Ishikawa）：
+
+\`\`\`mermaid
+ishikawa-beta
+  预览未刷新
+  输入侧
+    防抖未触发
+    内容未变更
+  渲染侧
+    Markdown 抛错
+    Mermaid chunk 失败
+  环境
+    CSP
+    WebView 兼容
+\`\`\`
+
+数据包图：
+
+\`\`\`mermaid
+packet-beta
+  0-15: "Source Port"
+  16-31: "Destination Port"
+  32-63: "Sequence Number"
+  64-95: "Acknowledgment Number"
+  96-99: "Data Offset"
+  100-105: "Reserved"
+  106: "URG"
+  107: "ACK"
+  108: "PSH"
+  109: "RST"
+  110: "SYN"
+  111: "FIN"
+  112-127: "Window"
+\`\`\`
+
+Wardley 地图：
+
+\`\`\`mermaid
+wardley-beta
+  title tomark 价值链
+  anchor User [0.95, 0.70]
+  component Editor [0.80, 0.65]
+  component Preview [0.78, 0.45]
+  component Markdown [0.55, 0.50]
+  component Mermaid [0.45, 0.35]
+  component Filesystem [0.25, 0.75]
+  User -> Editor
+  User -> Preview
+  Editor -> Markdown
+  Preview -> Markdown
+  Preview -> Mermaid
+  Editor -> Filesystem
+\`\`\`
+
+Cynefin 框架：
+
+\`\`\`mermaid
+cynefin-beta
+  title 问题域示意
+  clear
+    "快捷键映射"
+    "文件另存为"
+  complicated
+    "编码探测"
+    "大文档定位"
+  complex
+    "折叠状态保留"
+  chaotic
+    "WebView 崩溃"
+  confusion
+    "偶发预览空白"
+\`\`\`
+
+语法铁路图（EBNF）：
+
+\`\`\`mermaid
+railroad-ebnf-beta
+  title "简易标题行"
+  heading = hashes text ;
+  hashes = "#" | "##" | "###" ;
+  text = "标题文字" ;
+\`\`\`
+
+信息卡（Mermaid 版本）：
+
+\`\`\`mermaid
+info
 \`\`\`
 
 ### 表格（宽内容）

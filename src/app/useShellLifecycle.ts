@@ -6,6 +6,8 @@ export type ShellLifecycleSession = {
   saving: Ref<boolean>;
   dirtyDialogOpen: Ref<boolean>;
   statusMessage: Ref<string>;
+  content: Ref<string>;
+  documentVersion: Ref<number>;
   setContent: (value: string) => void;
   guardDirty: () => Promise<boolean>;
   flushAutosave: () => Promise<void> | void;
@@ -18,6 +20,7 @@ export type ShellLifecycleSession = {
 
 export type ShellLifecyclePreview = {
   refreshPreview: { cancel: () => void };
+  flushEditSession?: () => Promise<void>;
 };
 
 /**
@@ -45,11 +48,16 @@ export function useShellLifecycle(
   let openInFlight: Promise<void> | null = null;
   let forceExportTimer: number | null = null;
 
+  async function flushPreviewEdits() {
+    await preview.flushEditSession?.();
+  }
+
   async function handleExternalOpenPath(filePath: string) {
     if (unmounted) {
       return;
     }
     const run = async () => {
+      await flushPreviewEdits();
       await session.openDocumentAtPath(filePath);
     };
     openInFlight = (openInFlight ?? Promise.resolve())
@@ -64,6 +72,7 @@ export function useShellLifecycle(
     }
     appExitInFlight = true;
     try {
+      await flushPreviewEdits();
       if (!(await session.guardDirty()) || unmounted) {
         return;
       }
@@ -84,12 +93,19 @@ export function useShellLifecycle(
         window as unknown as {
           __tomarkE2e?: {
             setContent: (value: string) => void;
+            replaceContent: (value: string) => void;
+            getContent: () => string;
             isDirty: () => boolean;
             preloadExportRenderers: () => Promise<void>;
           };
         }
       ).__tomarkE2e = {
         setContent: session.setContent,
+        replaceContent: (value: string) => {
+          session.setContent(value);
+          session.documentVersion.value += 1;
+        },
+        getContent: () => session.content.value,
         isDirty: () => session.dirty.value,
         preloadExportRenderers: async () => {
           const { preloadExportRenderer } = await import("@/export/runExport");
@@ -278,13 +294,13 @@ export function useShellLifecycle(
       }
       unlistenMenu = await installAppMenu({
         newDocument: () => {
-          void session.newDocument();
+          void flushPreviewEdits().then(() => session.newDocument());
         },
         openDocument: () => {
-          void session.openDocument();
+          void flushPreviewEdits().then(() => session.openDocument());
         },
         saveAs: () => {
-          void session.saveAs();
+          void flushPreviewEdits().then(() => session.saveAs());
         },
         isBlocked: () =>
           session.saving.value ||
@@ -313,6 +329,7 @@ export function useShellLifecycle(
 
     try {
       const unlisten = await appWindow.onCloseRequested(async (event) => {
+        await flushPreviewEdits();
         await session.flushAutosave();
         if (!session.dirty.value) {
           return;

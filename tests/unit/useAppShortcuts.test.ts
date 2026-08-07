@@ -1,5 +1,7 @@
-import { describe, expect, it } from "vitest";
-import { matchAppShortcut } from "@/app/useAppShortcuts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { defineComponent, h, nextTick } from "vue";
+import { mount } from "@vue/test-utils";
+import { matchAppShortcut, useAppShortcuts } from "@/app/useAppShortcuts";
 
 function keyEvent(
   key: string,
@@ -40,5 +42,37 @@ describe("useAppShortcuts", () => {
   it("ignores shortcuts without a modifier", () => {
     expect(matchAppShortcut(keyEvent("s"))).toBeNull();
     expect(matchAppShortcut(keyEvent("s", { altKey: true, metaKey: true }))).toBeNull();
+  });
+
+  describe("history shortcuts outside CodeMirror", () => {
+    afterEach(() => {
+      document.body.innerHTML = "";
+    });
+
+    it("routes Mod+Z / Mod+Y to undo/redo handlers", async () => {
+      const undo = vi.fn(() => true);
+      const redo = vi.fn(() => true);
+      const Host = defineComponent({
+        setup() {
+          useAppShortcuts({
+            save: () => undefined,
+            saveAs: () => undefined,
+            newDocument: () => undefined,
+            openDocument: () => undefined,
+            undo,
+            redo,
+          });
+          return () => h("div");
+        },
+      });
+      const wrapper = mount(Host, { attachTo: document.body });
+      await nextTick();
+
+      window.dispatchEvent(keyEvent("z", { metaKey: true }));
+      window.dispatchEvent(keyEvent("y", { ctrlKey: true }));
+      expect(undo).toHaveBeenCalledOnce();
+      expect(redo).toHaveBeenCalledOnce();
+      wrapper.unmount();
+    });
   });
 });

@@ -105,6 +105,21 @@ describe("renderMarkdown + line anchors", () => {
     expect(lineToAnchor.get(1)?.blockType).toBe("h1");
   });
 
+  it("stamps character source offsets for inline text and formats", () => {
+    const { html } = renderMarkdown("Hello **world** and `code`\n");
+    expect(html).toContain('data-tm-from="');
+    expect(html).toContain('data-tm-to="');
+    expect(html).toContain('data-tm-format="bold"');
+    expect(html).toContain('data-tm-format="code"');
+    expect(html).not.toContain("onclick=");
+  });
+
+  it("does not mirror unsafe link hrefs into data-tm-href", () => {
+    const { html } = renderMarkdown("[x](javascript:alert(1))\n");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("data-tm-href");
+  });
+
   it("maps empty lines to nearest anchor preferring previous", () => {
     const anchors: PreviewAnchor[] = [
       { id: "a1", sourceLineStart: 1, sourceLineEnd: 1, blockType: "h1" },
@@ -118,7 +133,7 @@ describe("renderMarkdown + line anchors", () => {
   it("sanitizes dangerous html", () => {
     const { html } = renderMarkdown(`Hello <script>alert(1)</script> **x**`);
     expect(html).not.toContain("<script");
-    expect(html).toContain("<strong>");
+    expect(html).toMatch(/<strong\b/);
   });
 
   it("keeps footnote links aligned with their sanitized targets", () => {
@@ -128,6 +143,27 @@ describe("renderMarkdown + line anchors", () => {
     expect(html).toContain('href="#user-content-fnref-n"');
     expect(html).toContain('id="user-content-fnref-n"');
     expect(html).not.toContain("user-content-user-content-");
+  });
+
+  it("keeps mermaid fences as identifiable code blocks with anchors", () => {
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n\nAfter\n`;
+    const { html, lineToAnchor, anchors } = renderMarkdown(source);
+    expect(html).toContain('class="language-mermaid"');
+    expect(html).toContain("<pre");
+    expect(html).not.toContain("<svg");
+
+    const fenceAnchor = anchors.find((a) => a.blockType === "pre");
+    expect(fenceAnchor).toBeTruthy();
+    expect(fenceAnchor?.sourceLineStart).toBe(3);
+    expect(fenceAnchor?.sourceLineEnd).toBe(6);
+    expect(lineToAnchor.get(4)?.id).toBe(fenceAnchor?.id);
+    expect(lineToAnchor.get(5)?.id).toBe(fenceAnchor?.id);
+  });
+
+  it("leaves ordinary fenced code unchanged", () => {
+    const { html } = renderMarkdown("```js\nconsole.log(1)\n```\n");
+    expect(html).toContain('class="language-js"');
+    expect(html).not.toContain("language-mermaid");
   });
 });
 

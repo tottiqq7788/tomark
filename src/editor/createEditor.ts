@@ -1,4 +1,5 @@
 import {
+  EditorSelection,
   EditorState,
   Compartment,
   StateEffect,
@@ -14,7 +15,15 @@ import {
   drawSelection,
   lineNumbers,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  isolateHistory,
+  redo as cmRedo,
+  undo as cmUndo,
+} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import {
@@ -23,6 +32,19 @@ import {
   revealSourceLineEffect,
 } from "./headingFoldExtension";
 import { isLocateModifier } from "@/shared/locateModifier";
+import type { FormatRangeChange } from "@/shared/previewFormatting";
+import {
+  validateSourcePatchTransaction,
+  type ApplySourceTransactionResult,
+  type PreviewEditOrigin,
+  type SourcePatchTransaction,
+} from "@/shared/previewEditing";
+
+export type { FormatRangeChange };
+export type {
+  ApplySourceTransactionResult,
+  SourcePatchTransaction,
+} from "@/shared/previewEditing";
 
 export type LocateHandler = (sourceLine: number) => void;
 
@@ -38,9 +60,19 @@ export interface EditorHandle {
   view: EditorView;
   setDocument: (doc: string, options?: { collapseHeadings?: boolean }) => void;
   revealSourceLine: (line: number) => void;
+  /** Apply a local Markdown edit as one undoable transaction. */
+  applyFormatChange: (change: FormatRangeChange) => boolean;
+  /** Apply guarded, non-overlapping source patches in one CodeMirror dispatch. */
+  applySourceTransaction: (
+    transaction: SourcePatchTransaction,
+  ) => ApplySourceTransactionResult;
+  getRevision: () => number;
+  undo: () => boolean;
+  redo: () => boolean;
   /** Re-measure geometry after the editor pane was hidden or resized. */
   requestMeasure: () => void;
   getValue: () => string;
+  getSelection: () => { anchor: number; head: number };
   destroy: () => void;
 }
 
@@ -68,9 +100,11 @@ function mapFlashLine(tr: Transaction, line: number | null): number | null {
 export function createEditor(options: CreateEditorOptions): EditorHandle {
   const readOnly = new Compartment();
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
+  let revision = 0;
 
   const updateListener = EditorView.updateListener.of((update) => {
     if (update.docChanged) {
+      revision += 1;
       options.onChange(update.state.doc.toString());
     }
   });
@@ -202,6 +236,65 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     }, 1200);
   }
 
+  function sourceUserEvent(origin: PreviewEditOrigin): string {
+    switch (origin) {
+      case "typing":
+        return "input.type.preview";
+      case "composition":
+        return "input.type.compose.preview";
+      case "paste":
+        return "input.paste.preview";
+      case "format":
+        return "input.preview.format";
+      case "structure":
+        return "input.preview.structure";
+    }
+  }
+
+  function applySourceTransaction(
+    transaction: SourcePatchTransaction,
+  ): ApplySourceTransactionResult {
+    const source = view.state.doc.toString();
+    const validation = validateSourcePatchTransaction(
+      source,
+      revision,
+      transaction,
+    );
+    if (!validation.ok) {
+      return validation;
+    }
+
+    const annotations = [
+      Transaction.userEvent.of(sourceUserEvent(transaction.origin)),
+    ];
+    // Continuous adjacent typing may coalesce. Every composition, paste,
+    // formatting action, and structure command is an explicit undo boundary.
+    if (transaction.origin !== "typing") {
+      annotations.push(isolateHistory.of("full"));
+    }
+    view.dispatch({
+      changes: validation.patches.map((patch) => ({
+        from: patch.from,
+        to: patch.to,
+        insert: patch.insert,
+      })),
+      ...(validation.selection
+        ? {
+            selection: EditorSelection.single(
+              validation.selection.anchor,
+              validation.selection.head,
+            ),
+          }
+        : {}),
+      annotations,
+    });
+    return {
+      ok: true,
+      revision,
+      value: view.state.doc.toString(),
+    };
+  }
+
   return {
     view,
     getValue: () => view.state.doc.toString(),
@@ -218,6 +311,29 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         annotations: Transaction.addToHistory.of(false),
       });
     },
+    applySourceTransaction,
+    getRevision: () => revision,
+    applyFormatChange: (change) =>
+      applySourceTransaction({
+        revision,
+        origin: "format",
+        patches: [
+          {
+            from: change.from,
+            to: change.to,
+            insert: change.insert,
+            expectedText:
+              change.expectedText ??
+              view.state.doc.sliceString(change.from, change.to),
+          },
+        ],
+        selection: {
+          anchor: change.selectionFrom ?? change.from,
+          head: change.selectionTo ?? change.from + change.insert.length,
+        },
+      }).ok,
+    undo: () => cmUndo(view),
+    redo: () => cmRedo(view),
     revealSourceLine: (line) => {
       if (line < 1 || line > view.state.doc.lines) {
         return;
@@ -236,6 +352,10 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     requestMeasure: () => {
       view.requestMeasure();
     },
+    getSelection: () => ({
+      anchor: view.state.selection.main.anchor,
+      head: view.state.selection.main.head,
+    }),
     destroy: () => {
       if (flashTimer) {
         clearTimeout(flashTimer);

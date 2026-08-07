@@ -4,8 +4,12 @@
 
 ## 产品要点
 
-- 轻量级跨平台 Markdown **桌面**编辑器（非所见即所得）。
+- 轻量级跨平台 Markdown **桌面**编辑器；**Markdown 源码是唯一数据源，右侧支持受限所见即所得文字编辑**。
 - 布局：左侧约 1/3 显示 Markdown 源码，右侧约 2/3 显示渲染预览。
+- 右侧可编辑范围：标题、段落、列表项、引用、表格单元格中的普通文字，显式链接的显示文字，以及粗体、斜体、删除线中的普通文字。
+- 右侧只读范围：行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid；显式链接的 URL / title 也不得从预览区修改。无法可靠映射回源码的内容同样降级只读，并提示改用源码区。
+- 预览中的链接普通点击仅放置光标以编辑显示文字；Cmd/Ctrl+点击继续定位源码；通过格式工具条「打开链接」，或 Alt/Option+点击快速打开链接。
+- 右侧编辑与左侧源码共用同一套撤销历史：macOS 用 ⌘Z 撤销、⌘Y / ⇧⌘Z 重做；Windows / Linux 用 Ctrl+Z 撤销、Ctrl+Y / Ctrl+Shift+Z 重做。
 - 源码区按标题（heading）范围可折叠，**打开文档时沿第一条标题链展开到正文，其余标题默认折叠**；手动展开某一标题时互斥，只保留该标题及其祖先展开；编辑过程中不要反复强制自动折叠，应保留用户已展开/折叠状态并尽量映射到新位置。
 - 按住 **Cmd**（Windows / Linux 为 **Ctrl**）点击源码行，右侧预览滚动到对应渲染块；同样修饰键点击预览块时，左侧展开并滚到对应源码行。空行定位到最近的可渲染块，不要用标题文本或像素高度猜测位置。
 
@@ -78,8 +82,8 @@
 
 解析顺序：
 
-1. 本地 git tag：`git describe --tags --match 'v*' --abbrev=0`（有 tag 时优先）。
-2. 否则：`git log` 中最近一次**提交说明以 `vX.Y.Z` 开头**的版本（与「提交到git」约定一致）。
+1. 收集候选：本地 git tag（`git describe --tags --match 'v*' --abbrev=0`），以及 `git log` 中最近一次**提交说明以 `vX.Y.Z` 开头**的版本（与「提交到git」约定一致）。
+2. **取较新的那个**（按 semver 比较）。本仓库日常以提交说明递增版本；若本地仍残留更旧的 `v*` tag，不得压过更新的提交说明版本。
 3. 若都没有：停止打包，提示先执行「提交到git」；禁止用配置里的旧版本硬打。
 
 写入位置（去掉前缀 `v`，写入纯 semver，如 `1.10.1`）：
@@ -112,6 +116,21 @@
 6. 若残留旧挂载卷（如 macOS `/Volumes/tomark`）导致 dmg 失败，先卸载再重打。
 
 快捷任务入口：`.ai/tasks/devTasks/打包安装包.md`。
+
+## 提交 release
+
+原则：把**当前设备**上、**最新 git 版本** `vX.Y.Z` 的安装包发到 GitHub Release；远程以 `.ai/remote/` 为准。
+
+1. 版本：与「打包安装包」相同解析规则；tag / Release 名用 `vX.Y.Z`。
+2. macOS：上传该版本下的 `tomark_<semver>_aarch64.dmg` 与 `tomark_<semver>_x64.dmg`（缺哪个说明哪个未找到，不要用旧版本凑数）。
+3. Windows：上传该版本 `.exe`（NSIS 等，以实际产物为准）。
+4. 命令（GitHub，需已 `gh auth login`）：
+   - 尚无该 Release：`gh release create vX.Y.Z <资产…> --repo <owner/name> --title 'vX.Y.Z' --notes '…'`
+   - 已有同名 Release：`gh release upload vX.Y.Z <资产…> --repo <owner/name> --clobber`（仅更新本机应传资产，不要删其它平台已有包）。
+5. 缺安装包时提示先执行「打包安装包」；本任务不重新打包。
+6. 完成后回报 Release URL、版本号与已上传资产名。
+
+快捷任务入口：`.ai/tasks/projectTasks/提交release.md`。
 
 ## 禁止事项
 

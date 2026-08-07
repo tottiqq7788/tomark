@@ -156,11 +156,23 @@ vi.mock("@/app/usePreviewBridge", () => ({
     previewRef: ref(null),
     html: ref(""),
     lineToAnchor: ref(new Map()),
+    renderedSource: ref("# sample"),
+    projection: ref(null),
+    renderMode: ref("fallback"),
+    editableSyncToken: ref(0),
+    selectionRecovery: ref(null),
     locate: vi.fn(),
     syncNow: previewMocks.syncNow,
     isCurrent: previewMocks.isCurrent,
     attachPreview: vi.fn(),
     refreshPreview: Object.assign(vi.fn(), { cancel: vi.fn() }),
+    beginOwnEdit: vi.fn(),
+    endOwnEdit: vi.fn(),
+    syncAfterOwnEdit: vi.fn(),
+    setComposing: vi.fn(),
+    setPaused: vi.fn(),
+    flushEditSession: vi.fn(async () => undefined),
+    flushCompositionOnly: vi.fn(),
   }),
 }));
 
@@ -420,6 +432,79 @@ describe("AppShell", () => {
     expect(previewMocks.syncNow).toHaveBeenCalled();
     expect(revealSourceLine).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain("预览内容已更新，请重新点击定位");
+    wrapper.unmount();
+  });
+
+  it("refuses stale preview format actions", async () => {
+    const applyFormatChange = vi.fn(() => true);
+    const EditorPaneStub = defineComponent({
+      setup(_props, { expose }) {
+        expose({
+          revealSourceLine: vi.fn(),
+          applyFormatChange,
+          getValue: () => "# sample",
+        });
+        return () => h("div", { class: "editor-pane-stub" });
+      },
+    });
+    const PreviewPaneStub = defineComponent({
+      emits: ["format-selection"],
+      setup(_props, { emit }) {
+        return () =>
+          h(
+            "button",
+            {
+              class: "preview-format",
+              onClick: () =>
+                emit("format-selection", {
+                  action: { type: "toggle", format: "bold" },
+                  selection: {
+                    from: 2,
+                    to: 8,
+                    blockAnchorId: "tm-a-1",
+                    sourceLine: 1,
+                    active: {
+                      bold: false,
+                      italic: false,
+                      strike: false,
+                      code: false,
+                      link: false,
+                      linkHref: null,
+                      ranges: {},
+                    },
+                    rect: {
+                      top: 10,
+                      left: 10,
+                      bottom: 20,
+                      right: 40,
+                      width: 30,
+                      height: 10,
+                    },
+                  },
+                }),
+            },
+            "format",
+          );
+      },
+    });
+    previewMocks.isCurrent.mockReturnValue(false);
+
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: EditorPaneStub,
+          PreviewPane: PreviewPaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    await wrapper.get(".preview-format").trigger("click");
+    await flushPromises();
+
+    expect(applyFormatChange).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain("预览内容已更新，请重新选择后再设置格式");
     wrapper.unmount();
   });
 

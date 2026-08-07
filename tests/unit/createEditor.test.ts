@@ -97,4 +97,74 @@ describe("createEditor", () => {
     editor.requestMeasure();
     expect(spy).toHaveBeenCalledOnce();
   });
+
+  it("applies a format change as one undoable transaction", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "Hello world\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(
+      editor.applyFormatChange({
+        from: 6,
+        to: 11,
+        insert: "**world**",
+        selectionFrom: 8,
+        selectionTo: 13,
+      }),
+    ).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+    expect(undoDepth(editor.view.state)).toBe(1);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.getValue()).toBe("Hello world\n");
+  });
+
+  it("rejects format changes when expectedText no longer matches", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "Hello world\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(
+      editor.applyFormatChange({
+        from: 6,
+        to: 11,
+        insert: "**world**",
+        expectedText: "other",
+      }),
+    ).toBe(false);
+    expect(editor.getValue()).toBe("Hello world\n");
+  });
+
+  it("supports undo and redo for format changes", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "Hello world\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(
+      editor.applyFormatChange({
+        from: 6,
+        to: 11,
+        insert: "**world**",
+      }),
+    ).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe("Hello world\n");
+    expect(editor.redo()).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+  });
 });

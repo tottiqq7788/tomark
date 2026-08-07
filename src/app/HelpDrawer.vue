@@ -52,7 +52,8 @@ watch(
       <section>
         <h3>界面</h3>
         <ul>
-          <li>默认双栏：左侧源码、右侧渲染预览（非所见即所得）；可用中间分隔条调宽。</li>
+          <li>默认双栏：左侧 Markdown 源码、右侧渲染结果；可用中间分隔条调宽。</li>
+          <li>Markdown 源码是唯一数据源，右侧支持受限所见即所得文字编辑；修改会直接写回源码。</li>
           <li>右下角视图按钮可在「源码 / 源码+渲染 / 渲染」三种布局间切换。</li>
           <li>
             底部状态栏显示行数、字符数、词数；「?」打开本说明，齿轮打开设置；点击顶栏文件名可切换完整路径。
@@ -116,6 +117,76 @@ watch(
               <td>强制保存</td>
               <td><kbd>⌘S</kbd></td>
               <td><kbd>Ctrl+S</kbd></td>
+            </tr>
+            <tr>
+              <td>撤销</td>
+              <td><kbd>⌘Z</kbd></td>
+              <td><kbd>Ctrl+Z</kbd></td>
+            </tr>
+            <tr>
+              <td>重做</td>
+              <td><kbd>⌘Y</kbd> / <kbd>⇧⌘Z</kbd></td>
+              <td><kbd>Ctrl+Y</kbd> / <kbd>Ctrl+Shift+Z</kbd></td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h3>右侧文字编辑</h3>
+        <ul>
+          <li>
+            可直接编辑标题、段落、列表项、引用、表格单元格中的普通文字，以及显式链接的显示文字和粗体、斜体、删除线中的普通文字。
+          </li>
+          <li>
+            行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在右侧只读；显式链接的 URL / title 也只能在源码区修改。
+          </li>
+          <li>无法可靠映射回源码的内容会保持只读；需要修改时请使用左侧源码区。</li>
+          <li>
+            链接普通点击用于放置光标；<kbd>Cmd</kbd> / <kbd>Ctrl</kbd>+点击仍定位源码。使用浮动工具条「打开链接」，或
+            <kbd>Alt</kbd> / <kbd>Option</kbd>+点击可直接打开链接。
+          </li>
+          <li>在右侧预览中选中同一段落内的文字后，可用浮动工具条或快捷键设置格式；结果会写回左侧 Markdown 源码。</li>
+          <li>跨段落选区不会出现格式工具条；无法可靠转换的编辑会被阻止，并提示改用源码区。</li>
+          <li>
+            左右两侧共用同一套撤销历史：macOS 用 <kbd>⌘Z</kbd> 撤销、<kbd>⌘Y</kbd> /
+            <kbd>⇧⌘Z</kbd> 重做；Windows / Linux 用 <kbd>Ctrl+Z</kbd> 撤销、<kbd>Ctrl+Y</kbd> /
+            <kbd>Ctrl+Shift+Z</kbd> 重做。
+          </li>
+        </ul>
+        <table>
+          <thead>
+            <tr>
+              <th>操作</th>
+              <th>macOS</th>
+              <th>Windows / Linux</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>加粗</td>
+              <td><kbd>⌘B</kbd></td>
+              <td><kbd>Ctrl+B</kbd></td>
+            </tr>
+            <tr>
+              <td>斜体</td>
+              <td><kbd>⌘I</kbd></td>
+              <td><kbd>Ctrl+I</kbd></td>
+            </tr>
+            <tr>
+              <td>删除线</td>
+              <td><kbd>⇧⌘X</kbd></td>
+              <td><kbd>Ctrl+Shift+X</kbd></td>
+            </tr>
+            <tr>
+              <td>行内代码</td>
+              <td><kbd>⌘E</kbd></td>
+              <td><kbd>Ctrl+E</kbd></td>
+            </tr>
+            <tr>
+              <td>链接</td>
+              <td><kbd>⌘K</kbd></td>
+              <td><kbd>Ctrl+K</kbd></td>
             </tr>
           </tbody>
         </table>
