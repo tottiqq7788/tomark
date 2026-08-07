@@ -155,4 +155,33 @@ describe("PreviewPane locate", () => {
 
     wrapper.unmount();
   });
+
+  it("keeps locate anchors on mermaid error blocks", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async () => {
+          throw new Error("bad diagram");
+        }),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A ->\n\`\`\`\n`;
+    const { html, lineToAnchor } = renderMarkdown(source);
+    const wrapper = mount(PreviewPane, {
+      props: { html, lineToAnchor },
+      attachTo: document.body,
+    });
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-error").exists()).toBe(true);
+    });
+
+    const err = wrapper.find(".mermaid-error");
+    expect(err.attributes("data-source-line")).toBe("3");
+    await err.trigger("click", locateModifierInit());
+    expect(wrapper.emitted("locate-source")?.[0]?.[0]).toBe(3);
+
+    wrapper.unmount();
+  });
 });

@@ -65,7 +65,9 @@ A-->B</code></pre>
     expect(diagrams).toHaveLength(2);
     expect(diagrams[0].getAttribute("data-anchor-id")).toBe("tm-a-1");
     expect(diagrams[0].getAttribute("data-source-line")).toBe("1");
+    expect(diagrams[0].getAttribute("data-source-end")).toBe("3");
     expect(diagrams[1].getAttribute("data-anchor-id")).toBe("tm-a-2");
+    expect(diagrams[1].getAttribute("data-source-end")).toBe("7");
     expect(root.querySelectorAll("svg[data-testid='mermaid-svg']")).toHaveLength(2);
     const ids = [...root.querySelectorAll("svg")].map((el) =>
       el.getAttribute("data-id"),
@@ -151,5 +153,48 @@ C-->D</code></pre>
     expect(secondOk).toBe(true);
     expect(root.querySelector("[data-anchor-id='a2'] svg")).toBeTruthy();
     expect(root.querySelector("[data-anchor-id='a1']")).toBeNull();
+  });
+
+  it("shows a local error when the mermaid loader fails", async () => {
+    __setMermaidLoaderForTests(async () => {
+      throw new Error("chunk missing");
+    });
+
+    const root = mountPreview(`
+      <pre data-source-line="1" data-anchor-id="a1"><code class="language-mermaid">graph TD
+A-->B</code></pre>
+    `);
+
+    await renderMermaidInRoot(root);
+
+    const err = root.querySelector(".mermaid-error");
+    expect(err).toBeTruthy();
+    expect(err?.getAttribute("data-anchor-id")).toBe("a1");
+    expect(err?.textContent).toContain("无法加载 Mermaid");
+    expect(err?.textContent).toContain("chunk missing");
+    expect(root.querySelector("svg")).toBeNull();
+  });
+
+  it("initializes mermaid with securityLevel strict", async () => {
+    const initialize = vi.fn();
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize,
+        render: vi.fn(async () => ({
+          svg: `<svg></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+
+    const root = mountPreview(
+      `<pre><code class="language-mermaid">graph TD
+A-->B</code></pre>`,
+    );
+    await renderMermaidInRoot(root);
+
+    expect(initialize).toHaveBeenCalledWith(
+      expect.objectContaining({ securityLevel: "strict", startOnLoad: false }),
+    );
   });
 });
