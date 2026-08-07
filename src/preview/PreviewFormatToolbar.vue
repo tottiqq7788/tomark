@@ -15,7 +15,6 @@ const props = defineProps<{
 }>();
 
 const root = ref<HTMLElement | null>(null);
-defineExpose({ root });
 
 const emit = defineEmits<{
   toggle: [format: Exclude<InlineFormat, "link">];
@@ -70,6 +69,12 @@ async function onLinkClick() {
   linkInput.value?.select();
 }
 
+async function openLinkEditor() {
+  await onLinkClick();
+}
+
+defineExpose({ root, openLinkEditor });
+
 function submitLink() {
   const href = linkHref.value.trim();
   if (!isSafeLinkHref(href)) {
@@ -81,14 +86,17 @@ function submitLink() {
   setLinkOpen(false);
 }
 
+function cancelLink() {
+  setLinkOpen(false);
+}
+
 function onLinkKeydown(event: KeyboardEvent) {
   if (event.key === "Enter") {
     event.preventDefault();
     submitLink();
   } else if (event.key === "Escape") {
     event.preventDefault();
-    setLinkOpen(false);
-    emit("dismiss");
+    cancelLink();
   }
 }
 
@@ -218,6 +226,15 @@ function retainSelection(event: MouseEvent) {
       />
       <button
         type="button"
+        class="link-cancel"
+        data-testid="format-link-cancel"
+        @mousedown="retainSelection"
+        @click="cancelLink"
+      >
+        取消
+      </button>
+      <button
+        type="button"
         class="link-confirm"
         data-testid="format-link-confirm"
         @mousedown="retainSelection"
@@ -300,15 +317,30 @@ function retainSelection(event: MouseEvent) {
   font-size: 12px;
 }
 
+.link-cancel,
 .link-confirm {
   height: 28px;
   padding: 0 10px;
   border: none;
   border-radius: 6px;
-  background: #3b82f6;
-  color: #fff;
   font-size: 12px;
   cursor: pointer;
+}
+
+.link-cancel {
+  background: rgba(255, 255, 255, 0.1);
+  color: #e5e7eb;
+}
+
+.link-cancel:hover,
+.link-cancel:focus-visible {
+  background: rgba(255, 255, 255, 0.18);
+  outline: none;
+}
+
+.link-confirm {
+  background: #3b82f6;
+  color: #fff;
 }
 
 .link-confirm:hover,

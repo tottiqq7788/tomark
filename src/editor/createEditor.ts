@@ -15,7 +15,14 @@ import {
   drawSelection,
   lineNumbers,
 } from "@codemirror/view";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  indentWithTab,
+  redo as cmRedo,
+  undo as cmUndo,
+} from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { syntaxHighlighting, defaultHighlightStyle } from "@codemirror/language";
 import {
@@ -44,6 +51,8 @@ export interface EditorHandle {
   revealSourceLine: (line: number) => void;
   /** Apply a local Markdown edit as one undoable transaction. */
   applyFormatChange: (change: FormatRangeChange) => boolean;
+  undo: () => boolean;
+  redo: () => boolean;
   /** Re-measure geometry after the editor pane was hidden or resized. */
   requestMeasure: () => void;
   getValue: () => string;
@@ -256,6 +265,8 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
       });
       return true;
     },
+    undo: () => cmUndo(view),
+    redo: () => cmRedo(view),
     revealSourceLine: (line) => {
       if (line < 1 || line > view.state.doc.lines) {
         return;

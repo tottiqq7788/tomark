@@ -14,6 +14,8 @@ export type EditorPaneExpose = {
   requestMeasure?: () => void;
   applyFormatChange?: (change: FormatRangeChange) => boolean;
   getValue?: () => string;
+  undo?: () => boolean;
+  redo?: () => boolean;
 };
 
 export type PreviewLocateApi = {
@@ -179,6 +181,14 @@ export function usePaneLocate(options: {
     scheduleEditorMeasure();
   });
 
+  function undoEdit(): boolean {
+    return editorPaneRef.value?.undo?.() ?? false;
+  }
+
+  function redoEdit(): boolean {
+    return editorPaneRef.value?.redo?.() ?? false;
+  }
+
   return {
     editorPaneRef,
     setPreviewRef,
@@ -186,6 +196,8 @@ export function usePaneLocate(options: {
     onLocateSource,
     onLocatePreview,
     onFormatSelection,
+    undoEdit,
+    redoEdit,
     scheduleEditorMeasure,
   };
 }

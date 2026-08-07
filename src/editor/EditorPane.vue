@@ -67,7 +67,22 @@ function getValue(): string {
   return editor?.getValue() ?? props.modelValue;
 }
 
-defineExpose({ revealSourceLine, requestMeasure, applyFormatChange, getValue });
+function undo(): boolean {
+  return editor?.undo() ?? false;
+}
+
+function redo(): boolean {
+  return editor?.redo() ?? false;
+}
+
+defineExpose({
+  revealSourceLine,
+  requestMeasure,
+  applyFormatChange,
+  getValue,
+  undo,
+  redo,
+});
 </script>
 
 <template>

@@ -144,6 +144,8 @@ const {
   onLocateSource,
   onLocatePreview,
   onFormatSelection,
+  undoEdit,
+  redoEdit,
 } = usePaneLocate({
   preview,
   isSourceVisible,
@@ -226,6 +228,8 @@ useAppShortcuts({
   },
   newDocument,
   openDocument,
+  undo: undoEdit,
+  redo: redoEdit,
   fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () =>
     saving.value || dirtyDialogOpen.value || encodingDialogOpen.value,

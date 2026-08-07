@@ -143,4 +143,28 @@ describe("createEditor", () => {
     ).toBe(false);
     expect(editor.getValue()).toBe("Hello world\n");
   });
+
+  it("supports undo and redo for format changes", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "Hello world\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(
+      editor.applyFormatChange({
+        from: 6,
+        to: 11,
+        insert: "**world**",
+      }),
+    ).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+    expect(editor.undo()).toBe(true);
+    expect(editor.getValue()).toBe("Hello world\n");
+    expect(editor.redo()).toBe(true);
+    expect(editor.getValue()).toBe("Hello **world**\n");
+  });
 });

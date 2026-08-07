@@ -8,6 +8,7 @@ import type {
   PreviewFormatSelection,
 } from "@/shared/previewFormatting";
 import { isLocateModifier } from "@/shared/locateModifier";
+import { matchPreviewFormatShortcut } from "@/shared/previewFormatShortcuts";
 import {
   clampToolbarPosition,
   resolvePreviewSelection,
@@ -40,7 +41,10 @@ const toolbarVisible = ref(false);
 const toolbarTop = ref(0);
 /** Horizontal center of the toolbar (paired with translateX(-50%)). */
 const toolbarCenterX = ref(0);
-const toolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
+const toolbarRef = ref<{
+  root?: HTMLElement | null;
+  openLinkEditor?: () => void | Promise<void>;
+} | null>(null);
 const toolbarActive = ref<ActiveFormats>({
   bold: false,
   italic: false,
@@ -259,6 +263,26 @@ function onDismissToolbar() {
   window.getSelection()?.removeAllRanges();
 }
 
+function onFormatKeyDown(event: KeyboardEvent) {
+  if (linkEditing.value) {
+    return;
+  }
+  const action = matchPreviewFormatShortcut(event);
+  if (!action || action === "undo" || action === "redo") {
+    return;
+  }
+  // Only when there is an active preview selection (toolbar would be shown).
+  if (!toolbarVisible.value || !currentSelection.value) {
+    return;
+  }
+  event.preventDefault();
+  if (action === "link") {
+    void toolbarRef.value?.openLinkEditor?.();
+    return;
+  }
+  onToggle(action);
+}
+
 async function scrollToSourceLine(sourceLine: number) {
   const anchor = props.lineToAnchor.get(sourceLine);
   if (!anchor || !container.value) {
@@ -301,6 +325,7 @@ watch(
 onMounted(() => {
   document.addEventListener("selectionchange", onSelectionChange);
   window.addEventListener("resize", onScrollOrResize);
+  window.addEventListener("keydown", onFormatKeyDown, true);
   container.value?.addEventListener("scroll", onScrollOrResize, {
     passive: true,
   });
@@ -310,6 +335,7 @@ onBeforeUnmount(() => {
   clearFlashTimer();
   document.removeEventListener("selectionchange", onSelectionChange);
   window.removeEventListener("resize", onScrollOrResize);
+  window.removeEventListener("keydown", onFormatKeyDown, true);
   container.value?.removeEventListener("scroll", onScrollOrResize);
 });
 </script>

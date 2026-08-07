@@ -336,6 +336,60 @@ onBeforeUnmount(() => {
                   <td><kbd>⌘S</kbd></td>
                   <td><kbd>Ctrl+S</kbd></td>
                 </tr>
+                <tr>
+                  <td>撤销</td>
+                  <td><kbd>⌘Z</kbd></td>
+                  <td><kbd>Ctrl+Z</kbd></td>
+                </tr>
+                <tr>
+                  <td>重做</td>
+                  <td><kbd>⌘Y</kbd> / <kbd>⇧⌘Z</kbd></td>
+                  <td><kbd>Ctrl+Y</kbd> / <kbd>Ctrl+Shift+Z</kbd></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section>
+            <h3>预览格式</h3>
+            <ul>
+              <li>在右侧预览中选中同一段落内的文字后，可用浮动工具条或快捷键设置格式；结果会写回左侧 Markdown 源码。</li>
+              <li>跨段落选区不会出现工具条；围栏代码块内不支持。</li>
+            </ul>
+            <table>
+              <thead>
+                <tr>
+                  <th>操作</th>
+                  <th>macOS</th>
+                  <th>Windows / Linux</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>加粗</td>
+                  <td><kbd>⌘B</kbd></td>
+                  <td><kbd>Ctrl+B</kbd></td>
+                </tr>
+                <tr>
+                  <td>斜体</td>
+                  <td><kbd>⌘I</kbd></td>
+                  <td><kbd>Ctrl+I</kbd></td>
+                </tr>
+                <tr>
+                  <td>删除线</td>
+                  <td><kbd>⇧⌘X</kbd></td>
+                  <td><kbd>Ctrl+Shift+X</kbd></td>
+                </tr>
+                <tr>
+                  <td>行内代码</td>
+                  <td><kbd>⌘E</kbd></td>
+                  <td><kbd>Ctrl+E</kbd></td>
+                </tr>
+                <tr>
+                  <td>链接</td>
+                  <td><kbd>⌘K</kbd></td>
+                  <td><kbd>Ctrl+K</kbd></td>
+                </tr>
               </tbody>
             </table>
           </section>
