@@ -6,7 +6,7 @@ use atomic_write_file::AtomicWriteFile;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_fs::FsExt;
 
-use crate::atomic_write::{write_bytes, AtomicWriteError};
+use crate::atomic_write::{resolve_write_target, write_bytes, AtomicWriteError};
 
 const MAX_IMAGE_BYTES_DEFAULT: usize = 8 * 1024 * 1024;
 
@@ -149,7 +149,7 @@ pub fn atomic_write_bytes_file<R: Runtime>(
     path: String,
     contents: Vec<u8>,
 ) -> Result<(), ExportIoError> {
-    let target = PathBuf::from(&path);
+    let target = resolve_write_target(Path::new(&path))?;
     ensure_allowed(&app, &target)?;
     write_bytes(&target, &contents)?;
     Ok(())
@@ -211,9 +211,8 @@ pub fn write_html_export_bundle<R: Runtime>(
         return Err(ExportIoError::Message("资源目录名不合法".into()));
     }
 
-    let html_target = PathBuf::from(&html_path);
+    let html_target = resolve_write_target(Path::new(&html_path))?;
     ensure_allowed(&app, &html_target)?;
-    write_bytes(&html_target, html_content.as_bytes())?;
 
     let parent = html_target
         .parent()
@@ -222,8 +221,14 @@ pub fn write_html_export_bundle<R: Runtime>(
     fs::create_dir_all(&assets_dir)?;
 
     // Allow subsequent asset writes under the newly created directory.
-    let _ = app.fs_scope().allow_directory(&assets_dir, true);
+    app.fs_scope()
+        .allow_directory(&assets_dir, true)
+        .map_err(|error| {
+            ExportIoError::Message(format!("无法授权资源目录写入：{error}"))
+        })?;
 
+    // Write assets first so a mid-flight failure does not leave a finished-looking
+    // HTML file that points at a missing sibling directory.
     for asset in assets {
         let name = sanitize_asset_name(&asset.relative_path)?;
         let target = assets_dir.join(name);
@@ -233,6 +238,7 @@ pub fn write_html_export_bundle<R: Runtime>(
         file.commit()?;
     }
 
+    write_bytes(&html_target, html_content.as_bytes())?;
     Ok(())
 }
 
@@ -275,5 +281,26 @@ mod tests {
         assert!(sanitize_asset_name("../x.png").is_err());
         assert!(sanitize_asset_name("a/b.png").is_err());
         assert!(sanitize_asset_name("").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_write_target_follows_symlink() {
+        use std::os::unix::fs::symlink;
+
+        let dir = std::env::temp_dir().join(format!(
+            "tomark-export-symlink-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("target.bin");
+        let link = dir.join("note.bin");
+        fs::write(&target, b"old").unwrap();
+        symlink("target.bin", &link).unwrap();
+
+        let resolved = resolve_write_target(&link).unwrap();
+        assert_eq!(resolved, target.canonicalize().unwrap());
+        let _ = fs::remove_dir_all(&dir);
     }
 }

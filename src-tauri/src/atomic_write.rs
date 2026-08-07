@@ -22,7 +22,9 @@ impl serde::Serialize for AtomicWriteError {
     }
 }
 
-fn resolve_write_target(path: &Path) -> Result<std::path::PathBuf, AtomicWriteError> {
+/// Resolve symlink write targets before scope checks so callers cannot bypass
+/// `fs_scope` by pointing an allowed path at a forbidden location.
+pub(crate) fn resolve_write_target(path: &Path) -> Result<std::path::PathBuf, AtomicWriteError> {
     Ok(match std::fs::symlink_metadata(path) {
         Ok(metadata) if metadata.file_type().is_symlink() => path.canonicalize()?,
         Ok(_) => path.to_path_buf(),

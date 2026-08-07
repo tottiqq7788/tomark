@@ -25,7 +25,10 @@ export async function pickExportPath(options: {
     defaultPath: options.defaultPath,
     filters: options.filters,
   });
-  return path ?? null;
+  if (path == null || path.trim() === "") {
+    return null;
+  }
+  return path;
 }
 
 export async function writeExportBytes(

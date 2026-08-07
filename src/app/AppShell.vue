@@ -182,6 +182,9 @@ const { fileOpsViaMenu } = useShellLifecycle(
     dispose,
   },
   preview,
+  {
+    isBlocked: () => activeDrawer.value !== null || exportBusy.value,
+  },
 );
 
 function onSplitterKeydown(event: KeyboardEvent) {

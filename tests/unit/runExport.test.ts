@@ -210,4 +210,18 @@ describe("runExport generators", () => {
       }),
     );
   });
+
+  it("downscales huge png pages below the old 0.5 floor", async () => {
+    const { computeExportPngScale } = await import("@/export/runExport");
+    const scale = computeExportPngScale(920, 20_000);
+    expect(scale).toBeLessThanOrEqual(0.5);
+    expect(scale).toBeGreaterThanOrEqual(0.125);
+    expect(920 * scale).toBeLessThanOrEqual(8192);
+    expect(20_000 * scale).toBeLessThanOrEqual(8192);
+  });
+
+  it("rejects png when even minimum scale exceeds canvas limits", async () => {
+    const { computeExportPngScale } = await import("@/export/runExport");
+    expect(() => computeExportPngScale(920, 1_000_000)).toThrow(/无法在画布限制内导出 PNG/);
+  });
 });

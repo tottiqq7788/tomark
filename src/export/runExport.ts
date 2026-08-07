@@ -266,17 +266,7 @@ async function exportPng(
 
     const width = Math.max(article.scrollWidth, EXPORT_CONTENT_WIDTH_PX);
     const height = Math.max(article.scrollHeight, 1);
-    const maxDimension = 8192;
-    const maxArea = 16_777_216;
-    let scale = 2;
-    while (
-      scale > 0.5 &&
-      (width * scale > maxDimension ||
-        height * scale > maxDimension ||
-        width * height * scale * scale > maxArea)
-    ) {
-      scale -= 0.25;
-    }
+    const scale = computeExportPngScale(width, height);
     const note =
       scale < 2
         ? `长图已按 ${scale.toFixed(2)}x 降采样，以避免超出画布上限。`
@@ -313,6 +303,32 @@ async function exportPng(
   } finally {
     host.remove();
   }
+}
+
+/** Exported for unit tests; keeps PNG within WebKit canvas limits. */
+export function computeExportPngScale(width: number, height: number): number {
+  const maxDimension = 8192;
+  const maxArea = 16_777_216;
+  const minScale = 0.125;
+  let scale = 2;
+  while (
+    scale > minScale &&
+    (width * scale > maxDimension ||
+      height * scale > maxDimension ||
+      width * height * scale * scale > maxArea)
+  ) {
+    scale = Math.max(minScale, Number((scale - 0.125).toFixed(3)));
+  }
+  if (
+    width * scale > maxDimension ||
+    height * scale > maxDimension ||
+    width * height * scale * scale > maxArea
+  ) {
+    throw new ExportFailedError(
+      "文档过长，无法在画布限制内导出 PNG。请改用 PDF 或 HTML。",
+    );
+  }
+  return scale;
 }
 
 async function normalizeGeneratedBytes(result: unknown): Promise<Uint8Array | null> {

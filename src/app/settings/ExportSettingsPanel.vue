@@ -54,6 +54,13 @@ const actions: {
   },
 ];
 
+function isExportCancelled(error: unknown): boolean {
+  return (
+    error instanceof ExportCancelledError ||
+    (error instanceof Error && error.name === "ExportCancelledError")
+  );
+}
+
 async function onExport(format: ExportFormatId) {
   if (exporting.value || props.disabled) {
     return;
@@ -79,7 +86,7 @@ async function onExport(format: ExportFormatId) {
     lastMessage.value = `已导出：${result.fileName}${warningText}${noteText}`;
     emit("status-message", lastMessage.value);
   } catch (error) {
-    if (error instanceof ExportCancelledError) {
+    if (isExportCancelled(error)) {
       lastMessage.value = "已取消导出";
       emit("status-message", lastMessage.value);
     } else {

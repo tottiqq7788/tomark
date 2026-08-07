@@ -23,9 +23,15 @@ export type ShellLifecyclePreview = {
 /**
  * Tauri window close / app-exit guards, native menu install, and e2e hooks.
  */
+export type ShellLifecycleOptions = {
+  /** Extra file-ops gate (drawers / export busy), stacked with saving & dirty dialog. */
+  isBlocked?: () => boolean;
+};
+
 export function useShellLifecycle(
   session: ShellLifecycleSession,
   preview: ShellLifecyclePreview,
+  options: ShellLifecycleOptions = {},
 ) {
   const fileOpsViaMenu = ref(false);
 
@@ -156,7 +162,9 @@ export function useShellLifecycle(
           void session.saveAs();
         },
         isBlocked: () =>
-          session.saving.value || session.dirtyDialogOpen.value,
+          session.saving.value ||
+          session.dirtyDialogOpen.value ||
+          Boolean(options.isBlocked?.()),
       });
       if (unmounted) {
         unlistenMenu?.();
