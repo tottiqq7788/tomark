@@ -73,6 +73,7 @@ const SAMPLE = `# tomark
 - [x] 双栏布局
 - [x] 标题折叠
 - [x] 行级预览定位
+- [x] Mermaid 图表预览
 - [ ] 更多主题与字体设置（示例待办）
 
 ### 引用
@@ -98,6 +99,172 @@ console.log(greet("tomark"));
 \`\`\`bash
 cd deps
 npm run tauri:dev
+\`\`\`
+
+### Mermaid 图表
+
+使用 \`\`\`mermaid 围栏即可在右侧预览中渲染。
+
+流程图：
+
+\`\`\`mermaid
+flowchart TD
+  Start[打开文档] --> Edit[编辑源码]
+  Edit --> Preview[刷新预览]
+  Preview --> Locate{Cmd/Ctrl 点击?}
+  Locate -->|源码 → 预览| ScrollP[滚动预览块]
+  Locate -->|预览 → 源码| ScrollS[展开并滚到源码行]
+\`\`\`
+
+时序图：
+
+\`\`\`mermaid
+sequenceDiagram
+  participant U as 用户
+  participant E as 编辑器
+  participant P as 预览
+  U->>E: 输入 Markdown
+  E->>P: 防抖渲染 HTML
+  P->>P: 懒加载 Mermaid
+  P-->>U: 显示 SVG 图表
+\`\`\`
+
+类图：
+
+\`\`\`mermaid
+classDiagram
+  class EditorPane {
+    +content: string
+    +revealSourceLine(line)
+  }
+  class PreviewPane {
+    +html: string
+    +scrollToSourceLine(line)
+  }
+  EditorPane --> PreviewPane : drives
+\`\`\`
+
+饼图：
+
+\`\`\`mermaid
+pie title 示例时间分配
+  "写作" : 40
+  "预览校对" : 35
+  "休息" : 25
+\`\`\`
+
+状态图：
+
+\`\`\`mermaid
+stateDiagram-v2
+  [*] --> Idle: 启动
+  Idle --> Editing: 输入
+  Editing --> Saving: 空闲约 2s
+  Saving --> Idle: 已保存
+  Editing --> DirtyDialog: 关闭/新建
+  DirtyDialog --> Idle: 取消
+  DirtyDialog --> [*]: 退出
+\`\`\`
+
+ER 图：
+
+\`\`\`mermaid
+erDiagram
+  DOCUMENT ||--o{ ANCHOR : contains
+  DOCUMENT {
+    string path
+    string content
+    bool dirty
+  }
+  ANCHOR {
+    string id
+    int sourceLine
+    string blockType
+  }
+  PREVIEW ||--|{ ANCHOR : indexes
+\`\`\`
+
+甘特图：
+
+\`\`\`mermaid
+gantt
+  title tomark 示例迭代
+  dateFormat  YYYY-MM-DD
+  section 核心
+  双栏布局           :done,    a1, 2026-01-01, 7d
+  标题折叠           :done,    a2, after a1, 5d
+  双向定位           :done,    a3, after a2, 5d
+  section 扩展
+  Mermaid 预览       :active,  b1, after a3, 4d
+  主题与字体         :         b2, after b1, 6d
+\`\`\`
+
+思维导图：
+
+\`\`\`mermaid
+mindmap
+  root((tomark))
+    编辑
+      CodeMirror
+      标题折叠
+    预览
+      Markdown
+      Mermaid
+    桌面
+      Tauri
+      文件读写
+\`\`\`
+
+时间线：
+
+\`\`\`mermaid
+timeline
+  title 文档打开到预览
+  打开文件 : 读盘解码
+  解析 Markdown : 生成 HTML 与锚点
+  注入预览 : v-html 挂载
+  渲染图表 : 懒加载 Mermaid
+\`\`\`
+
+用户旅程：
+
+\`\`\`mermaid
+journey
+  title 首次使用 tomark
+  section 起步
+    打开应用: 5: 用户
+    阅读示例: 4: 用户
+  section 编辑
+    改写段落: 5: 用户
+    看右侧预览: 5: 用户
+  section 保存
+    另存为: 4: 用户
+\`\`\`
+
+Git 图：
+
+\`\`\`mermaid
+gitGraph
+  commit id: "init"
+  branch feature
+  checkout feature
+  commit id: "mermaid"
+  checkout main
+  merge feature id: "merge"
+  commit id: "release"
+\`\`\`
+
+象限图：
+
+\`\`\`mermaid
+quadrantChart
+  title 功能优先级示意
+  x-axis 实现成本低 --> 实现成本高
+  y-axis 使用频率低 --> 使用频率高
+  标题折叠: [0.3, 0.8]
+  Mermaid 预览: [0.55, 0.7]
+  主题系统: [0.75, 0.45]
+  导出 PDF: [0.85, 0.35]
 \`\`\`
 
 ### 表格（宽内容）

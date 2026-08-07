@@ -194,7 +194,11 @@ A-->B</code></pre>`,
     await renderMermaidInRoot(root);
 
     expect(initialize).toHaveBeenCalledWith(
-      expect.objectContaining({ securityLevel: "strict", startOnLoad: false }),
+      expect.objectContaining({
+        securityLevel: "strict",
+        startOnLoad: false,
+        theme: "default",
+      }),
     );
   });
 });

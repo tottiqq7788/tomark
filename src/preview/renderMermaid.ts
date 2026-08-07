@@ -73,16 +73,16 @@ async function getMermaid(): Promise<MermaidModule> {
       api.initialize({
         startOnLoad: false,
         securityLevel: "strict",
-        theme: "neutral",
+        // Use Mermaid's default multi-color palette (neutral was nearly monochrome).
+        theme: "default",
         fontFamily: FONT_FAMILY,
         themeVariables: {
-          primaryColor: "#eff6ff",
-          primaryBorderColor: "#93c5fd",
-          primaryTextColor: "#1f2937",
-          lineColor: "#6b7280",
-          secondaryColor: "#f9fafb",
-          tertiaryColor: "#ffffff",
           fontFamily: FONT_FAMILY,
+          primaryTextColor: "#1f2937",
+          lineColor: "#64748b",
+          // Keep pie / sequence / class secondary fills distinct instead of flat grey.
+          secondaryColor: "#e0f2fe",
+          tertiaryColor: "#fef3c7",
         },
       });
       return api;
