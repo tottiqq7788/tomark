@@ -175,6 +175,44 @@ A-->B</code></pre>
     expect(root.querySelector("svg")).toBeNull();
   });
 
+  it("retries loading mermaid after a transient loader failure", async () => {
+    const initialize = vi.fn();
+    const render = vi.fn(async () => ({
+      svg: `<svg data-retried="1"></svg>`,
+      bindFunctions: undefined,
+    }));
+    let attempts = 0;
+    __setMermaidLoaderForTests(async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("temporary chunk failure");
+      }
+      return {
+        default: {
+          initialize,
+          render,
+        } as never,
+      };
+    });
+
+    const firstRoot = mountPreview(
+      `<pre><code class="language-mermaid">graph TD
+A-->B</code></pre>`,
+    );
+    await renderMermaidInRoot(firstRoot);
+    expect(firstRoot.querySelector(".mermaid-error")).toBeTruthy();
+
+    const secondRoot = mountPreview(
+      `<pre><code class="language-mermaid">graph TD
+C-->D</code></pre>`,
+    );
+    await renderMermaidInRoot(secondRoot);
+
+    expect(attempts).toBe(2);
+    expect(initialize).toHaveBeenCalledOnce();
+    expect(secondRoot.querySelector("svg[data-retried='1']")).toBeTruthy();
+  });
+
   it("initializes mermaid with securityLevel strict", async () => {
     const initialize = vi.fn();
     __setMermaidLoaderForTests(async () => ({

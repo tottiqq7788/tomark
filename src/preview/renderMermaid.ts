@@ -68,25 +68,32 @@ function collectMermaidBlocks(root: ParentNode): Array<{
 
 async function getMermaid(): Promise<MermaidModule> {
   if (!mermaidPromise) {
-    mermaidPromise = mermaidLoader().then((mod) => {
-      const api = mod.default;
-      api.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        // Use Mermaid's default multi-color palette (neutral was nearly monochrome).
-        theme: "default",
-        fontFamily: FONT_FAMILY,
-        themeVariables: {
+    mermaidPromise = mermaidLoader()
+      .then((mod) => {
+        const api = mod.default;
+        api.initialize({
+          startOnLoad: false,
+          securityLevel: "strict",
+          // Use Mermaid's default multi-color palette (neutral was nearly monochrome).
+          theme: "default",
           fontFamily: FONT_FAMILY,
-          primaryTextColor: "#1f2937",
-          lineColor: "#64748b",
-          // Keep pie / sequence / class secondary fills distinct instead of flat grey.
-          secondaryColor: "#e0f2fe",
-          tertiaryColor: "#fef3c7",
-        },
+          themeVariables: {
+            fontFamily: FONT_FAMILY,
+            primaryTextColor: "#1f2937",
+            lineColor: "#64748b",
+            // Keep pie / sequence / class secondary fills distinct instead of flat grey.
+            secondaryColor: "#e0f2fe",
+            tertiaryColor: "#fef3c7",
+          },
+        });
+        return api;
+      })
+      .catch((error) => {
+        // Chunk loads can fail transiently. Do not poison the whole session
+        // with a permanently rejected cached promise.
+        mermaidPromise = null;
+        throw error;
       });
-      return api;
-    });
   }
   return mermaidPromise;
 }

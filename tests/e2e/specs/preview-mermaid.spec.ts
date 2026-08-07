@@ -14,17 +14,29 @@ const fixture = readFileSync(
 async function setEditorContent(content: string) {
   const hasBridge = await browser.execute(() =>
     Boolean(
-      (window as unknown as { __tomarkE2e?: { setContent: unknown } })
-        .__tomarkE2e?.setContent,
+      (
+        window as unknown as {
+          __tomarkE2e?: { replaceContent?: unknown; setContent?: unknown };
+        }
+      ).__tomarkE2e?.replaceContent ??
+        (
+          window as unknown as {
+            __tomarkE2e?: { replaceContent?: unknown; setContent?: unknown };
+          }
+        ).__tomarkE2e?.setContent,
     ),
   );
   if (hasBridge) {
     await browser.execute((value) => {
-      (
+      const hooks = (
         window as unknown as {
-          __tomarkE2e: { setContent: (next: string) => void };
+          __tomarkE2e: {
+            replaceContent?: (next: string) => void;
+            setContent: (next: string) => void;
+          };
         }
-      ).__tomarkE2e.setContent(value);
+      ).__tomarkE2e;
+      (hooks.replaceContent ?? hooks.setContent)(value);
     }, content);
     return;
   }
@@ -60,11 +72,34 @@ describe("mermaid preview", () => {
 
     await browser.waitUntil(
       async () =>
-        (await $$(".preview-content .mermaid-diagram[data-mermaid='1'] svg"))
-          .length >= 3,
+        browser.execute(() => {
+          const preview = document.querySelector(".tm-editable-preview");
+          return Boolean(
+            preview?.textContent?.includes("Mermaid fixtures") &&
+              document.querySelectorAll(".tm-readonly-mermaid").length === 4,
+          );
+        }),
       {
         timeout: 30_000,
-        timeoutMsg: "expected at least 3 rendered mermaid SVGs",
+        timeoutMsg: "expected the preview to rebuild from the Mermaid fixture",
+      },
+    );
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          return (
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length === 3 &&
+            document.querySelectorAll(
+              ".preview-content .mermaid-error[data-mermaid-error='1']",
+            ).length === 1
+          );
+        }),
+      {
+        timeout: 30_000,
+        timeoutMsg: "expected exactly 3 Mermaid SVGs and 1 error block",
       },
     );
 
@@ -78,6 +113,40 @@ describe("mermaid preview", () => {
     await expect($(".preview-content .mermaid-error")).toBeExisting();
     await expect($(".preview-content .mermaid-error")).toHaveText(
       expect.stringContaining("Mermaid 渲染失败"),
+    );
+
+    const located = await browser.execute(() => {
+      const svg = document.querySelector(".tm-readonly-mermaid svg");
+      if (!(svg instanceof SVGElement)) {
+        return false;
+      }
+      const rect = svg.getBoundingClientRect();
+      const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+          metaKey: isMac,
+          ctrlKey: !isMac,
+        }),
+      );
+      return true;
+    });
+    expect(located).toBe(true);
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          return (
+            document.querySelector(".cm-locate-flash")?.textContent?.trim() ===
+            "```mermaid"
+          );
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "Cmd/Ctrl+click did not locate the Mermaid source fence",
+      },
     );
   });
 });

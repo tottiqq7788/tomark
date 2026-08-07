@@ -1,6 +1,17 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 import type { EditorView, NodeView } from "prosemirror-view";
 
+type MermaidRendererLoader = () => Promise<
+  Pick<
+    typeof import("@/preview/renderMermaid"),
+    "renderMermaidInto"
+  >
+>;
+
+const defaultMermaidRendererLoader: MermaidRendererLoader = () =>
+  import("@/preview/renderMermaid");
+let mermaidRendererLoader = defaultMermaidRendererLoader;
+
 let pendingRenders = 0;
 let readyWaiters: Array<() => void> = [];
 
@@ -47,6 +58,13 @@ export function __resetEditableMermaidPendingForTests() {
   readyWaiters = [];
 }
 
+/** Test-only: swap the editable renderer chunk loader. */
+export function __setEditableMermaidRendererLoaderForTests(
+  loader: MermaidRendererLoader | null,
+) {
+  mermaidRendererLoader = loader ?? defaultMermaidRendererLoader;
+}
+
 function createReadonlyShell(node: ProseMirrorNode): HTMLElement {
   const dom = document.createElement("div");
   const kind = String(node.attrs.kind || "unsupported");
@@ -57,6 +75,34 @@ function createReadonlyShell(node: ProseMirrorNode): HTMLElement {
   dom.setAttribute("data-tm-to", String(node.attrs.sourceTo));
   dom.setAttribute("role", "note");
   return dom;
+}
+
+function showMermaidLoadError(
+  host: HTMLElement,
+  source: string,
+  error: unknown,
+) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "mermaid-diagram mermaid-error";
+  wrapper.setAttribute("data-mermaid-error", "1");
+
+  const title = document.createElement("div");
+  title.className = "mermaid-error-title";
+  title.textContent = "Mermaid 渲染失败";
+
+  const detail = document.createElement("div");
+  detail.className = "mermaid-error-detail";
+  const message = error instanceof Error ? error.message : String(error);
+  detail.textContent = `无法加载 Mermaid：${message}`;
+
+  const fallback = document.createElement("pre");
+  fallback.className = "mermaid-error-source";
+  const code = document.createElement("code");
+  code.textContent = source;
+  fallback.appendChild(code);
+
+  wrapper.append(title, detail, fallback);
+  host.replaceChildren(wrapper);
 }
 
 /**
@@ -79,15 +125,17 @@ export function createReadonlyBlockNodeView(
   };
 
   const mountMermaid = () => {
+    // Invalidate any prior async render even when the updated node is no longer
+    // Mermaid. Otherwise a late SVG can overwrite the new readonly label.
+    const token = ++mountToken;
     if (kind !== "mermaid") {
       showLabel();
       return;
     }
-    const token = ++mountToken;
     beginPending();
     // Placeholder until the async chunk finishes — keeps layout/locate stable.
     showLabel();
-    void import("@/preview/renderMermaid")
+    void mermaidRendererLoader()
       .then(({ renderMermaidInto }) => {
         if (destroyed || token !== mountToken) {
           return;
@@ -96,6 +144,11 @@ export function createReadonlyBlockNodeView(
           renderId: `tomark-pm-mermaid-${token}-${Math.random().toString(36).slice(2, 6)}`,
           isCancelled: () => destroyed || token !== mountToken,
         });
+      })
+      .catch((error) => {
+        if (!destroyed && token === mountToken) {
+          showMermaidLoadError(dom, code, error);
+        }
       })
       .finally(() => {
         finishPending();

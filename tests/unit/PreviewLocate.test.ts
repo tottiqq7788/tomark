@@ -8,7 +8,10 @@ import {
   __resetMermaidStateForTests,
   __setMermaidLoaderForTests,
 } from "@/preview/renderMermaid";
-import { __resetEditableMermaidPendingForTests } from "@/preview/editing/mermaidNodeView";
+import {
+  __resetEditableMermaidPendingForTests,
+  __setEditableMermaidRendererLoaderForTests,
+} from "@/preview/editing/mermaidNodeView";
 
 function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
   const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -88,6 +91,7 @@ describe("PreviewPane locate", () => {
     __setMermaidLoaderForTests(null);
     __resetMermaidStateForTests();
     __resetEditableMermaidPendingForTests();
+    __setEditableMermaidRendererLoaderForTests(null);
   });
 
   it("scrolls to anchored block for source line in editable mode", async () => {
@@ -96,7 +100,7 @@ describe("PreviewPane locate", () => {
     await flushPromises();
     await nextTick();
 
-    const calls: unknown[] = [];
+    const calls: Element[] = [];
     const realScroll = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = function (this: Element) {
       calls.push(this);
@@ -332,8 +336,77 @@ describe("PreviewPane locate", () => {
     };
     await pane.scrollToSourceLine(4);
     Element.prototype.scrollIntoView = realScroll;
-    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0]).toBe(host.element);
 
+    wrapper.unmount();
+  });
+
+  it("shows an error block when the editable renderer chunk fails to load", async () => {
+    __setEditableMermaidRendererLoaderForTests(async () => {
+      throw new Error("renderer chunk missing");
+    });
+
+    const source = `\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const wrapper = mountEditablePreview(source);
+
+    await vi.waitFor(() => {
+      expect(wrapper.find(".tm-readonly-mermaid .mermaid-error").exists()).toBe(
+        true,
+      );
+    });
+
+    expect(wrapper.get(".mermaid-error-detail").text()).toContain(
+      "无法加载 Mermaid：renderer chunk missing",
+    );
+    expect(wrapper.get(".mermaid-error-source").text()).toContain("graph TD");
+    wrapper.unmount();
+  });
+
+  it("discards an in-flight editable render when the fence becomes ordinary code", async () => {
+    let releaseRender = () => {};
+    const renderGate = new Promise<void>((resolve) => {
+      releaseRender = resolve;
+    });
+    const render = vi.fn(async () => {
+      await renderGate;
+      return {
+        svg: `<svg data-testid="stale-mermaid"></svg>`,
+        bindFunctions: undefined,
+      };
+    });
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render,
+      } as never,
+    }));
+
+    const source = `\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const wrapper = mountEditablePreview(source);
+    await vi.waitFor(() => {
+      expect(render).toHaveBeenCalledOnce();
+    });
+
+    const nextSource = `\`\`\`js\nconsole.log("plain code")\n\`\`\`\n`;
+    const projection = buildEditableProjection(nextSource);
+    const { html, lineToAnchor } = renderMarkdown(nextSource);
+    await wrapper.setProps({
+      html,
+      lineToAnchor,
+      renderedSource: nextSource,
+      projection,
+      editableSyncToken: 2,
+    });
+    await nextTick();
+
+    expect(wrapper.find(".tm-readonly-code").exists()).toBe(true);
+    releaseRender();
+    await flushPromises();
+
+    expect(wrapper.find('[data-testid="stale-mermaid"]').exists()).toBe(false);
+    expect(wrapper.get(".tm-readonly-code").text()).toContain(
+      'console.log("plain code")',
+    );
     wrapper.unmount();
   });
 });
