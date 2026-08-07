@@ -30,7 +30,9 @@ export const config: Options.Testrunner = {
           command: "npm run dev -- --host 127.0.0.1",
           cwd: depsDir,
           timeoutMs: 120_000,
-          reuseExistingServer: true,
+          // Never reuse a plain `tauri:dev` / `npm run dev` server — e2e hooks
+          // require VITE_WDIO=1 at Vite boot time.
+          reuseExistingServer: false,
           env: {
             VITE_WDIO: "1",
           },

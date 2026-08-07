@@ -137,6 +137,20 @@ export function usePreviewEditBridge(options: {
     ) {
       return;
     }
+    if (
+      selection.expectedText != null &&
+      source.slice(selection.from, selection.to) !== selection.expectedText
+    ) {
+      statusMessage.value = "预览选区已变化，请重新选择后再设置格式";
+      return;
+    }
+    if (
+      selection.revision != null &&
+      selection.revision !== editor.getRevision()
+    ) {
+      statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
+      return;
+    }
 
     let change: FormatRangeChange | null = null;
     if (action.type === "toggle") {

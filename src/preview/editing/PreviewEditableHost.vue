@@ -125,7 +125,7 @@ defineExpose({
 .preview-editable-host :deep(.ProseMirror) {
   outline: none;
   min-height: 12em;
-  word-wrap: break-word;
+  /* white-space / ligatures / word-wrap come from prosemirror.css */
 }
 
 .preview-editable-host :deep(.ProseMirror-focused) {

@@ -33,20 +33,170 @@ function markToFormat(mark: string): InlineFormat | null {
   }
 }
 
+function readNativeSelection(view: EditorView): {
+  text: string;
+  range: Range;
+} | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const domSelection = window.getSelection();
+  if (
+    !domSelection ||
+    domSelection.rangeCount === 0 ||
+    domSelection.isCollapsed
+  ) {
+    return null;
+  }
+  const range = domSelection.getRangeAt(0);
+  if (!view.dom.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+  const text = domSelection.toString();
+  if (!text) {
+    return null;
+  }
+  return { text, range };
+}
+
 /**
- * Map a non-collapsed ProseMirror selection to a source-backed format selection.
- * Fail-closed: unmapped, read-only, or cross-block ranges return null.
+ * Exact DOM-structure mapping used only as a controlled consistency fallback.
+ * Walks text nodes inside the current textblock and applies Range offsets —
+ * never searches the document for matching text, and never mutates Selection.
+ */
+export function mapNativeRangeToPmExact(
+  view: EditorView,
+): { from: number; to: number; text: string } | null {
+  const native = readNativeSelection(view);
+  if (!native) {
+    return null;
+  }
+  const { range, text } = native;
+  if (range.startContainer !== range.endContainer) {
+    return null;
+  }
+  if (range.startContainer.nodeType !== Node.TEXT_NODE) {
+    return null;
+  }
+  const textNode = range.startContainer as Text;
+
+  try {
+    const anchorPos = view.state.selection.empty
+      ? view.state.selection.head
+      : view.state.selection.from;
+    const safePos = Math.min(
+      Math.max(anchorPos, 1),
+      Math.max(1, view.state.doc.content.size - 1),
+    );
+    const $pos = view.state.doc.resolve(safePos);
+    let depth = $pos.depth;
+    while (depth > 0 && !$pos.node(depth).isTextblock) {
+      depth -= 1;
+    }
+    if (depth === 0) {
+      return null;
+    }
+    const blockFrom = $pos.start(depth);
+    const blockTo = $pos.end(depth);
+
+    const blockDom = view.domAtPos(blockFrom).node;
+    const blockEl =
+      blockDom.nodeType === Node.TEXT_NODE
+        ? blockDom.parentElement
+        : blockDom instanceof Element
+          ? blockDom
+          : null;
+    if (!blockEl || !view.dom.contains(blockEl)) {
+      return null;
+    }
+
+    let base = blockFrom;
+    const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+    let current: Node | null = walker.nextNode();
+    while (current) {
+      const length = current.textContent?.length ?? 0;
+      if (current === textNode) {
+        const from = base + range.startOffset;
+        const to = base + range.endOffset;
+        if (from < blockFrom || to > blockTo || to <= from) {
+          return null;
+        }
+        const slice = view.state.doc.textBetween(from, to);
+        if (slice !== text) {
+          return null;
+        }
+        return { from, to, text: slice };
+      }
+      base += length;
+      if (base > blockTo) {
+        return null;
+      }
+      current = walker.nextNode();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export interface ResolveEditableSelectionOptions {
+  /** Current CodeMirror / source revision for the immutable snapshot. */
+  revision?: number;
+  /**
+   * When true, prefer an exact native DOM→PM mapping if it validates against
+   * document text. Never mutates the editor selection.
+   */
+  allowNativeExactFallback?: boolean;
+}
+
+/**
+ * Pure read of a non-collapsed selection into a source-backed format snapshot.
+ * Does not mutate ProseMirror state or the browser Selection.
  */
 export function resolveEditableFormatSelection(
   view: EditorView | null,
   projection: EditableProjection | null,
+  options: ResolveEditableSelectionOptions = {},
 ): PreviewFormatSelection | null {
   if (!view || !projection) {
     return null;
   }
-  const { from, to, empty } = view.state.selection;
+
+  const { from: pmSelFrom, to: pmSelTo, empty } = view.state.selection;
+  let from = pmSelFrom;
+  let to = pmSelTo;
+  let usedNativeExact = false;
+
   if (empty || to <= from) {
-    return null;
+    if (!options.allowNativeExactFallback) {
+      return null;
+    }
+    const mapped = mapNativeRangeToPmExact(view);
+    if (!mapped) {
+      return null;
+    }
+    from = mapped.from;
+    to = mapped.to;
+    usedNativeExact = true;
+  }
+
+  const pmText = view.state.doc.textBetween(from, to);
+  const native = readNativeSelection(view);
+
+  if (
+    !usedNativeExact &&
+    options.allowNativeExactFallback &&
+    native &&
+    native.text !== pmText
+  ) {
+    const mapped = mapNativeRangeToPmExact(view);
+    if (!mapped) {
+      // Native and PM disagree and exact DOM endpoints did not validate —
+      // fail closed rather than guess.
+      return null;
+    }
+    from = mapped.from;
+    to = mapped.to;
   }
 
   const resolved = projection.sourceMap.resolveEditableRange(from, to);
@@ -59,6 +209,16 @@ export function resolveEditableFormatSelection(
   );
   const sourceTo = Math.max(...resolved.slices.map((slice) => slice.sourceTo));
   if (sourceTo <= sourceFrom) {
+    return null;
+  }
+
+  const expectedText = projection.sourceMap.source.slice(sourceFrom, sourceTo);
+  if (
+    native &&
+    options.allowNativeExactFallback &&
+    expectedText !== native.text &&
+    view.state.doc.textBetween(from, to) !== native.text
+  ) {
     return null;
   }
 
@@ -126,24 +286,16 @@ export function resolveEditableFormatSelection(
 
   let rect: PreviewFormatSelection["rect"] | null = null;
   try {
-    const domSelection = typeof window !== "undefined" ? window.getSelection() : null;
-    const range =
-      domSelection &&
-      domSelection.rangeCount > 0 &&
-      !domSelection.isCollapsed &&
-      view.dom.contains(domSelection.getRangeAt(0).commonAncestorContainer)
-        ? domSelection.getRangeAt(0)
-        : null;
-    if (range && typeof range.getBoundingClientRect === "function") {
-      const native = range.getBoundingClientRect();
-      if (native && (native.width > 0 || native.height > 0)) {
+    if (native?.range && typeof native.range.getBoundingClientRect === "function") {
+      const bounds = native.range.getBoundingClientRect();
+      if (bounds && (bounds.width > 0 || bounds.height > 0)) {
         rect = {
-          top: native.top,
-          left: native.left,
-          bottom: native.bottom,
-          right: native.right,
-          width: Math.max(1, native.width),
-          height: Math.max(1, native.height),
+          top: bounds.top,
+          left: bounds.left,
+          bottom: bounds.bottom,
+          right: bounds.right,
+          width: Math.max(1, bounds.width),
+          height: Math.max(1, bounds.height),
         };
       }
     }
@@ -174,6 +326,10 @@ export function resolveEditableFormatSelection(
     sourceLine: block.sourceLine,
     active,
     rect,
+    expectedText,
+    revision: options.revision,
+    pmFrom: from,
+    pmTo: to,
   };
 }
 

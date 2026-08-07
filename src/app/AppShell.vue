@@ -160,6 +160,13 @@ const {
 
 const previewPaneApi = ref<{
   selectSourceRange?: (from: number, to: number) => boolean;
+  getFormatSelection?: () => {
+    from: number;
+    to: number;
+    expectedText?: string;
+    pmFrom?: number;
+    pmTo?: number;
+  } | null;
 } | null>(null);
 
 function setPreviewPaneRef(el: unknown) {
@@ -168,7 +175,16 @@ function setPreviewPaneRef(el: unknown) {
     el &&
     typeof (el as { selectSourceRange?: unknown }).selectSourceRange ===
       "function"
-      ? (el as { selectSourceRange: (from: number, to: number) => boolean })
+      ? (el as {
+          selectSourceRange: (from: number, to: number) => boolean;
+          getFormatSelection?: () => {
+            from: number;
+            to: number;
+            expectedText?: string;
+            pmFrom?: number;
+            pmTo?: number;
+          } | null;
+        })
       : null;
 }
 
@@ -277,6 +293,13 @@ if (import.meta.env.VITE_WDIO === "1") {
               format: "bold" | "italic" | "strike" | "code",
             ) => void;
             selectPreviewRange?: (from: number, to: number) => boolean;
+            getPreviewFormatSelection?: () => {
+              from: number;
+              to: number;
+              expectedText?: string;
+              pmFrom?: number;
+              pmTo?: number;
+            } | null;
             triggerSave?: () => void;
           };
         }
@@ -310,11 +333,15 @@ if (import.meta.env.VITE_WDIO === "1") {
               width: 72,
               height: 16,
             },
+            expectedText: preview.renderedSource.value?.slice(from, to),
           },
         });
       };
       e2e.selectPreviewRange = (from, to) => {
         return previewPaneApi.value?.selectSourceRange?.(from, to) ?? false;
+      };
+      e2e.getPreviewFormatSelection = () => {
+        return previewPaneApi.value?.getFormatSelection?.() ?? null;
       };
       e2e.triggerSave = () => {
         editBridge.flushCompositionBeforeAction();

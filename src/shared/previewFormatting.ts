@@ -75,6 +75,16 @@ export interface PreviewFormatSelection {
     width: number;
     height: number;
   };
+  /**
+   * Exact source slice captured with the selection. Format apply must refuse
+   * when `renderedSource.slice(from, to)` no longer matches.
+   */
+  expectedText?: string;
+  /** Source revision when the editable snapshot was taken. */
+  revision?: number;
+  /** Stable ProseMirror range that produced the source offsets. */
+  pmFrom?: number;
+  pmTo?: number;
 }
 
 export type PreviewFormatAction =

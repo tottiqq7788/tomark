@@ -234,13 +234,33 @@ export function createPreviewEditSession(
   /** Hold an empty editable paragraph that would otherwise collapse on rebuild. */
   let heldEmptyBlockId: string | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
-  /** Trailing-blank click clamp; reapplied on mouseup if the browser drifts. */
-  let pendingTrailingCaret: number | null = null;
+  let publishSelectionToken = 0;
 
-  const emitSelection = () => {
-    handlers.onSelectionChange?.(
-      resolveEditableFormatSelection(view, projection),
-    );
+  const readFormatSelection = (allowNativeExactFallback = false) =>
+    resolveEditableFormatSelection(view, projection, {
+      revision: handlers.getRevision(),
+      allowNativeExactFallback,
+    });
+
+  /** Publish a pure-read snapshot. Never rewrites Selection / PM state. */
+  const emitSelection = (allowNativeExactFallback = false) => {
+    handlers.onSelectionChange?.(readFormatSelection(allowNativeExactFallback));
+  };
+
+  /**
+   * After a pointer gesture settles, publish once more with the controlled
+   * native exact fallback. Still never mutates the visual selection.
+   */
+  const scheduleSettledSelectionPublish = () => {
+    const token = ++publishSelectionToken;
+    queueMicrotask(() => {
+      requestAnimationFrame(() => {
+        if (destroyed || token !== publishSelectionToken) {
+          return;
+        }
+        emitSelection(true);
+      });
+    });
   };
 
   const acceptProjection = (
@@ -513,10 +533,50 @@ export function createPreviewEditSession(
         handleDrop() {
           return true;
         },
+        handleClick(view, _pos, event) {
+          if (!(event instanceof MouseEvent) || isLocateModifier(event)) {
+            return false;
+          }
+          const caret = resolveTrailingClickCaret(view, event, projection);
+          if (caret == null) {
+            return false;
+          }
+          view.dispatch(
+            view.state.tr.setSelection(
+              TextSelection.create(view.state.doc, caret),
+            ),
+          );
+          return true;
+        },
         handleDOMEvents: {
           dragstart(_view, event) {
             event.preventDefault();
             return true;
+          },
+          copy(view, event) {
+            // Prefer native highlighted text when PM's selection is still skewed.
+            if (!(event instanceof ClipboardEvent) || !event.clipboardData) {
+              return false;
+            }
+            const native = window.getSelection()?.toString() ?? "";
+            if (!native) {
+              return false;
+            }
+            const pmText = view.state.selection.empty
+              ? ""
+              : view.state.doc.textBetween(
+                  view.state.selection.from,
+                  view.state.selection.to,
+                );
+            if (pmText === native) {
+              return false;
+            }
+            event.clipboardData.setData("text/plain", native);
+            event.preventDefault();
+            return true;
+          },
+          cut() {
+            return false;
           },
           compositionstart() {
             composing = true;
@@ -534,55 +594,11 @@ export function createPreviewEditSession(
             });
             return false;
           },
-          mousedown(view, event) {
-            if (!(event instanceof MouseEvent)) {
-              return false;
-            }
-            if (isLocateModifier(event)) {
-              pendingTrailingCaret = null;
-              return false;
-            }
-            const caret = resolveTrailingClickCaret(view, event, projection);
-            if (caret == null) {
-              pendingTrailingCaret = null;
-              return false;
-            }
-            pendingTrailingCaret = caret;
-            event.preventDefault();
-            view.dispatch(
-              view.state.tr.setSelection(
-                TextSelection.create(view.state.doc, caret),
-              ),
-            );
-            if (!view.hasFocus()) {
-              view.focus();
-            }
-            emitSelection();
-            return true;
-          },
-          mouseup(view, event) {
-            if (pendingTrailingCaret == null) {
-              return false;
-            }
-            const caret = pendingTrailingCaret;
-            pendingTrailingCaret = null;
-            if (!(event instanceof MouseEvent)) {
-              return false;
-            }
-            event.preventDefault();
-            if (
-              view.state.selection.empty &&
-              view.state.selection.head === caret
-            ) {
-              return true;
-            }
-            view.dispatch(
-              view.state.tr.setSelection(
-                TextSelection.create(view.state.doc, caret),
-              ),
-            );
-            emitSelection();
-            return true;
+          mouseup() {
+            // Drag/click gesture finished — publish a settled snapshot without
+            // mutating the browser or ProseMirror selection.
+            scheduleSettledSelectionPublish();
+            return false;
           },
           click(view, event) {
             if (!(event.target instanceof Element)) {
@@ -782,10 +798,10 @@ export function createPreviewEditSession(
   }
 
   function getFormatSelection(): PreviewFormatSelection | null {
-    return resolveEditableFormatSelection(view, projection);
+    return readFormatSelection(true);
   }
 
-  /** Prefer the ProseMirror-maintained selection; do not rewrite it from DOM. */
+  /** Pure read of the current format snapshot; never rewrites Selection. */
   function syncDomSelection(): PreviewFormatSelection | null {
     return getFormatSelection();
   }
@@ -844,14 +860,14 @@ export function createPreviewEditSession(
     isComposing: () => composing || view.composing,
     flushComposition,
     rebuild,
-    getFormatSelection: () =>
-      resolveEditableFormatSelection(view, projection),
+    getFormatSelection,
     syncDomSelection,
     setSourceSelection,
     scrollToSourceLine,
     focus: () => view.focus(),
     destroy: () => {
       destroyed = true;
+      publishSelectionToken += 1;
       if (flashTimer) {
         clearTimeout(flashTimer);
       }

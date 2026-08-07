@@ -83,6 +83,8 @@ const toolbarActive = ref<ActiveFormats>({
   ranges: {},
 });
 const currentSelection = ref<PreviewFormatSelection | null>(null);
+/** Range frozen when the toolbar is armed — survives PM/DOM drift before click. */
+const formatSelectionSnapshot = ref<PreviewFormatSelection | null>(null);
 let suppressSelectionClear = false;
 const linkEditing = ref(false);
 
@@ -135,6 +137,7 @@ function hideToolbar() {
   toolbarVisible.value = false;
   linkEditing.value = false;
   currentSelection.value = null;
+  formatSelectionSnapshot.value = null;
   toolbarActive.value = {
     bold: false,
     italic: false,
@@ -143,6 +146,25 @@ function hideToolbar() {
     link: false,
     linkHref: null,
     ranges: {},
+  };
+}
+
+function withExpectedText(
+  resolved: PreviewFormatSelection,
+): PreviewFormatSelection {
+  if (resolved.expectedText != null || props.renderedSource == null) {
+    return resolved;
+  }
+  if (
+    resolved.from < 0 ||
+    resolved.to > props.renderedSource.length ||
+    resolved.to <= resolved.from
+  ) {
+    return resolved;
+  }
+  return {
+    ...resolved,
+    expectedText: props.renderedSource.slice(resolved.from, resolved.to),
   };
 }
 
@@ -163,13 +185,20 @@ function applyResolvedSelection(resolved: PreviewFormatSelection | null) {
     hideToolbar();
     return;
   }
-  currentSelection.value = resolved;
-  toolbarActive.value = { ...resolved.active };
-  placeToolbar(resolved.rect);
+  const snapshot = withExpectedText(resolved);
+  currentSelection.value = snapshot;
+  // Freeze once armed — toolbar clicks must consume this immutable snapshot.
+  formatSelectionSnapshot.value = snapshot;
+  toolbarActive.value = { ...snapshot.active };
+  placeToolbar(snapshot.rect);
 }
 
 function onToolbarPointerDown() {
   suppressSelectionClear = true;
+  // Editable mode keeps the frozen snapshot; never re-read on toolbar press.
+  if (!useEditable.value && currentSelection.value) {
+    formatSelectionSnapshot.value = withExpectedText(currentSelection.value);
+  }
 }
 
 function onToolbarPointerUp() {
@@ -179,6 +208,8 @@ function onToolbarPointerUp() {
 }
 
 function onEditableSelectionChange(selection: PreviewFormatSelection | null) {
+  // Editable mode is a one-way flow from the edit session. Do not refresh from
+  // document selectionchange / toolbar pointerdown.
   applyResolvedSelection(selection);
 }
 
@@ -192,12 +223,8 @@ function refreshFallbackToolbarFromSelection() {
 
 function onSelectionChange() {
   try {
+    // Editable snapshots are published solely by PreviewEditableHost.
     if (useEditable.value) {
-      window.requestAnimationFrame(() => {
-        applyResolvedSelection(
-          editableHost.value?.getFormatSelection() ?? null,
-        );
-      });
       return;
     }
     refreshFallbackToolbarFromSelection();
@@ -232,13 +259,8 @@ function onScrollOrResize() {
     return;
   }
   if (useEditable.value) {
-    const resolved = editableHost.value?.getFormatSelection() ?? null;
-    if (!resolved) {
-      hideToolbar();
-      return;
-    }
-    currentSelection.value = resolved;
-    placeToolbar(resolved.rect);
+    // Keep the frozen snapshot; only re-place the toolbar from its rect.
+    placeToolbar(currentSelection.value.rect);
     return;
   }
   const resolved = resolvePreviewSelection(fallbackContainer.value);
@@ -246,8 +268,8 @@ function onScrollOrResize() {
     hideToolbar();
     return;
   }
-  currentSelection.value = resolved;
-  placeToolbar(resolved.rect);
+  currentSelection.value = withExpectedText(resolved);
+  placeToolbar(currentSelection.value.rect);
 }
 
 function onFallbackClick(event: MouseEvent) {
@@ -294,7 +316,8 @@ function onFallbackContextMenu(event: MouseEvent) {
 }
 
 function emitFormat(action: PreviewFormatAction) {
-  const selection = currentSelection.value;
+  const selection =
+    formatSelectionSnapshot.value ?? currentSelection.value;
   if (!selection) {
     return;
   }
@@ -306,8 +329,24 @@ function emitFormat(action: PreviewFormatAction) {
     hideToolbar();
     return;
   }
+  const expected =
+    selection.expectedText ??
+    props.renderedSource.slice(selection.from, selection.to);
+  if (props.renderedSource.slice(selection.from, selection.to) !== expected) {
+    // Stale snapshot — refuse and force a resync instead of formatting wrong text.
+    hideToolbar();
+    if (useEditable.value) {
+      applyResolvedSelection(editableHost.value?.getFormatSelection() ?? null);
+    } else {
+      refreshFallbackToolbarFromSelection();
+    }
+    return;
+  }
   suppressSelectionClear = true;
-  emit("format-selection", { action, selection });
+  emit("format-selection", {
+    action,
+    selection: { ...selection, expectedText: expected },
+  });
   window.requestAnimationFrame(() => {
     suppressSelectionClear = false;
     hideToolbar();
@@ -415,12 +454,24 @@ function selectSourceRange(from: number, to: number): boolean {
   return currentSelection.value != null;
 }
 
+function getFormatSelection(): PreviewFormatSelection | null {
+  if (useEditable.value) {
+    return (
+      formatSelectionSnapshot.value ??
+      editableHost.value?.getFormatSelection() ??
+      null
+    );
+  }
+  return formatSelectionSnapshot.value ?? currentSelection.value;
+}
+
 defineExpose({
   scrollToSourceLine,
   hideFormatToolbar,
   flushComposition,
   isComposing,
   selectSourceRange,
+  getFormatSelection,
 });
 
 watch(

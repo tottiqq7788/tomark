@@ -1,3 +1,10 @@
+import {
+  clickTrailingBlankAfter,
+  dragFromTrailingBlankInto,
+  dragSelectPreviewText,
+  readSelectionConsistency,
+} from "../helpers/previewSelection";
+
 describe("editable preview typing", () => {
   beforeEach(async () => {
     await browser.url("http://localhost:1420/");
@@ -304,6 +311,92 @@ describe("editable preview typing", () => {
           return content === "Hello world\n";
         }),
       { timeout: 10_000, timeoutMsg: "undo did not restore preview source" },
+    );
+  });
+
+  it("supports reverse drag and trailing-blank forward drag selection", async () => {
+    await browser.execute(() => {
+      (
+        window as unknown as {
+          __tomarkE2e: { replaceContent: (value: string) => void };
+        }
+      ).__tomarkE2e.replaceContent("Hello world today\n");
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() =>
+          Boolean(
+            document
+              .querySelector(".tm-editable-preview")
+              ?.textContent?.includes("world"),
+          ),
+        ),
+      { timeout: 10_000 },
+    );
+
+    await dragSelectPreviewText("world", { reverse: true });
+    await browser.waitUntil(
+      async () => (await readSelectionConsistency("world")).matches,
+      {
+        timeout: 5_000,
+        timeoutMsg: "reverse drag did not select world",
+      },
+    );
+
+    await dragFromTrailingBlankInto("today");
+    await browser.waitUntil(
+      async () => {
+        const native = await browser.execute(
+          () => window.getSelection()?.toString() ?? "",
+        );
+        return native.includes("today") || native.includes("day");
+      },
+      {
+        timeout: 5_000,
+        timeoutMsg: "trailing-blank drag did not establish a selection",
+      },
+    );
+  });
+
+  it("places caret at block end after a trailing-blank click", async () => {
+    await browser.execute(() => {
+      (
+        window as unknown as {
+          __tomarkE2e: { replaceContent: (value: string) => void };
+        }
+      ).__tomarkE2e.replaceContent(
+        "- 已打开文件：停止输入约 2 秒后自动保存\n- 未命名文档：用菜单落盘\n",
+      );
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() =>
+          Boolean(
+            document
+              .querySelector(".tm-editable-preview")
+              ?.textContent?.includes("自动保存"),
+          ),
+        ),
+      { timeout: 10_000 },
+    );
+
+    await clickTrailingBlankAfter("自动保存");
+    await browser.keys(["!"]);
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const content = (
+            window as unknown as { __tomarkE2e: { getContent: () => string } }
+          ).__tomarkE2e.getContent();
+          return content.includes("自动保存!");
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "trailing blank click did not insert at block end",
+      },
     );
   });
 });

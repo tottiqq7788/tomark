@@ -2,9 +2,12 @@ import type { EditorView } from "prosemirror-view";
 import type { EditableProjection } from "@/markdown/buildEditableProjection";
 
 /**
- * When the user clicks the trailing blank of a block-level line, browsers /
- * ProseMirror often resolve the caret into the *next* block. Prefer the end of
- * the block that actually owns the click box (`data-tm-source-block`).
+ * After a confirmed click (not a drag), place the caret at the end of the
+ * clicked editable block when the pointer landed in the trailing blank of that
+ * block's last visual line.
+ *
+ * Must never run during drag gestures — callers should use ProseMirror's
+ * `handleClick`, which already distinguishes clicks from drags.
  */
 export function resolveTrailingClickCaret(
   view: EditorView,
@@ -14,6 +17,19 @@ export function resolveTrailingClickCaret(
   if (event.button !== 0 || event.shiftKey) {
     return null;
   }
+
+  // Non-collapsed selections (including reverse / multi-line drags that settled
+  // without enough movement to skip handleClick) must not be rewritten.
+  if (!view.state.selection.empty) {
+    return null;
+  }
+  if (typeof window !== "undefined") {
+    const native = window.getSelection();
+    if (native && !native.isCollapsed) {
+      return null;
+    }
+  }
+
   const target = event.target;
   if (!(target instanceof Element)) {
     return null;
@@ -36,30 +52,29 @@ export function resolveTrailingClickCaret(
     return null;
   }
 
-  const hit = view.posAtCoords({
-    left: event.clientX,
-    top: event.clientY,
-  });
-  if (!hit) {
-    return null;
-  }
-
-  // Already inside this block's editable content — keep ProseMirror's result.
-  if (hit.pos >= block.contentPmFrom && hit.pos <= block.contentPmTo) {
-    return null;
-  }
-
-  // Click landed on this block's box but resolved outside it (typically the
-  // start of the following block). Clamp to the nearer content edge.
+  let endCoords: { left: number; right: number; top: number; bottom: number };
   try {
-    const endCoords = view.coordsAtPos(block.contentPmTo);
-    const startCoords = view.coordsAtPos(block.contentPmFrom);
-    const midX = (startCoords.left + endCoords.right) / 2;
-    if (event.clientX >= midX) {
-      return block.contentPmTo;
-    }
-    return block.contentPmFrom;
+    endCoords = view.coordsAtPos(block.contentPmTo);
   } catch {
-    return block.contentPmTo;
+    return null;
   }
+
+  // Restrict to the last visual line of the block.
+  const lineTop = Math.min(endCoords.top, endCoords.bottom);
+  const lineBottom = Math.max(endCoords.top, endCoords.bottom);
+  if (event.clientY < lineTop - 2 || event.clientY > lineBottom + 2) {
+    return null;
+  }
+
+  // Trailing blank is to the logical right of the content end on that line.
+  if (event.clientX < endCoords.right - 1) {
+    return null;
+  }
+
+  // Already at the desired caret — no rewrite needed.
+  if (view.state.selection.head === block.contentPmTo) {
+    return null;
+  }
+
+  return block.contentPmTo;
 }
