@@ -1,6 +1,11 @@
 #!/usr/bin/env node
+/**
+ * Keep src/assets/pdf/libhtml2realpdf.wasm in sync with the npm package.
+ * The wasm is gitignored (large binary); this script copies it when missing
+ * or when the package hash differs.
+ */
 import { createHash } from "node:crypto";
-import { readFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -9,40 +14,48 @@ const packaged = path.join(
   root,
   "deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm",
 );
-const asset = path.join(root, "src/assets/pdf/libhtml2realpdf.wasm");
+const assetDir = path.join(root, "src/assets/pdf");
+const asset = path.join(assetDir, "libhtml2realpdf.wasm");
 
 function fail(message) {
   console.error(`[check-pdf-wasm-sync] ${message}`);
   process.exit(1);
 }
 
+function sha256(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 if (!existsSync(packaged)) {
-  fail(`missing package wasm: ${packaged}`);
-}
-if (!existsSync(asset)) {
-  fail(`missing app asset wasm: ${asset}`);
-}
-
-const packagedBytes = readFileSync(packaged);
-const assetBytes = readFileSync(asset);
-
-if (packagedBytes.subarray(0, 4).toString("binary") !== "\0asm") {
-  fail("package wasm missing \\0asm magic");
-}
-if (assetBytes.subarray(0, 4).toString("binary") !== "\0asm") {
-  fail("asset wasm missing \\0asm magic");
-}
-
-const packagedHash = createHash("sha256").update(packagedBytes).digest("hex");
-const assetHash = createHash("sha256").update(assetBytes).digest("hex");
-if (packagedHash !== assetHash) {
   fail(
-    `wasm out of sync with @imggion/html2realpdf.\n` +
-      `  package: ${packagedHash}\n` +
-      `  asset:   ${assetHash}\n` +
-      `Copy with:\n` +
-      `  cp deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm src/assets/pdf/libhtml2realpdf.wasm`,
+    `missing package wasm: ${packaged}\n` +
+      `Run: cd deps && npm install --legacy-peer-deps`,
   );
 }
 
-console.log(`[check-pdf-wasm-sync] ok sha256=${assetHash}`);
+const packagedBytes = readFileSync(packaged);
+if (packagedBytes.subarray(0, 4).toString("binary") !== "\0asm") {
+  fail("package wasm missing \\0asm magic");
+}
+
+const packagedHash = sha256(packagedBytes);
+let needsCopy = !existsSync(asset);
+if (!needsCopy) {
+  const assetBytes = readFileSync(asset);
+  if (
+    assetBytes.subarray(0, 4).toString("binary") !== "\0asm" ||
+    sha256(assetBytes) !== packagedHash
+  ) {
+    needsCopy = true;
+  }
+}
+
+if (needsCopy) {
+  mkdirSync(assetDir, { recursive: true });
+  copyFileSync(packaged, asset);
+  console.log(
+    `[check-pdf-wasm-sync] copied wasm from @imggion/html2realpdf (sha256=${packagedHash})`,
+  );
+} else {
+  console.log(`[check-pdf-wasm-sync] ok sha256=${packagedHash}`);
+}

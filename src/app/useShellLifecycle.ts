@@ -97,6 +97,13 @@ export function useShellLifecycle(
             getContent: () => string;
             isDirty: () => boolean;
             preloadExportRenderers: () => Promise<void>;
+            runExportToPath: (job: {
+              format: string;
+              path: string;
+              markdown?: string;
+              fileName?: string;
+              documentPath?: string | null;
+            }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
           };
         }
       ).__tomarkE2e = {
@@ -112,6 +119,34 @@ export function useShellLifecycle(
           await Promise.all(
             (["pdf", "docx", "png"] as const).map(preloadExportRenderer),
           );
+        },
+        runExportToPath: async (job) => {
+          try {
+            if (!job?.format || !job?.path) {
+              throw new Error("runExportToPath requires format and path");
+            }
+            const { runExport } = await import("@/export/runExport");
+            const result = await runExport({
+              format: job.format as import("@/export/types").ExportFormatId,
+              markdownSource:
+                typeof job.markdown === "string"
+                  ? job.markdown
+                  : session.content.value,
+              documentPath: job.documentPath ?? null,
+              fileName: job.fileName ?? "export.md",
+              targetPath: job.path,
+              onProgress: (message) => {
+                session.statusMessage.value = message;
+              },
+            });
+            session.statusMessage.value = `已导出：${result.fileName}`;
+            return { ok: true as const, fileName: result.fileName };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            session.statusMessage.value = `导出失败：${message}`;
+            return { ok: false as const, error: message };
+          }
         },
       };
     }

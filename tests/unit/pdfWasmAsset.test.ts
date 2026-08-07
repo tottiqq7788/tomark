@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,6 +8,11 @@ const root = process.cwd();
 
 describe("pdf wasm asset", () => {
   it("keeps the copied wasm identical to the npm package and valid", () => {
+    execFileSync(process.execPath, ["scripts/check-pdf-wasm-sync.mjs"], {
+      cwd: root,
+      stdio: "pipe",
+    });
+
     const packaged = path.join(
       root,
       "deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm",

@@ -27,6 +27,7 @@ import {
   pickExportPath,
   writeExportBytes,
 } from "@/native/exportFileService";
+import { renderMermaidForExport } from "@/preview/renderMermaid";
 
 export interface RunExportOptions {
   format: ExportFormatId;
@@ -266,6 +267,7 @@ async function exportPdf(
   window.document.body.appendChild(host);
 
   try {
+    await renderMermaidForExport(host);
     await waitForImages(host);
     const article = host.querySelector(".export-root") as HTMLElement | null;
     if (!article) {
@@ -651,6 +653,7 @@ async function exportPng(
   window.document.body.appendChild(host);
 
   try {
+    await renderMermaidForExport(host);
     await waitForImages(host);
     const article = host.querySelector(".export-root") as HTMLElement | null;
     if (!article) {

@@ -4,16 +4,21 @@ Required by the app:
 
 | File | Family | Role |
 | --- | --- | --- |
-| `SourceHanSansSC-VF.ttf` | Source Han Sans SC | CJK body / fallback |
+| `SourceHanSansSC-VF.ttf` | Source Han Sans SC | CJK body / fallback (subset VF) |
 | `SourceCodePro-Regular.ttf` | Source Code Pro | Monospace code (regular) |
 | `SourceCodePro-Bold.ttf` | Source Code Pro | Monospace code (bold) |
 | `NotoSansSymbols2-Regular.ttf` | Noto Sans Symbols 2 | Misc symbols |
 | `NotoEmoji-Regular.ttf` | Noto Emoji | Monochrome emoji (variable wght) |
 
+`SourceHanSansSC-VF.ttf` is a **subset** of the upstream variable font: CJK
+Unified Ideographs (U+4E00–9FFF), CJK punctuation, kana, Latin, and common
+symbols — not the full pan-CJK release (no Hangul / Ext-A). Rebuild with
+`pyftsubset` if coverage must change.
+
 ## Download
 
 ```sh
-# Source Han Sans SC (variable TTF)
+# Source Han Sans SC (variable TTF) — then subset before committing
 curl -L -o SourceHanSansSC-VF.ttf \
   https://github.com/adobe-fonts/source-han-sans/raw/release/Variable/TTF/SourceHanSansSC-VF.ttf
 

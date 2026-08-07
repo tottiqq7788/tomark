@@ -305,6 +305,52 @@ export async function renderMermaidInRoot(
   return generation === currentMermaidGeneration();
 }
 
+/**
+ * Render Mermaid fences for export without touching the preview generation
+ * counter (so an in-flight preview render is not cancelled mid-export).
+ */
+export async function renderMermaidForExport(root: HTMLElement): Promise<void> {
+  const blocks = collectMermaidBlocks(root);
+  if (blocks.length === 0) {
+    return;
+  }
+
+  let mermaid: MermaidModule;
+  try {
+    mermaid = await getMermaid();
+  } catch (err) {
+    for (const { pre, source } of blocks) {
+      if (!pre.isConnected) {
+        continue;
+      }
+      pre.replaceWith(
+        buildErrorBlock(pre, source, `无法加载 Mermaid：${errorMessage(err)}`),
+      );
+    }
+    return;
+  }
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const { pre, source } = blocks[index];
+    if (!pre.isConnected) {
+      continue;
+    }
+    const id = `tomark-export-mermaid-${Date.now()}-${index}`;
+    try {
+      const { svg } = await mermaid.render(id, source);
+      if (!pre.isConnected) {
+        continue;
+      }
+      pre.replaceWith(buildSuccessBlock(pre, svg));
+    } catch (err) {
+      if (!pre.isConnected) {
+        continue;
+      }
+      pre.replaceWith(buildErrorBlock(pre, source, errorMessage(err)));
+    }
+  }
+}
+
 /** Bump generation so in-flight renders are discarded. */
 export function invalidateMermaidRenders(): number {
   return bumpMermaidGeneration();

@@ -1,13 +1,14 @@
 # PDF renderer WASM (from @imggion/html2realpdf)
 
-Copied from the npm package so Vite can serve it under the app origin
-(`src/` root). Loading via `@fs/.../node_modules/...` is rejected with HTTP 403
-in the Tauri WebView.
+`libhtml2realpdf.wasm` is **not** committed. Vite must serve it under the app
+origin (`src/` root); loading via `@fs/.../node_modules/...` is rejected with
+HTTP 403 in the Tauri WebView.
 
-Keep in sync with `deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm`
-when upgrading that dependency:
+After `npm install`, sync (also runs at the end of `npm run build`):
 
 ```sh
-cp deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm \
-  src/assets/pdf/libhtml2realpdf.wasm
+npm run check:pdf-wasm
 ```
+
+This copies `deps/node_modules/@imggion/html2realpdf/dist/libhtml2realpdf.wasm`
+into this directory when missing or out of date.

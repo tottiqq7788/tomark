@@ -1,5 +1,6 @@
 import markdownBodyCss from "@/preview/markdownBody.css?raw";
 import { renderMarkdown } from "@/markdown/renderMarkdown";
+import { renderMermaidForExport } from "@/preview/renderMermaid";
 import {
   EXPORT_CONTENT_WIDTH_PX,
   PDF_PAGED_CONTENT_WIDTH_MM,
@@ -163,19 +164,47 @@ export async function buildExportDocument(
     },
   );
 
+  const bodyHtml = await hydrateExportMermaid(resolved.html);
+
   const fullHtml = wrapExportHtml({
     title: options.title,
-    bodyHtml: resolved.html,
+    bodyHtml,
   });
 
   return {
     title: options.title,
-    bodyHtml: resolved.html,
+    bodyHtml,
     fullHtml,
     css: exportShellCss(),
     warnings: resolved.warnings,
     images: resolved.images,
   };
+}
+
+/** Replace mermaid fences with SVG in a connected DOM host when available. */
+async function hydrateExportMermaid(bodyHtml: string): Promise<string> {
+  if (
+    typeof window === "undefined" ||
+    !window.document?.body ||
+    !bodyHtml.includes("language-mermaid")
+  ) {
+    return bodyHtml;
+  }
+
+  const host = window.document.createElement("div");
+  host.style.cssText =
+    "position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;visibility:hidden;pointer-events:none;";
+  host.setAttribute("aria-hidden", "true");
+  host.innerHTML = bodyHtml;
+  window.document.body.appendChild(host);
+  try {
+    await renderMermaidForExport(host);
+    return host.innerHTML;
+  } catch {
+    return bodyHtml;
+  } finally {
+    host.remove();
+  }
 }
 
 export function buildHtmlAssetsBundle(
