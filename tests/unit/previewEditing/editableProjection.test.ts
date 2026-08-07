@@ -15,6 +15,21 @@ function editableSegments(source: string): ProjectionSourceSegment[] {
 }
 
 describe("editable Markdown projection", () => {
+  it("keeps declared text and atom nodes as true ProseMirror leaves", () => {
+    for (const name of [
+      "text",
+      "readonly_inline",
+      "readonly_block",
+      "hard_break",
+    ]) {
+      const type = editablePreviewSchema.nodes[name]!;
+      expect(type.isLeaf, name).toBe(true);
+      if (name !== "text") {
+        expect(type.create().nodeSize, name).toBe(1);
+      }
+    }
+  });
+
   it("parses once for both the projection and sanitized fallback", () => {
     const parsed = parseMarkdownDocument("# Hello\r\n\r\nworld\r\n");
     const projection = buildEditableProjection(parsed);

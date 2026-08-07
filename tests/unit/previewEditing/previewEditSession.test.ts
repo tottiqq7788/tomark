@@ -1,17 +1,133 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TextSelection } from "prosemirror-state";
-import { buildEditableProjection } from "@/markdown/buildEditableProjection";
-import { createPreviewEditSession } from "@/preview/editing/usePreviewEditSession";
+import {
+  buildEditableProjection,
+  type ProjectionBlock,
+} from "@/markdown/buildEditableProjection";
+import {
+  createPreviewEditSession,
+  type PreviewEditSession,
+} from "@/preview/editing/usePreviewEditSession";
 import { applySourcePatches } from "@/shared/previewEditing";
 import type { SourcePatchTransaction } from "@/shared/previewEditing";
 
 describe("createPreviewEditSession", () => {
   let host: HTMLElement | null = null;
+  let geometryCleanup: (() => void) | null = null;
 
   afterEach(() => {
+    geometryCleanup?.();
+    geometryCleanup = null;
+    vi.restoreAllMocks();
     host?.remove();
     host = null;
   });
+
+  function installSingleLinePointerGeometry(
+    session: PreviewEditSession,
+    block: ProjectionBlock,
+  ): HTMLElement {
+    const root = session.view.dom;
+    const paragraph = root.querySelector<HTMLElement>(
+      `[data-tm-source-block="${block.id}"]`,
+    )!;
+    const line = {
+      top: 100,
+      bottom: 118,
+      left: 50,
+      right: 180,
+      x: 50,
+      y: 100,
+      width: 130,
+      height: 18,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const rootRect = {
+      top: 80,
+      bottom: 220,
+      left: 40,
+      right: 540,
+      x: 40,
+      y: 80,
+      width: 500,
+      height: 140,
+      toJSON: () => ({}),
+    } as DOMRect;
+    const blockRect = {
+      top: 90,
+      bottom: 128,
+      left: 50,
+      right: 500,
+      x: 50,
+      y: 90,
+      width: 450,
+      height: 38,
+      toJSON: () => ({}),
+    } as DOMRect;
+    Object.defineProperty(root, "getBoundingClientRect", {
+      configurable: true,
+      value: () => rootRect,
+    });
+    Object.defineProperty(paragraph, "getBoundingClientRect", {
+      configurable: true,
+      value: () => blockRect,
+    });
+
+    const pointDescriptor = Object.getOwnPropertyDescriptor(
+      document,
+      "elementFromPoint",
+    );
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: () => paragraph,
+    });
+    const rangeDescriptor = Object.getOwnPropertyDescriptor(
+      Range.prototype,
+      "getClientRects",
+    );
+    Object.defineProperty(Range.prototype, "getClientRects", {
+      configurable: true,
+      value: () =>
+        Object.assign([line], {
+          item: (index: number) => (index === 0 ? line : null),
+        }) as unknown as DOMRectList,
+    });
+
+    vi.spyOn(session.view, "coordsAtPos").mockImplementation((pos) => {
+      const ratio =
+        (pos - block.contentPmFrom) /
+        Math.max(1, block.contentPmTo - block.contentPmFrom);
+      const left = 50 + Math.max(0, Math.min(1, ratio)) * 130;
+      return {
+        top: 100,
+        bottom: 118,
+        left,
+        right: left,
+      };
+    });
+    vi.spyOn(session.view, "posAtCoords").mockImplementation(({ left }) => ({
+      pos: left < 200 ? block.contentPmFrom + 5 : block.contentPmTo,
+      inside: block.pmFrom,
+    }));
+
+    geometryCleanup = () => {
+      if (pointDescriptor) {
+        Object.defineProperty(document, "elementFromPoint", pointDescriptor);
+      } else {
+        Reflect.deleteProperty(document, "elementFromPoint");
+      }
+      if (rangeDescriptor) {
+        Object.defineProperty(
+          Range.prototype,
+          "getClientRects",
+          rangeDescriptor,
+        );
+      } else {
+        Reflect.deleteProperty(Range.prototype, "getClientRects");
+      }
+    };
+    return paragraph;
+  }
 
   it("commits a typing patch through applySourceTransaction", () => {
     host = document.createElement("div");
@@ -330,6 +446,157 @@ describe("createPreviewEditSession", () => {
       projection.doc.textContent,
     );
     expect(session.isComposing()).toBe(false);
+    session.destroy();
+  });
+
+  it("keeps a jittered trailing-blank click at the resolved line end", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    const source = "Hello world today\n";
+    const projection = buildEditableProjection(source);
+    const block = projection.sourceMap.blocks[0]!;
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 0,
+      applySourceTransaction: () => ({
+        ok: false,
+        reason: "stale-revision",
+        revision: 0,
+      }),
+    });
+    const paragraph = installSingleLinePointerGeometry(session, block);
+
+    const down = new MouseEvent("mousedown", {
+      bubbles: true,
+      cancelable: true,
+      button: 0,
+      buttons: 1,
+      detail: 1,
+      clientX: 420,
+      clientY: 109,
+    });
+    paragraph.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+    expect(session.view.state.selection.head).toBe(block.contentPmTo);
+
+    document.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        cancelable: true,
+        buttons: 1,
+        clientX: 426,
+        clientY: 115,
+      }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 426,
+        clientY: 115,
+      }),
+    );
+
+    expect(session.view.state.selection.empty).toBe(true);
+    expect(session.view.state.selection.head).toBe(block.contentPmTo);
+    session.destroy();
+  });
+
+  it("extends a selection when dragging from trailing blank into text", () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    const source = "Hello world today\n";
+    const projection = buildEditableProjection(source);
+    const block = projection.sourceMap.blocks[0]!;
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 0,
+      applySourceTransaction: () => ({
+        ok: false,
+        reason: "stale-revision",
+        revision: 0,
+      }),
+    });
+    const paragraph = installSingleLinePointerGeometry(session, block);
+
+    paragraph.dispatchEvent(
+      new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        buttons: 1,
+        detail: 1,
+        clientX: 420,
+        clientY: 109,
+      }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mousemove", {
+        bubbles: true,
+        cancelable: true,
+        buttons: 1,
+        clientX: 95,
+        clientY: 109,
+      }),
+    );
+    document.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 95,
+        clientY: 109,
+      }),
+    );
+
+    expect(session.view.state.selection.empty).toBe(false);
+    expect(session.view.state.selection.anchor).toBe(block.contentPmTo);
+    expect(session.view.state.selection.head).toBe(
+      block.contentPmFrom + 5,
+    );
+    session.destroy();
+  });
+
+  it("keeps reverse selections intact through mouseup publication", async () => {
+    host = document.createElement("div");
+    document.body.appendChild(host);
+    const source = "Hello world today\n";
+    const projection = buildEditableProjection(source);
+    let published: string | null = null;
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 1,
+      applySourceTransaction: () => ({
+        ok: true,
+        value: source,
+        revision: 1,
+      }),
+      onSelectionChange: (selection) => {
+        published = selection?.expectedText ?? null;
+      },
+    });
+
+    const from = 1;
+    const to = 6;
+    session.view.dispatch(
+      session.view.state.tr.setSelection(
+        TextSelection.create(session.view.state.doc, to, from),
+      ),
+    );
+    session.view.dom.dispatchEvent(
+      new MouseEvent("mouseup", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      }),
+    );
+    await new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+
+    expect(session.view.state.selection.from).toBe(from);
+    expect(session.view.state.selection.to).toBe(to);
+    expect(published).toBe("Hello");
     session.destroy();
   });
 });

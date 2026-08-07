@@ -1,5 +1,6 @@
 import {
   dragSelectPreviewText,
+  exerciseBlankCaretRegressionScenarios,
   readSelectionConsistency,
 } from "../helpers/previewSelection";
 
@@ -74,5 +75,22 @@ describe("preview selection (native WebKit)", () => {
         }),
       { timeout: 10_000, timeoutMsg: "native WebKit bold mismatch" },
     );
+  });
+
+  it("resolves wrapped-line, margin, task-list, and jittered blank clicks", async () => {
+    const title = await $(".toolbar-title");
+    await title.waitForExist({ timeout: 60_000 });
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() =>
+          Boolean(
+            (window as unknown as { __tomarkE2e?: { replaceContent?: unknown } })
+              .__tomarkE2e?.replaceContent,
+          ),
+        ),
+      { timeout: 30_000, timeoutMsg: "e2e hook not ready" },
+    );
+
+    await exerciseBlankCaretRegressionScenarios();
   });
 });

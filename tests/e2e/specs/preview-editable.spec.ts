@@ -2,6 +2,7 @@ import {
   clickTrailingBlankAfter,
   dragFromTrailingBlankInto,
   dragSelectPreviewText,
+  exerciseBlankCaretRegressionScenarios,
   readSelectionConsistency,
 } from "../helpers/previewSelection";
 
@@ -398,5 +399,9 @@ describe("editable preview typing", () => {
         timeoutMsg: "trailing blank click did not insert at block end",
       },
     );
+  });
+
+  it("resolves wrapped-line, margin, task-list, and jittered blank clicks", async () => {
+    await exerciseBlankCaretRegressionScenarios();
   });
 });

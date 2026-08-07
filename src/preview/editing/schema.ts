@@ -251,3 +251,23 @@ const marks: Record<string, MarkSpec> = {
  */
 export const editablePreviewSchema = new Schema({ nodes, marks });
 
+/*
+ * `NodeType.isLeaf` is an identity comparison against ContentMatch.empty.
+ * During Vite dependency re-optimization / HMR, a schema can otherwise retain
+ * an equivalent empty matcher from another optimized module instance.
+ * ProseMirror then treats leaf text/atom nodes as size-2 containers, shifting
+ * every DOM caret after an inline atom (the task checkbox exposed this as a
+ * two-character drift). Materialize the schema invariant on each leaf type so
+ * it no longer depends on cross-module singleton identity.
+ */
+for (const type of Object.values(editablePreviewSchema.nodes)) {
+  if (!type.spec.content) {
+    type.inlineContent = false;
+    Object.defineProperty(type, "isLeaf", {
+      configurable: false,
+      enumerable: false,
+      value: true,
+    });
+  }
+}
+

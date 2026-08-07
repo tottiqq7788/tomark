@@ -27,7 +27,7 @@ import {
   resolveEditableFormatSelection,
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
-import { resolveTrailingClickCaret } from "./resolveTrailingClickCaret";
+import { resolvePointerCaret } from "./resolvePointerCaret";
 
 export type PreviewEditStatusKind =
   | "editing"
@@ -235,6 +235,13 @@ export function createPreviewEditSession(
   let heldEmptyBlockId: string | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   let publishSelectionToken = 0;
+  let blankPointerDrag:
+    | {
+        root: Document | ShadowRoot;
+        move: EventListener;
+        up: EventListener;
+      }
+    | null = null;
 
   const readFormatSelection = (allowNativeExactFallback = false) =>
     resolveEditableFormatSelection(view, projection, {
@@ -261,6 +268,79 @@ export function createPreviewEditSession(
         emitSelection(true);
       });
     });
+  };
+
+  const finishBlankPointerDrag = (publish = true) => {
+    const active = blankPointerDrag;
+    if (!active) {
+      return;
+    }
+    blankPointerDrag = null;
+    active.root.removeEventListener("mousemove", active.move, true);
+    active.root.removeEventListener("mouseup", active.up, true);
+    if (publish) {
+      scheduleSettledSelectionPublish();
+    }
+  };
+
+  const beginBlankPointerDrag = (anchor: number) => {
+    finishBlankPointerDrag(false);
+    const root = view.root;
+    const move: EventListener = (rawEvent) => {
+      if (!(rawEvent instanceof MouseEvent)) {
+        return;
+      }
+      if (rawEvent.buttons === 0) {
+        finishBlankPointerDrag();
+        return;
+      }
+      rawEvent.preventDefault();
+      const blank = resolvePointerCaret(
+        view,
+        rawEvent.clientX,
+        rawEvent.clientY,
+      );
+      const hit =
+        blank ??
+        view.posAtCoords({
+          left: rawEvent.clientX,
+          top: rawEvent.clientY,
+        });
+      if (!hit) {
+        return;
+      }
+      const head = Math.max(
+        0,
+        Math.min(hit.pos, view.state.doc.content.size),
+      );
+      let selection: Selection;
+      try {
+        selection = TextSelection.between(
+          view.state.doc.resolve(anchor),
+          view.state.doc.resolve(head),
+        );
+      } catch {
+        return;
+      }
+      if (
+        selection.anchor === view.state.selection.anchor &&
+        selection.head === view.state.selection.head
+      ) {
+        return;
+      }
+      view.dispatch(
+        view.state.tr.setSelection(selection).scrollIntoView(),
+      );
+    };
+    const up: EventListener = (rawEvent) => {
+      if (rawEvent instanceof MouseEvent && rawEvent.button !== 0) {
+        return;
+      }
+      finishBlankPointerDrag();
+    };
+    blankPointerDrag = { root, move, up };
+    root.addEventListener("mousemove", move, true);
+    root.addEventListener("mouseup", up, true);
   };
 
   const acceptProjection = (
@@ -533,22 +613,44 @@ export function createPreviewEditSession(
         handleDrop() {
           return true;
         },
-        handleClick(view, _pos, event) {
-          if (!(event instanceof MouseEvent) || isLocateModifier(event)) {
-            return false;
-          }
-          const caret = resolveTrailingClickCaret(view, event, projection);
-          if (caret == null) {
-            return false;
-          }
-          view.dispatch(
-            view.state.tr.setSelection(
-              TextSelection.create(view.state.doc, caret),
-            ),
-          );
-          return true;
-        },
         handleDOMEvents: {
+          mousedown(view, event) {
+            if (
+              !(event instanceof MouseEvent) ||
+              event.button !== 0 ||
+              event.shiftKey ||
+              event.detail > 1 ||
+              isLocateModifier(event) ||
+              !(event.target instanceof Element) ||
+              event.target.closest("a[href], [data-tm-readonly]")
+            ) {
+              return false;
+            }
+            const resolved = resolvePointerCaret(
+              view,
+              event.clientX,
+              event.clientY,
+            );
+            if (!resolved?.blank) {
+              return false;
+            }
+            event.preventDefault();
+            if (!view.hasFocus()) {
+              view.focus();
+            }
+            if (
+              !view.state.selection.empty ||
+              view.state.selection.head !== resolved.pos
+            ) {
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, resolved.pos),
+                ),
+              );
+            }
+            beginBlankPointerDrag(resolved.pos);
+            return true;
+          },
           dragstart(_view, event) {
             event.preventDefault();
             return true;
@@ -868,6 +970,7 @@ export function createPreviewEditSession(
     destroy: () => {
       destroyed = true;
       publishSelectionToken += 1;
+      finishBlankPointerDrag(false);
       if (flashTimer) {
         clearTimeout(flashTimer);
       }
