@@ -67,6 +67,7 @@ export interface PreviewEditSession {
   setSourceSelection: (anchor: number, head: number) => boolean;
   scrollToSourceLine: (sourceLine: number) => Promise<void>;
   focus: () => void;
+  blur: () => void;
   destroy: () => void;
 }
 
@@ -967,6 +968,7 @@ export function createPreviewEditSession(
     setSourceSelection,
     scrollToSourceLine,
     focus: () => view.focus(),
+    blur: () => view.dom.blur(),
     destroy: () => {
       destroyed = true;
       publishSelectionToken += 1;

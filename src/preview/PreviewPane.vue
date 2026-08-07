@@ -61,6 +61,7 @@ const editableHost = ref<{
   getFormatSelection: () => PreviewFormatSelection | null;
   setSourceSelection: (anchor: number, head: number) => boolean;
   focus: () => void;
+  blur: () => void;
 } | null>(null);
 
 const flashId = ref<string | null>(null);
@@ -347,6 +348,15 @@ function emitFormat(action: PreviewFormatAction) {
     action,
     selection: { ...selection, expectedText: expected },
   });
+  if (
+    useEditable.value &&
+    action.type === "toggle" &&
+    action.format === "code"
+  ) {
+    // Inline code becomes a read-only atom after projection rebuild. Blur
+    // before that rebuild so its fallback selection never paints as a caret.
+    editableHost.value?.blur();
+  }
   window.requestAnimationFrame(() => {
     suppressSelectionClear = false;
     hideToolbar();

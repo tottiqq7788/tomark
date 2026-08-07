@@ -75,6 +75,70 @@ describe("preview formatting toolbar", () => {
         }),
       { timeout: 10_000, timeoutMsg: "preview did not re-render bold" },
     );
+
+    const previewStillFocused = await browser.execute(() => {
+      const root = document.querySelector(".tm-editable-preview");
+      return root instanceof HTMLElement && document.activeElement === root;
+    });
+    expect(previewStillFocused).toBe(true);
+  });
+
+  it("removes the preview caret after applying inline code", async () => {
+    await browser.execute(() => {
+      (
+        window as unknown as {
+          __tomarkE2e: { replaceContent: (value: string) => void };
+        }
+      ).__tomarkE2e.replaceContent("Hello world today\n");
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          return Boolean(
+            document
+              .querySelector(".tm-editable-preview")
+              ?.textContent?.includes("world"),
+          );
+        }),
+      { timeout: 10_000 },
+    );
+
+    await dragSelectPreviewText("world");
+    await browser.waitUntil(
+      async () => (await readSelectionConsistency("world")).matches,
+      {
+        timeout: 5_000,
+        timeoutMsg: "inline-code selection did not settle on world",
+      },
+    );
+
+    const codeBtn = await $('[data-testid="format-code"]');
+    await codeBtn.waitForDisplayed({ timeout: 10_000 });
+    await codeBtn.click();
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const content = (
+            window as unknown as { __tomarkE2e: { getContent: () => string } }
+          ).__tomarkE2e.getContent();
+          const root = document.querySelector(".tm-editable-preview");
+          return (
+            content.includes("`world`") &&
+            Boolean(
+              root?.querySelector(
+                '.tm-readonly-inline[data-tm-readonly="inlineCode-read-only"]',
+              ),
+            ) &&
+            document.activeElement !== root
+          );
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "inline code did not apply with the preview blurred",
+      },
+    );
   });
 
   it("keeps reverse pointer-drag selections consistent for CJK text", async () => {

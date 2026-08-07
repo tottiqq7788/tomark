@@ -98,6 +98,10 @@ function focus() {
   session?.focus();
 }
 
+function blur() {
+  session?.blur();
+}
+
 defineExpose({
   scrollToSourceLine,
   hideFormatToolbar,
@@ -106,6 +110,7 @@ defineExpose({
   getFormatSelection,
   setSourceSelection,
   focus,
+  blur,
 });
 </script>
 
