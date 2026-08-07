@@ -403,4 +403,52 @@ describe("AppShell", () => {
     expect(wrapper.text()).toContain("预览内容已更新，请重新点击定位");
     wrapper.unmount();
   });
+
+  it("opens settings from the footer gear and keeps help mutually exclusive", async () => {
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const help = wrapper.get('[data-testid="status-help"]');
+    const settings = wrapper.get('[data-testid="status-settings"]');
+    expect(
+      settings.element.compareDocumentPosition(help.element) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+
+    await settings.trigger("click");
+    await flushPromises();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    expect(document.querySelector('[data-testid="settings-drawer"]')).toBeTruthy();
+
+    await help.trigger("click");
+    await flushPromises();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    await nextTick();
+    expect(
+      document
+        .querySelector('[data-testid="settings-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBeFalsy();
+    expect(
+      document
+        .querySelector('[data-testid="help-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBe(true);
+    wrapper.unmount();
+  });
 });

@@ -1,0 +1,14 @@
+[[permission]]
+identifier = "allow-atomic-write-bytes-file"
+description = "Allows atomically writing binary export files chosen through the save dialog."
+commands.allow = ["atomic_write_bytes_file"]
+
+[[permission]]
+identifier = "allow-read-export-image"
+description = "Allows reading local images relative to an already opened Markdown document for export."
+commands.allow = ["read_export_image"]
+
+[[permission]]
+identifier = "allow-write-html-export-bundle"
+description = "Allows writing an HTML export file and its sibling asset directory."
+commands.allow = ["write_html_export_bundle"]

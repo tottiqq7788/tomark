@@ -1,6 +1,7 @@
 mod atomic_write;
 mod default_app;
 mod document_io;
+mod export_io;
 mod open_file;
 mod text_codec;
 
@@ -71,6 +72,9 @@ pub fn run() {
             atomic_write::atomic_write_text_file,
             document_io::load_markdown_document,
             document_io::save_markdown_document,
+            export_io::atomic_write_bytes_file,
+            export_io::read_export_image,
+            export_io::write_html_export_bundle,
             confirm_app_exit,
             open_file::acknowledge_open_file_listener,
             default_app::request_default_markdown_app

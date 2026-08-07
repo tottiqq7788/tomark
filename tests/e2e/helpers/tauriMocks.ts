@@ -22,5 +22,19 @@ export async function mockAppIpc(options?: {
   const writeMock = await browser.tauri.mock("atomic_write_text_file");
   await writeMock.mockResolvedValue(null);
 
-  return { openMock, saveMock, messageMock, readMock, writeMock };
+  const writeBytesMock = await browser.tauri.mock("atomic_write_bytes_file");
+  await writeBytesMock.mockResolvedValue(null);
+
+  const writeHtmlBundleMock = await browser.tauri.mock("write_html_export_bundle");
+  await writeHtmlBundleMock.mockResolvedValue(null);
+
+  return {
+    openMock,
+    saveMock,
+    messageMock,
+    readMock,
+    writeMock,
+    writeBytesMock,
+    writeHtmlBundleMock,
+  };
 }

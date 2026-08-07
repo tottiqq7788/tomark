@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
+import SettingsDrawer from "@/app/SettingsDrawer.vue";
 import DefaultAppPrompt from "@/app/DefaultAppPrompt.vue";
 import type { EncodingHint } from "@/shared/types";
 import { useDocumentSession } from "./useDocumentSession";
@@ -16,6 +17,8 @@ import { usePaneLocate } from "./usePaneLocate";
 import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
 import { isMacOS } from "@/shared/isMacOS";
+
+type ActiveDrawer = "help" | "settings" | null;
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
@@ -100,13 +103,26 @@ const saveStatusLabel = computed(() => {
 });
 
 async function onReidentify(hint: EncodingHint) {
-  helpOpen.value = false;
+  activeDrawer.value = null;
   await reidentifyDocument(hint);
 }
 
 const { label: documentStatsLabel } = useDocumentStats(content);
 
-const helpOpen = ref(false);
+const activeDrawer = ref<ActiveDrawer>(null);
+const exportBusy = ref(false);
+
+function openHelp() {
+  activeDrawer.value = "help";
+}
+
+function openSettings() {
+  activeDrawer.value = "settings";
+}
+
+function closeDrawer() {
+  activeDrawer.value = null;
+}
 
 const {
   open: defaultAppPromptOpen,
@@ -119,7 +135,7 @@ const {
 } = useDefaultAppSetup();
 
 function onRequestDefaultApp() {
-  helpOpen.value = false;
+  activeDrawer.value = null;
   showDefaultAppPrompt();
 }
 
@@ -224,7 +240,11 @@ useAppShortcuts({
   openDocument,
   fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () =>
-    saving.value || dirtyDialogOpen.value || encodingDialogOpen.value,
+    saving.value ||
+    dirtyDialogOpen.value ||
+    encodingDialogOpen.value ||
+    activeDrawer.value !== null ||
+    exportBusy.value,
 });
 </script>
 
@@ -479,19 +499,50 @@ useAppShortcuts({
           class="status-help"
           aria-label="使用说明"
           title="使用说明"
-          @click="helpOpen = true"
+          data-testid="status-help"
+          @click="openHelp"
         >
           ?
+        </button>
+        <button
+          type="button"
+          class="status-settings"
+          aria-label="设置"
+          title="设置"
+          data-testid="status-settings"
+          @click="openSettings"
+        >
+          <svg class="settings-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M8 5.5A2.5 2.5 0 1 0 8 10.5 2.5 2.5 0 0 0 8 5.5Zm0 1.2a1.3 1.3 0 1 1 0 2.6 1.3 1.3 0 0 1 0-2.6Z"
+            />
+            <path
+              fill="currentColor"
+              d="M6.4 1.6h3.2l.3 1.2c.35.12.68.3.98.52l1.15-.5 1.6 1.6-.5 1.15c.22.3.4.63.52.98l1.2.3v3.2l-1.2.3c-.12.35-.3.68-.52.98l.5 1.15-1.6 1.6-1.15-.5c-.3.22-.63.4-.98.52l-.3 1.2H6.4l-.3-1.2a4.7 4.7 0 0 1-.98-.52l-1.15.5-1.6-1.6.5-1.15a4.7 4.7 0 0 1-.52-.98L1.15 9.6V6.4l1.2-.3c.12-.35.3-.68.52-.98l-.5-1.15 1.6-1.6 1.15.5c.3-.22.63-.4.98-.52l.3-1.2Zm1.6 1.2-.18.72-.1.4-.37.16c-.4.17-.76.42-1.07.74l-.28.3-.4-.05-.72-.18-.5.5.18.72.05.4-.16.37c-.17.4-.42.76-.74 1.07l-.3.28.05.4.18.72-.5.5.72.18.4.1.16.37c.17.4.42.76.74 1.07l.28.3-.05.4-.18.72.5.5.72-.18.4-.05.28.3c.31.32.67.57 1.07.74l.37.16.1.4.18.72h.72l.18-.72.1-.4.37-.16c.4-.17.76-.42 1.07-.74l.28-.3.4.05.72.18.5-.5-.18-.72-.05-.4.16-.37c.17-.4.42-.76.74-1.07l.3-.28-.05-.4-.18-.72.5-.5-.72-.18-.4-.1-.16-.37a4.3 4.3 0 0 0-.74-1.07l-.28-.3.05-.4.18-.72-.5-.5-.72.18-.4.05-.28-.3a4.3 4.3 0 0 0-1.07-.74l-.37-.16-.1-.4L8.72 2.8H8Z"
+            />
+          </svg>
         </button>
       </div>
     </footer>
 
     <HelpDrawer
-      :open="helpOpen"
+      :open="activeDrawer === 'help'"
       :can-reidentify="!!path"
-      @close="helpOpen = false"
+      @close="closeDrawer"
       @request-default-app="onRequestDefaultApp"
       @reidentify="(hint) => void onReidentify(hint)"
+    />
+
+    <SettingsDrawer
+      :open="activeDrawer === 'settings'"
+      :markdown-source="content"
+      :document-path="path"
+      :file-name="fileName"
+      :busy="exportBusy"
+      @close="closeDrawer"
+      @export-busy="(busy) => (exportBusy = busy)"
+      @status-message="(message) => (statusMessage = message)"
     />
 
     <DefaultAppPrompt
@@ -765,6 +816,7 @@ useAppShortcuts({
 }
 
 .status-help,
+.status-settings,
 .status-view-mode {
   flex-shrink: 0;
   width: 20px;
@@ -783,6 +835,7 @@ useAppShortcuts({
 }
 
 .status-help:hover,
+.status-settings:hover,
 .status-view-mode:hover {
   border-color: #93c5fd;
   color: #1d4ed8;
@@ -790,12 +843,14 @@ useAppShortcuts({
 }
 
 .status-help:focus-visible,
+.status-settings:focus-visible,
 .status-view-mode:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
 }
 
-.view-mode-icon {
+.view-mode-icon,
+.settings-icon {
   width: 14px;
   height: 14px;
   display: block;

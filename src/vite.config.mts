@@ -40,11 +40,12 @@ export default defineConfig({
     headers: {
       "Content-Security-Policy": [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-eval'",
-        `connect-src ${connectSrc}`,
+        "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'",
+        `connect-src ${connectSrc} https: http:`,
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' https: http: data: blob:",
         "font-src 'self' data:",
+        "worker-src 'self' blob:",
       ].join("; "),
     },
     hmr: host
@@ -65,7 +66,7 @@ export default defineConfig({
     target: process.env.TAURI_ENV_PLATFORM === "windows" ? "chrome105" : "safari13",
     minify: !process.env.TAURI_ENV_DEBUG ? "oxc" : false,
     sourcemap: !!process.env.TAURI_ENV_DEBUG,
-    chunkSizeWarningLimit: 500,
+    chunkSizeWarningLimit: 1200,
     rolldownOptions: {
       output: {
         chunkFileNames: "assets/[name]-[hash].js",
@@ -95,6 +96,21 @@ export default defineConfig({
               name: "tauri",
               test: /node_modules[\\/]@tauri-apps[\\/]/,
               priority: 10,
+            },
+            {
+              name: "html2canvas",
+              test: /node_modules[\\/]html2canvas[\\/]/,
+              priority: 8,
+            },
+            {
+              name: "html2realpdf",
+              test: /node_modules[\\/]@imggion[\\/]html2realpdf[\\/]/,
+              priority: 8,
+            },
+            {
+              name: "html-to-docx",
+              test: /node_modules[\\/]@turbodocx[\\/]html-to-docx[\\/]/,
+              priority: 8,
             },
           ],
         },
