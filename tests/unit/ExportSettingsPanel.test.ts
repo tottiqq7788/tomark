@@ -80,6 +80,41 @@ describe("ExportSettingsPanel", () => {
     wrapper.unmount();
   });
 
+  it("exports the document snapshot captured at click time", async () => {
+    runExport.mockResolvedValue({
+      path: "/tmp/old.html",
+      fileName: "old.html",
+      warnings: [],
+    });
+    const wrapper = mount(ExportSettingsPanel, {
+      props: {
+        markdownSource: "# old",
+        documentPath: "/notes/old.md",
+        fileName: "old.md",
+      },
+    });
+
+    await wrapper
+      .get('[data-testid="export-action-html-embedded"]')
+      .trigger("click");
+    await wrapper.setProps({
+      markdownSource: "# new",
+      documentPath: "/notes/new.md",
+      fileName: "new.md",
+    });
+    await vi.advanceTimersByTimeAsync(60);
+    await flushPromises();
+
+    expect(runExport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        markdownSource: "# old",
+        documentPath: "/notes/old.md",
+        fileName: "old.md",
+      }),
+    );
+    wrapper.unmount();
+  });
+
   it("treats cancel as a non-error status and clears busy", async () => {
     runExport.mockRejectedValue(new ExportCancelledError());
     const wrapper = mount(ExportSettingsPanel, {

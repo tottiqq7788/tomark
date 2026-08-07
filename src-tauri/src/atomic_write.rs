@@ -35,6 +35,10 @@ pub(crate) fn resolve_write_target(path: &Path) -> Result<std::path::PathBuf, At
 
 pub fn write_bytes(path: &Path, contents: &[u8]) -> Result<(), AtomicWriteError> {
     let target = resolve_write_target(path)?;
+    write_bytes_resolved(&target, contents)
+}
+
+pub(crate) fn write_bytes_resolved(target: &Path, contents: &[u8]) -> Result<(), AtomicWriteError> {
     let mut file = AtomicWriteFile::options().open(target)?;
     file.write_all(contents)?;
     file.as_file().sync_all()?;
@@ -52,7 +56,7 @@ pub fn atomic_write_text_file<R: Runtime>(
     if !app.fs_scope().is_allowed(&target) {
         return Err(AtomicWriteError::PathForbidden);
     }
-    write_bytes(&target, contents.as_bytes())
+    write_bytes_resolved(&target, contents.as_bytes())
 }
 
 #[cfg(test)]

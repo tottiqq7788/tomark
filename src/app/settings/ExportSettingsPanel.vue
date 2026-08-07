@@ -70,6 +70,11 @@ async function onExport(format: ExportFormatId) {
   if (exporting.value || props.disabled) {
     return;
   }
+  const snapshot = {
+    markdownSource: props.markdownSource,
+    documentPath: props.documentPath,
+    fileName: props.fileName,
+  };
   exporting.value = format;
   lastWarnings.value = [];
   lastMessage.value = "";
@@ -85,9 +90,7 @@ async function onExport(format: ExportFormatId) {
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
       format,
-      markdownSource: props.markdownSource,
-      documentPath: props.documentPath,
-      fileName: props.fileName,
+      ...snapshot,
       onProgress: (message) => emit("status-message", message),
     });
     lastWarnings.value = result.warnings;

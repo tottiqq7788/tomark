@@ -50,12 +50,7 @@ fn matches_allowed_dev_url(url: &Url, allowed_dev_url: Option<&Url>) -> bool {
 fn navigation_guard<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("navigation-guard")
         .on_navigation(|webview, url| {
-            let allowed_dev_url = webview
-                .app_handle()
-                .config()
-                .build
-                .dev_url
-                .as_ref();
+            let allowed_dev_url = webview.app_handle().config().build.dev_url.as_ref();
             is_app_entry_url(url, cfg!(debug_assertions), allowed_dev_url)
         })
         .build()
@@ -131,26 +126,24 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building tomark");
 
-    app.run(|app_handle, event| {
-        match &event {
-            #[cfg(any(target_os = "macos", target_os = "ios"))]
-            tauri::RunEvent::Opened { urls } => {
-                let files = urls
-                    .iter()
-                    .filter_map(|url| url.to_file_path().ok())
-                    .collect::<Vec<_>>();
-                open_file::deliver_open_paths(app_handle, files);
-            }
-            tauri::RunEvent::ExitRequested { api, .. } => {
-                let exit_confirmed = APP_EXIT_CONFIRMED.swap(false, Ordering::SeqCst);
-                let has_windows = !app_handle.webview_windows().is_empty();
-                if should_prevent_app_exit(exit_confirmed, has_windows) {
-                    api.prevent_exit();
-                    let _ = app_handle.emit(APP_EXIT_REQUESTED_EVENT, ());
-                }
-            }
-            _ => {}
+    app.run(|app_handle, event| match &event {
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        tauri::RunEvent::Opened { urls } => {
+            let files = urls
+                .iter()
+                .filter_map(|url| url.to_file_path().ok())
+                .collect::<Vec<_>>();
+            open_file::deliver_open_paths(app_handle, files);
         }
+        tauri::RunEvent::ExitRequested { api, .. } => {
+            let exit_confirmed = APP_EXIT_CONFIRMED.swap(false, Ordering::SeqCst);
+            let has_windows = !app_handle.webview_windows().is_empty();
+            if should_prevent_app_exit(exit_confirmed, has_windows) {
+                api.prevent_exit();
+                let _ = app_handle.emit(APP_EXIT_REQUESTED_EVENT, ());
+            }
+        }
+        _ => {}
     });
 }
 

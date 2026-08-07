@@ -70,4 +70,22 @@ describe("AppTopDrawer", () => {
     expect(wrapper.emitted("close")?.length).toBe(1);
     wrapper.unmount();
   });
+
+  it("makes retained content inert and suppresses stale parent-driven closes", async () => {
+    const wrapper = mount(AppTopDrawer, {
+      props: { open: true, title: "测试" },
+      slots: { default: '<button data-testid="inside">inside</button>' },
+      attachTo: document.body,
+    });
+    await flushOpenAnimation();
+
+    await wrapper.setProps({ open: false });
+    await nextTick();
+    expect(overlay()?.hasAttribute("inert")).toBe(true);
+    finishCloseTransition();
+    await flushPromises();
+    expect(wrapper.emitted("close")).toBeUndefined();
+
+    wrapper.unmount();
+  });
 });

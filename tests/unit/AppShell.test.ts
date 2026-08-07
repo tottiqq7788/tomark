@@ -553,6 +553,21 @@ describe("AppShell", () => {
         .querySelector('[data-testid="help-overlay"]')
         ?.classList.contains("is-shown"),
     ).toBe(true);
+
+    document
+      .querySelector('[data-testid="settings-drawer"]')
+      ?.dispatchEvent(
+        new TransitionEvent("transitionend", {
+          propertyName: "transform",
+          bubbles: true,
+        }),
+      );
+    await flushPromises();
+    expect(
+      document
+        .querySelector('[data-testid="help-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBe(true);
     wrapper.unmount();
   });
 

@@ -27,7 +27,7 @@ describe("paged PDF DOM preparation", () => {
     const root = document.createElement("article");
     root.innerHTML = `
       <p><img src="data:image/png;base64,aaa" alt="chart"></p>
-      <p>图注：示例图例</p>
+      <p>图注：<strong>示例</strong><a href="https://example.com">图例</a></p>
       <pre>short()\n</pre>
       <table><thead><tr><th>A</th></tr></thead><tbody><tr><td>1</td></tr></tbody></table>
     `;
@@ -37,6 +37,8 @@ describe("paged PDF DOM preparation", () => {
     expect(figure).toBeTruthy();
     expect(figure?.querySelector("img")).toBeTruthy();
     expect(figure?.querySelector("figcaption")?.textContent).toContain("图注");
+    expect(figure?.querySelector("figcaption strong")?.textContent).toBe("示例");
+    expect(figure?.querySelector("figcaption a")?.textContent).toBe("图例");
     expect(root.querySelector("pre")?.classList.contains("pdf-atomic")).toBe(true);
     expect(root.querySelector("table")?.classList.contains("pdf-flow")).toBe(true);
   });

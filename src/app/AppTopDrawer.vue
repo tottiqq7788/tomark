@@ -188,11 +188,16 @@ watch(
     }
     if (shown.value) {
       requestClose();
+      // The parent already changed `open` to false; a delayed transition event
+      // must not emit another close that could dismiss a newly opened drawer.
+      closeEmitted = true;
       return;
     }
     // Closed before the open rAF ran — drop pending open without emitting.
+    clearCloseFallback();
     cancelOpenFrame();
     closing = false;
+    closeEmitted = true;
     unbindKeydown();
     releaseTrap();
   },
@@ -239,6 +244,7 @@ defineExpose({ requestClose });
       class="top-drawer-overlay"
       :class="{ 'is-shown': shown }"
       :aria-hidden="shown ? 'false' : 'true'"
+      :inert="shown ? undefined : true"
       role="presentation"
       :data-testid="`${testIdPrefix}-overlay`"
       @click.self="requestClose"

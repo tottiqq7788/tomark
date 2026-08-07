@@ -309,25 +309,28 @@ export async function renderMermaidInRoot(
  * Render Mermaid fences for export without touching the preview generation
  * counter (so an in-flight preview render is not cancelled mid-export).
  */
-export async function renderMermaidForExport(root: HTMLElement): Promise<void> {
+export async function renderMermaidForExport(
+  root: HTMLElement,
+): Promise<string[]> {
   const blocks = collectMermaidBlocks(root);
   if (blocks.length === 0) {
-    return;
+    return [];
   }
 
+  const failures: string[] = [];
   let mermaid: MermaidModule;
   try {
     mermaid = await getMermaid();
   } catch (err) {
+    const message = `无法加载 Mermaid：${errorMessage(err)}`;
     for (const { pre, source } of blocks) {
       if (!pre.isConnected) {
         continue;
       }
-      pre.replaceWith(
-        buildErrorBlock(pre, source, `无法加载 Mermaid：${errorMessage(err)}`),
-      );
+      pre.replaceWith(buildErrorBlock(pre, source, message));
+      failures.push(message);
     }
-    return;
+    return failures;
   }
 
   for (let index = 0; index < blocks.length; index += 1) {
@@ -346,9 +349,12 @@ export async function renderMermaidForExport(root: HTMLElement): Promise<void> {
       if (!pre.isConnected) {
         continue;
       }
-      pre.replaceWith(buildErrorBlock(pre, source, errorMessage(err)));
+      const message = errorMessage(err);
+      pre.replaceWith(buildErrorBlock(pre, source, message));
+      failures.push(message);
     }
   }
+  return failures;
 }
 
 /** Bump generation so in-flight renders are discarded. */

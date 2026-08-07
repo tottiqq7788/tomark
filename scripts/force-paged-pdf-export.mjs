@@ -18,7 +18,10 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const useSmoke = process.argv.includes("--smoke");
-const fixture = useSmoke
+const useMermaid = process.argv.includes("--mermaid");
+const fixture = useMermaid
+  ? "# Mermaid PDF\n\n```mermaid\ngraph TD\nA[中文]-->B[Done]\n```\n"
+  : useSmoke
   ? "# Force 分页 PDF\n\n你好 tomark。包含中文与符号：😀\n\n- a\n- b\n"
   : readFileSync(
       path.join(root, "tests/fixtures/export-paged-pdf.md"),
@@ -39,7 +42,11 @@ const job = {
   format: "pdf-paged",
   path: outPath,
   markdown: fixture,
-  fileName: useSmoke ? "force-smoke.md" : "export-paged-pdf.md",
+  fileName: useMermaid
+    ? "force-mermaid.md"
+    : useSmoke
+      ? "force-smoke.md"
+      : "export-paged-pdf.md",
 };
 writeFileSync(jobPath, JSON.stringify(job), "utf8");
 console.log(`Wrote job → ${jobPath}`);

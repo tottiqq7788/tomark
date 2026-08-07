@@ -89,6 +89,16 @@ export function useShellLifecycle(
 
   onMounted(async () => {
     if (import.meta.env.VITE_WDIO === "1") {
+      const writeE2eExportResult = async (payload: unknown) => {
+        try {
+          const { invokeTauri } = await import("@/native/tauriRuntime");
+          await invokeTauri("write_force_export_result", {
+            payload: JSON.stringify(payload),
+          });
+        } catch {
+          // The export result itself remains authoritative if diagnostics fail.
+        }
+      };
       (
         window as unknown as {
           __tomarkE2e?: {
@@ -121,6 +131,7 @@ export function useShellLifecycle(
           );
         },
         runExportToPath: async (job) => {
+          let lastProgress = "尚未开始";
           try {
             if (!job?.format || !job?.path) {
               throw new Error("runExportToPath requires format and path");
@@ -136,16 +147,25 @@ export function useShellLifecycle(
               fileName: job.fileName ?? "export.md",
               targetPath: job.path,
               onProgress: (message) => {
+                lastProgress = message;
                 session.statusMessage.value = message;
               },
             });
             session.statusMessage.value = `已导出：${result.fileName}`;
-            return { ok: true as const, fileName: result.fileName };
+            const hookResult = {
+              ok: true as const,
+              fileName: result.fileName,
+            };
+            await writeE2eExportResult(hookResult);
+            return hookResult;
           } catch (error) {
-            const message =
-              error instanceof Error ? error.message : String(error);
+            const message = `${
+              error instanceof Error ? error.message : String(error)
+            }（最后进度：${lastProgress}）`;
             session.statusMessage.value = `导出失败：${message}`;
-            return { ok: false as const, error: message };
+            const hookResult = { ok: false as const, error: message };
+            await writeE2eExportResult(hookResult);
+            return hookResult;
           }
         },
       };

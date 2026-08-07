@@ -185,7 +185,10 @@ mod tests {
         );
 
         let url = url::Url::from_file_path("/tmp/note.md").unwrap();
-        assert_eq!(parse_path_arg(url.as_str()), Some(PathBuf::from("/tmp/note.md")));
+        assert_eq!(
+            parse_path_arg(url.as_str()),
+            Some(PathBuf::from("/tmp/note.md"))
+        );
         assert!(parse_path_arg("https://example.com/a.md").is_none());
     }
 
@@ -197,12 +200,8 @@ mod tests {
         fs::write(&md, "# hi").unwrap();
         fs::write(&other, "x").unwrap();
 
-        let paths = collect_markdown_paths(vec![
-            md.clone(),
-            other,
-            md.clone(),
-            dir.join("missing.md"),
-        ]);
+        let paths =
+            collect_markdown_paths(vec![md.clone(), other, md.clone(), dir.join("missing.md")]);
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0], md.canonicalize().unwrap());
 

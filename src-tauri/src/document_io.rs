@@ -182,10 +182,7 @@ fn meta_from_format(format: &DocumentFormatDto) -> EncodingMeta {
     }
 }
 
-fn format_from_decoded(
-    meta: EncodingMeta,
-    line_ending: &str,
-) -> DocumentFormatDto {
+fn format_from_decoded(meta: EncodingMeta, line_ending: &str) -> DocumentFormatDto {
     DocumentFormatDto {
         line_ending: line_ending.to_string(),
         has_bom: meta.has_bom,
@@ -260,11 +257,8 @@ mod tests {
     use std::fs;
 
     fn temp_dir(name: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "tomark-doc-io-{}-{}",
-            name,
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("tomark-doc-io-{}-{}", name, std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir

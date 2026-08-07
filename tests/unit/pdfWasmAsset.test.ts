@@ -7,6 +7,17 @@ import { describe, expect, it } from "vitest";
 const root = process.cwd();
 
 describe("pdf wasm asset", () => {
+  it("syncs the ignored wasm before both dev and production builds", () => {
+    const packageJson = JSON.parse(
+      readFileSync(path.join(root, "deps/package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    expect(packageJson.scripts?.predev).toBe("npm run check:pdf-wasm");
+    expect(packageJson.scripts?.prebuild).toBe("npm run check:pdf-wasm");
+    expect(packageJson.scripts?.build).not.toContain(
+      "check-pdf-wasm-sync.mjs",
+    );
+  });
+
   it("keeps the copied wasm identical to the npm package and valid", () => {
     execFileSync(process.execPath, ["scripts/check-pdf-wasm-sync.mjs"], {
       cwd: root,

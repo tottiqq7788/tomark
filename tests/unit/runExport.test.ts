@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const pickExportPath = vi.fn();
 const writeHtmlAssetBundle = vi.fn();
@@ -38,6 +38,10 @@ vi.mock("html2canvas", () => ({
 }));
 
 const fontsDir = path.join(process.cwd(), "src/assets/fonts");
+const originalImageDecode = Object.getOwnPropertyDescriptor(
+  HTMLImageElement.prototype,
+  "decode",
+);
 const fontFiles: Record<string, ArrayBuffer> = {
   "SourceCodePro-Regular.ttf": toArrayBuffer("SourceCodePro-Regular.ttf"),
   "SourceCodePro-Bold.ttf": toArrayBuffer("SourceCodePro-Bold.ttf"),
@@ -64,6 +68,10 @@ function installFontFetchMock() {
 
 describe("runExport generators", () => {
   beforeEach(async () => {
+    Object.defineProperty(HTMLImageElement.prototype, "decode", {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    });
     pickExportPath.mockReset();
     writeHtmlAssetBundle.mockReset();
     writeExportBytes.mockReset();
@@ -81,6 +89,18 @@ describe("runExport generators", () => {
     vi.resetModules();
     const mod = await import("@/export/runExport");
     mod.resetExportFontCache();
+  });
+
+  afterEach(() => {
+    if (originalImageDecode) {
+      Object.defineProperty(
+        HTMLImageElement.prototype,
+        "decode",
+        originalImageDecode,
+      );
+    } else {
+      delete (HTMLImageElement.prototype as { decode?: unknown }).decode;
+    }
   });
 
   it("exports embedded html bytes", async () => {
@@ -110,7 +130,7 @@ describe("runExport generators", () => {
   });
 
   it("writes html asset bundles with rewritten relative images", async () => {
-    pickExportPath.mockResolvedValue("/tmp/note.html");
+    pickExportPath.mockResolvedValue("/tmp/renamed.html");
     writeHtmlAssetBundle.mockResolvedValue(undefined);
     const { runExport } = await import("@/export/runExport");
     const result = await runExport({
@@ -120,15 +140,15 @@ describe("runExport generators", () => {
       documentPath: null,
       fileName: "note.md",
     });
-    expect(result.path).toBe("/tmp/note.html");
+    expect(result.path).toBe("/tmp/renamed.html");
     expect(writeHtmlAssetBundle).toHaveBeenCalledWith(
       expect.objectContaining({
-        htmlPath: "/tmp/note.html",
-        assetsDirName: "note_files",
+        htmlPath: "/tmp/renamed.html",
+        assetsDirName: "renamed_files",
       }),
     );
     const htmlContent = writeHtmlAssetBundle.mock.calls[0][0].htmlContent as string;
-    expect(htmlContent).toContain('src="note_files/');
+    expect(htmlContent).toContain('src="renamed_files/');
   });
 
   it("treats cancelled asset html path as cancel", async () => {
@@ -179,6 +199,8 @@ describe("runExport generators", () => {
     expect(renderMock).toHaveBeenCalledWith(
       expect.any(HTMLElement),
       expect.objectContaining({
+        fallback: "rasterize-subtree",
+        signal: expect.any(AbortSignal),
         page: expect.objectContaining({
           unit: "px",
           margin: 0,
@@ -220,7 +242,8 @@ describe("runExport generators", () => {
       expect.objectContaining({
         mediaType: "print",
         layoutContext: "page",
-        fallback: "error",
+        fallback: "rasterize-subtree",
+        signal: expect.any(AbortSignal),
         page: expect.objectContaining({
           format: "a4",
           orientation: "portrait",

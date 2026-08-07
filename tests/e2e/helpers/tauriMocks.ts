@@ -19,9 +19,6 @@ export async function mockAppIpc(options?: {
   const readMock = await browser.tauri.mock("plugin:fs|read_text_file");
   await readMock.mockResolvedValue(openContent);
 
-  const writeMock = await browser.tauri.mock("save_markdown_document");
-  await writeMock.mockResolvedValue(null);
-
   const saveDocumentMock = await browser.tauri.mock("save_markdown_document");
   await saveDocumentMock.mockResolvedValue(null);
 
@@ -33,7 +30,7 @@ export async function mockAppIpc(options?: {
 
   const readExportImageMock = await browser.tauri.mock("read_export_image");
   await readExportImageMock.mockResolvedValue({
-    bytes: [0x89, 0x50, 0x4e, 0x47],
+    contentsBase64: "iVBORw==",
     mimeType: "image/png",
     extension: "png",
   });
@@ -43,7 +40,6 @@ export async function mockAppIpc(options?: {
     saveMock,
     messageMock,
     readMock,
-    writeMock,
     saveDocumentMock,
     writeBytesMock,
     writeHtmlBundleMock,

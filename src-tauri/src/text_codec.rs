@@ -236,10 +236,7 @@ fn map_chardet(encoding: &'static Encoding, bytes: &[u8]) -> Option<TextEncoding
     // Other single-byte Latin encodings from chardetng are treated as Windows-1252
     // for document editing, since that covers the common Western Markdown corpus.
     let name = encoding.name();
-    if name.starts_with("windows-125")
-        || name.starts_with("ISO-8859-")
-        || name == "macintosh"
-    {
+    if name.starts_with("windows-125") || name.starts_with("ISO-8859-") || name == "macintosh" {
         return Some(TextEncodingId::Windows1252);
     }
     if encoding == GBK || encoding == GB18030 {
@@ -275,10 +272,7 @@ fn hint_encoding(hint: EncodingHint) -> Option<TextEncodingId> {
     }
 }
 
-pub fn detect_and_decode(
-    bytes: &[u8],
-    hint: EncodingHint,
-) -> Result<DecodedText, CodecError> {
+pub fn detect_and_decode(bytes: &[u8], hint: EncodingHint) -> Result<DecodedText, CodecError> {
     // BOM paths are certain and must run before NUL/binary checks (UTF-16 uses NULs).
     if bytes.starts_with(&[0xef, 0xbb, 0xbf]) {
         let (body, _) = strip_utf8_bom(bytes);
@@ -349,11 +343,9 @@ pub fn detect_and_decode(
             TextEncodingId::Utf16Be => {
                 decode_utf16(bytes, false).ok_or(CodecError::DecodeFailed)?
             }
-            TextEncodingId::Utf8 => {
-                std::str::from_utf8(bytes)
-                    .map_err(|_| CodecError::DecodeFailed)?
-                    .to_string()
-            }
+            TextEncodingId::Utf8 => std::str::from_utf8(bytes)
+                .map_err(|_| CodecError::DecodeFailed)?
+                .to_string(),
             other => strict_decode_legacy(other, bytes)?,
         };
         return Ok(DecodedText {
@@ -382,8 +374,7 @@ pub fn detect_and_decode(
         });
     }
 
-    let mut detector =
-        chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
+    let mut detector = chardetng::EncodingDetector::new(chardetng::Iso2022JpDetection::Deny);
     detector.feed(bytes, true);
     let guessed = detector.guess(None, chardetng::Utf8Detection::Deny);
     let encoding = map_chardet(guessed, bytes)
@@ -510,8 +501,11 @@ mod tests {
         let decoded = detect_and_decode(bytes, EncodingHint::Auto).unwrap();
         assert!(decoded.text.contains('—'));
         assert_eq!(decoded.meta.encoding, TextEncodingId::Windows1252);
-        let encoded = encode_text(&decoded.text.replace("\r\n", "\n").replace('\n', "\r\n"), &decoded.meta)
-            .unwrap();
+        let encoded = encode_text(
+            &decoded.text.replace("\r\n", "\n").replace('\n', "\r\n"),
+            &decoded.meta,
+        )
+        .unwrap();
         assert_eq!(encoded, bytes);
     }
 
@@ -586,7 +580,11 @@ mod tests {
     #[test]
     fn big5_shift_jis_euc_kr_roundtrips() {
         let cases = [
-            (TextEncodingId::Big5, EncodingHint::TraditionalChinese, "繁體中文\n"),
+            (
+                TextEncodingId::Big5,
+                EncodingHint::TraditionalChinese,
+                "繁體中文\n",
+            ),
             (TextEncodingId::ShiftJis, EncodingHint::Japanese, "日本語\n"),
             (TextEncodingId::EucKr, EncodingHint::Korean, "한국어\n"),
         ];

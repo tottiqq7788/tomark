@@ -28,6 +28,7 @@ import {
   writeExportBytes,
 } from "@/native/exportFileService";
 import { renderMermaidForExport } from "@/preview/renderMermaid";
+import { Buffer as BrowserBuffer } from "buffer";
 
 export interface RunExportOptions {
   format: ExportFormatId;
@@ -175,11 +176,18 @@ async function exportAssetsHtml(
     documentPath: options.documentPath,
     embedImages: false,
   });
-  const bundle = buildHtmlAssetsBundle(document, baseName);
   const htmlPath = await resolveExportTargetPath(options, {
-    defaultPath: bundle.htmlPathSuggestedName,
+    defaultPath: suggestName(options.fileName, "html"),
     filters: [{ name: "HTML", extensions: ["html", "htm"] }],
   });
+  const outputFileName = fileNameFromPath(htmlPath);
+  const extensionIndex = outputFileName.lastIndexOf(".");
+  const outputBaseName =
+    extensionIndex > 0 &&
+    /^html?$/i.test(outputFileName.slice(extensionIndex + 1))
+      ? outputFileName.slice(0, extensionIndex)
+      : outputFileName || baseName;
+  const bundle = buildHtmlAssetsBundle(document, outputBaseName);
   await writeHtmlAssetBundle({
     htmlPath,
     htmlContent: bundle.htmlContent,
@@ -268,7 +276,8 @@ async function exportPdf(
 
   try {
     await renderMermaidForExport(host);
-    await waitForImages(host);
+    await rasterizeMermaidDiagrams(host, false);
+    await waitForExportImages(host);
     const article = host.querySelector(".export-root") as HTMLElement | null;
     if (!article) {
       throw new ExportFailedError("无法构建 PDF 导出节点");
@@ -292,9 +301,10 @@ async function exportPdf(
     await yieldToUi();
     const { createRenderer } = await loadPdfRenderer();
     const wasmUrl = resolvePdfWasmUrl();
+    const execution = pdfExecutionBackend();
     const renderer = await createRenderer({
       fonts,
-      execution: "main",
+      execution,
       wasmUrl,
     });
     try {
@@ -302,13 +312,22 @@ async function exportPdf(
         layout === "paged"
           ? buildPagedPdfRenderOptions(title)
           : buildLongPdfRenderOptions(title, article);
-      const pdf = await withTimeout(
-        renderer.render(article, renderOptions),
-        layout === "paged" ? 120_000 : 90_000,
-        layout === "paged"
-          ? "分页 PDF 渲染超时（可能是 WebView 布局卡住）。请重试；若仍失败请反馈。"
-          : "长页 PDF 渲染超时。请重试；若仍失败请反馈。",
-      );
+      const renderController = new AbortController();
+      const renderPromise = renderer.render(article, {
+        ...renderOptions,
+        signal: renderController.signal,
+      });
+      const pdf =
+        execution === "worker"
+          ? await withTimeout(
+              renderPromise,
+              layout === "paged" ? 120_000 : 90_000,
+              layout === "paged"
+                ? "分页 PDF 渲染超时（可能是 WebView 布局卡住）。请重试；若仍失败请反馈。"
+                : "长页 PDF 渲染超时。请重试；若仍失败请反馈。",
+              () => renderController.abort(),
+            )
+          : await renderPromise;
       try {
         if (layout === "long" && pdf.pageCount !== 1) {
           throw new ExportFailedError(
@@ -319,6 +338,15 @@ async function exportPdf(
           throw new ExportFailedError("PDF 分页导出未生成任何页面。");
         }
         const bytes = pdf.toUint8Array();
+        const rasterizedCount = (pdf.diagnostics ?? []).filter(
+          (diagnostic) => diagnostic.fallback === "rasterize-subtree",
+        ).length;
+        const notes = [
+          layout === "paged" ? `共 ${pdf.pageCount} 页（A4 矢量分页）。` : "",
+          rasterizedCount > 0
+            ? `${rasterizedCount} 个不受支持的图形子树已栅格化。`
+            : "",
+        ].filter(Boolean);
         reportProgress(options, "正在写入文件…");
         await yieldToUi();
         await writeExportBytes(targetPath, bytes);
@@ -326,8 +354,7 @@ async function exportPdf(
           path: targetPath,
           fileName: fileNameFromPath(targetPath),
           warnings: exportDoc.warnings,
-          note:
-            layout === "paged" ? `共 ${pdf.pageCount} 页（A4 矢量分页）。` : undefined,
+          note: notes.length > 0 ? notes.join(" ") : undefined,
         };
       } finally {
         pdf.dispose();
@@ -342,6 +369,13 @@ async function exportPdf(
   }
 }
 
+function pdfExecutionBackend(): "worker" | "main" {
+  const userAgent = window.navigator.userAgent;
+  const isWebKit = /AppleWebKit/i.test(userAgent);
+  const isChromium = /(Chrome|Chromium|Edg)\//i.test(userAgent);
+  return isWebKit && !isChromium ? "main" : "worker";
+}
+
 /** Let Vue paint status-bar updates before the next heavy synchronous stretch. */
 function yieldToUi(): Promise<void> {
   return new Promise((resolve) => {
@@ -353,9 +387,11 @@ function withTimeout<T>(
   promise: Promise<T>,
   ms: number,
   message: string,
+  onTimeout?: () => void,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => {
+      onTimeout?.();
       reject(new ExportFailedError(message));
     }, ms);
     promise.then(
@@ -380,7 +416,7 @@ function buildLongPdfRenderOptions(title: string, article: HTMLElement) {
   return {
     cssProfile: "web" as const,
     unsupportedCss: "warn" as const,
-    fallback: "error" as const,
+    fallback: "rasterize-subtree" as const,
     page: {
       format: [widthPx, heightPx] as [number, number],
       unit: "px" as const,
@@ -397,7 +433,7 @@ function buildPagedPdfRenderOptions(title: string) {
   return {
     cssProfile: "web" as const,
     unsupportedCss: "warn" as const,
-    fallback: "error" as const,
+    fallback: "rasterize-subtree" as const,
     mediaType: "print" as const,
     layoutContext: "page" as const,
     viewport: {
@@ -498,7 +534,9 @@ function wrapStandaloneImages(root: HTMLElement): void {
       (next.textContent ?? "").trim().length < 160
     ) {
       const caption = window.document.createElement("figcaption");
-      caption.textContent = (next.textContent ?? "").trim();
+      while (next.firstChild) {
+        caption.appendChild(next.firstChild);
+      }
       next.remove();
       figure.appendChild(caption);
     }
@@ -594,12 +632,17 @@ async function exportDocx(
     documentPath: options.documentPath,
     embedImages: true,
   });
+  const docxBodyHtml = await rasterizeMermaidForDocx(exportDoc.bodyHtml);
   const fullHtml = wrapExportHtml({
     title,
-    bodyHtml: exportDoc.bodyHtml,
+    bodyHtml: docxBodyHtml,
     css: exportShellCss(),
   });
 
+  const bufferGlobal = globalThis as typeof globalThis & {
+    Buffer?: typeof BrowserBuffer;
+  };
+  bufferGlobal.Buffer ??= BrowserBuffer;
   const HTMLtoDOCX = (await loadDocxRenderer()).default;
   const result = await HTMLtoDOCX(fullHtml, null, {
     title,
@@ -628,6 +671,80 @@ async function exportDocx(
   };
 }
 
+async function rasterizeMermaidForDocx(bodyHtml: string): Promise<string> {
+  if (!bodyHtml.includes('data-mermaid="1"')) {
+    return bodyHtml;
+  }
+
+  const host = window.document.createElement("div");
+  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${EXPORT_CONTENT_WIDTH_PX}px;background:#fff;pointer-events:none;`;
+  host.innerHTML = bodyHtml;
+  window.document.body.appendChild(host);
+  try {
+    await rasterizeMermaidDiagrams(host, true);
+    return host.innerHTML;
+  } finally {
+    host.remove();
+  }
+}
+
+async function rasterizeMermaidDiagrams(
+  root: HTMLElement,
+  wrapInParagraph: boolean,
+): Promise<void> {
+  const diagrams = Array.from(
+    root.querySelectorAll<HTMLElement>(".mermaid-diagram[data-mermaid='1']"),
+  );
+  if (diagrams.length === 0) {
+    return;
+  }
+
+  const previousVisibility = root.style.visibility;
+  const previousLeft = root.style.left;
+  root.style.visibility = "visible";
+  root.style.left = "-100000px";
+  try {
+    const html2canvas = (await loadPngRenderer()).default;
+    for (const diagram of diagrams) {
+      const canvas = await html2canvas(diagram, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+      if (canvas.width < 1 || canvas.height < 1) {
+        throw new Error("图表画布尺寸为零");
+      }
+      const dataUrl = canvas.toDataURL("image/png");
+      if (!dataUrl.startsWith("data:image/png;base64,")) {
+        throw new Error("图表 PNG 编码失败");
+      }
+
+      const image = window.document.createElement("img");
+      image.src = dataUrl;
+      image.alt = diagram.textContent?.trim() || "Mermaid diagram";
+      image.width = Math.max(1, Math.round(canvas.width / 2));
+      image.height = Math.max(1, Math.round(canvas.height / 2));
+      image.style.maxWidth = "100%";
+      image.style.height = "auto";
+      if (wrapInParagraph) {
+        const paragraph = window.document.createElement("p");
+        paragraph.appendChild(image);
+        diagram.replaceWith(paragraph);
+      } else {
+        image.className = "mermaid-diagram-rasterized";
+        diagram.replaceWith(image);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ExportFailedError(`无法栅格化 Mermaid 图表：${message}`);
+  } finally {
+    root.style.visibility = previousVisibility;
+    root.style.left = previousLeft;
+  }
+}
+
 async function exportPng(
   options: RunExportOptions,
   title: string,
@@ -648,13 +765,13 @@ async function exportPng(
 
   const host = window.document.createElement("div");
   host.style.cssText =
-    "position:fixed;left:-100000px;top:0;width:920px;background:#fff;pointer-events:none;opacity:0;";
+    "position:fixed;left:-100000px;top:0;width:920px;background:#fff;pointer-events:none;";
   host.innerHTML = `<style>${exportDoc.css}</style><article class="markdown-body export-root">${exportDoc.bodyHtml}</article>`;
   window.document.body.appendChild(host);
 
   try {
     await renderMermaidForExport(host);
-    await waitForImages(host);
+    await waitForExportImages(host);
     const article = host.querySelector(".export-root") as HTMLElement | null;
     if (!article) {
       throw new ExportFailedError("无法构建 PNG 导出节点");
@@ -739,7 +856,10 @@ async function normalizeGeneratedBytes(result: unknown): Promise<Uint8Array | nu
   return null;
 }
 
-function waitForImages(root: HTMLElement): Promise<void> {
+export function waitForExportImages(
+  root: HTMLElement,
+  timeoutMs = 10_000,
+): Promise<void> {
   const images = Array.from(root.querySelectorAll("img"));
   return Promise.all(
     images.map(
@@ -750,20 +870,25 @@ function waitForImages(root: HTMLElement): Promise<void> {
             return;
           }
           let settled = false;
+          let timer = 0;
           const done = () => {
             if (settled) {
               return;
             }
             settled = true;
+            window.clearTimeout(timer);
+            img.removeEventListener("load", done);
+            img.removeEventListener("error", done);
             resolve();
           };
           img.addEventListener("load", done, { once: true });
           img.addEventListener("error", done, { once: true });
-          // jsdom (and some WebViews) may never fire load/error for data URLs.
           if (typeof img.decode === "function") {
             void img.decode().then(done, done);
           }
-          setTimeout(done, 50);
+          // Some WebViews never settle malformed data URLs. Keep export bounded,
+          // but do not race valid multi-megabyte image decoding after 50 ms.
+          timer = window.setTimeout(done, timeoutMs);
         }),
     ),
   ).then(() => undefined);

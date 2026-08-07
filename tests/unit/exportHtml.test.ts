@@ -59,4 +59,31 @@ describe("export html builders", () => {
     expect(bundle.htmlContent).toContain('src="demo_files/demo-01.png"');
     expect(bundle.htmlContent).not.toContain('src="images/a.png"');
   });
+
+  it("preserves legal output punctuation without replacement-string expansion", () => {
+    const document: BuiltExportDocument = {
+      title: "draft",
+      bodyHtml: '<p><img src="images/a.png" alt="a"></p>',
+      fullHtml: "",
+      css: "",
+      warnings: [],
+      images: [
+        {
+          originalSrc: "images/a.png",
+          dataUrl: "data:image/png;base64,aaa",
+          extension: "png",
+          bytes: new Uint8Array([1]),
+          assetName: "draft-01.png",
+        },
+      ],
+    };
+
+    const bundle = buildHtmlAssetsBundle(document, "draft..$&");
+
+    expect(bundle.assetsDirName).toBe("draft..$&_files");
+    expect(bundle.htmlContent).toContain(
+      'src="draft..$&amp;_files/draft-01.png"',
+    );
+    expect(bundle.htmlContent).not.toContain('src="<img');
+  });
 });

@@ -6,6 +6,7 @@ import type {
 import { invokeTauri } from "@/native/tauriRuntime";
 
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const REMOTE_IMAGE_TIMEOUT_MS = 20_000;
 const ALLOWED_EXTENSIONS = new Set([
   "png",
   "jpg",
@@ -24,7 +25,7 @@ interface ResolveImagesOptions {
 }
 
 interface NativeImagePayload {
-  bytes: number[];
+  contentsBase64: string;
   mimeType: string;
   extension: string;
 }
@@ -54,10 +55,12 @@ export async function resolveImagesInHtml(
         nextHtml = replaceImgSrc(nextHtml, src, entry.dataUrl);
       }
     } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
       warnings.push({
         src,
-        reason: error instanceof Error ? error.message : String(error),
+        reason,
       });
+      nextHtml = replaceFailedImage(nextHtml, src, reason);
     }
   }
 
@@ -67,6 +70,20 @@ export async function resolveImagesInHtml(
 function collectImageSources(html: string): string[] {
   const found: string[] = [];
   const seen = new Set<string>();
+  if (typeof document !== "undefined") {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    for (const image of template.content.querySelectorAll("img[src]")) {
+      const src = image.getAttribute("src")?.trim();
+      if (!src || seen.has(src)) {
+        continue;
+      }
+      seen.add(src);
+      found.push(src);
+    }
+    return found;
+  }
+
   const re = /<img\b[^>]*\bsrc=["']([^"']+)["']/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(html)) !== null) {
@@ -112,34 +129,49 @@ async function resolveOneImage(
 async function fetchRemoteImage(
   src: string,
 ): Promise<Omit<ResolvedImage, "assetName">> {
-  const response = await fetch(src);
-  if (!response.ok) {
-    throw new Error(`网络图片下载失败（HTTP ${response.status}）`);
-  }
-  const buffer = new Uint8Array(await response.arrayBuffer());
-  if (buffer.byteLength === 0) {
-    throw new Error("网络图片为空");
-  }
-  if (buffer.byteLength > MAX_IMAGE_BYTES) {
-    throw new Error("图片超过 8MB 限制");
-  }
-  const mimeType = normalizeMime(
-    response.headers.get("content-type") ?? guessMimeFromPath(src),
+  const controller = new AbortController();
+  const timer = globalThis.setTimeout(
+    () => controller.abort(),
+    REMOTE_IMAGE_TIMEOUT_MS,
   );
-  const extension = extensionFromMime(mimeType, src);
-  return {
-    originalSrc: src,
-    dataUrl: bytesToDataUrl(buffer, mimeType),
-    extension,
-    bytes: buffer,
-  };
+  try {
+    const response = await fetch(src, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`网络图片下载失败（HTTP ${response.status}）`);
+    }
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    if (buffer.byteLength === 0) {
+      throw new Error("网络图片为空");
+    }
+    if (buffer.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error("图片超过 8MB 限制");
+    }
+    const mimeType = normalizeMime(
+      response.headers.get("content-type") ?? guessMimeFromPath(src),
+    );
+    const extension = extensionFromMime(mimeType, src);
+    return {
+      originalSrc: src,
+      dataUrl: bytesToDataUrl(buffer, mimeType),
+      extension,
+      bytes: buffer,
+    };
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("网络图片下载超时（20 秒）");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timer);
+  }
 }
 
 async function readLocalImage(
   documentPath: string,
   relativeSrc: string,
 ): Promise<Omit<ResolvedImage, "assetName">> {
-  const extension = extensionFromPath(relativeSrc);
+  const decodedSrc = decodeLocalImageReference(relativeSrc);
+  const extension = extensionFromPath(decodedSrc);
   if (!ALLOWED_EXTENSIONS.has(extension)) {
     throw new Error(`不支持的图片类型：.${extension || "?"}`);
   }
@@ -147,14 +179,14 @@ async function readLocalImage(
   try {
     const payload = await invokeTauri<NativeImagePayload>("read_export_image", {
       documentPath,
-      relativePath: relativeSrc,
+      relativePath: decodedSrc,
       maxBytes: MAX_IMAGE_BYTES,
     });
-    const bytes = Uint8Array.from(payload.bytes);
+    const bytes = base64ToBytes(payload.contentsBase64);
     const mimeType = normalizeMime(payload.mimeType);
     return {
       originalSrc: relativeSrc,
-      dataUrl: bytesToDataUrl(bytes, mimeType),
+      dataUrl: `data:${mimeType};base64,${payload.contentsBase64}`,
       extension: payload.extension || extension,
       bytes,
     };
@@ -166,33 +198,103 @@ async function readLocalImage(
 }
 
 function parseDataUrl(src: string): { bytes?: Uint8Array; extension: string } {
+  if (src.length > Math.ceil((MAX_IMAGE_BYTES * 4) / 3) + 1024) {
+    throw new Error("图片超过 8MB 限制");
+  }
   const match = /^data:([^;,]+)?(;base64)?,(.*)$/i.exec(src);
   if (!match) {
-    return { extension: "png" };
+    throw new Error("图片 data URL 无效");
   }
   const mime = normalizeMime(match[1] || "image/png");
   const extension = extensionFromMime(mime, "image.png");
   if (match[2] && match[3]) {
+    let binary: string;
     try {
-      const binary = atob(match[3]);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i += 1) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-      return { bytes, extension };
+      binary = atob(match[3]);
     } catch {
-      return { extension };
+      throw new Error("图片 data URL Base64 无效");
     }
+    if (binary.length > MAX_IMAGE_BYTES) {
+      throw new Error("图片超过 8MB 限制");
+    }
+    if (binary.length === 0) {
+      throw new Error("图片为空");
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return { bytes, extension };
   }
-  return { extension };
+  try {
+    const bytes = new TextEncoder().encode(
+      decodeURIComponent(match[3] ?? ""),
+    );
+    if (bytes.byteLength > MAX_IMAGE_BYTES) {
+      throw new Error("图片超过 8MB 限制");
+    }
+    if (bytes.byteLength === 0) {
+      throw new Error("图片为空");
+    }
+    return { bytes, extension };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("8MB")) {
+      throw error;
+    }
+    throw new Error("图片 data URL 编码无效");
+  }
 }
 
 function replaceImgSrc(html: string, from: string, to: string): string {
+  if (typeof document !== "undefined") {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    for (const image of template.content.querySelectorAll("img[src]")) {
+      if (image.getAttribute("src")?.trim() === from) {
+        image.setAttribute("src", to);
+      }
+    }
+    return template.innerHTML;
+  }
+
   const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return html.replace(
     new RegExp(`(<img\\b[^>]*\\bsrc=["'])${escaped}(["'])`, "gi"),
-    `$1${to}$2`,
+    (_match, prefix: string, suffix: string) => `${prefix}${to}${suffix}`,
   );
+}
+
+function replaceFailedImage(
+  html: string,
+  src: string,
+  reason: string,
+): string {
+  if (typeof document === "undefined") {
+    return html;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  for (const image of template.content.querySelectorAll("img[src]")) {
+    if (image.getAttribute("src")?.trim() !== src) {
+      continue;
+    }
+    const fallback = document.createElement("span");
+    fallback.className = "export-image-warning";
+    fallback.title = reason;
+    const alt = image.getAttribute("alt")?.trim();
+    fallback.textContent = alt ? `图片未嵌入：${alt}` : "图片未能嵌入";
+    image.replaceWith(fallback);
+  }
+  return template.innerHTML;
+}
+
+function decodeLocalImageReference(src: string): string {
+  const pathOnly = src.split(/[?#]/, 1)[0] ?? "";
+  try {
+    return decodeURIComponent(pathOnly);
+  } catch {
+    throw new Error("本地图片路径包含无效的 URL 编码");
+  }
 }
 
 function sanitizeAssetBase(value: string): string {
@@ -265,4 +367,13 @@ function bytesToDataUrl(bytes: Uint8Array, mimeType: string): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
   }
   return `data:${mimeType};base64,${btoa(binary)}`;
+}
+
+function base64ToBytes(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
 }

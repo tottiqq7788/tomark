@@ -126,8 +126,10 @@ function openSettings() {
   activeDrawer.value = "settings";
 }
 
-function closeDrawer() {
-  activeDrawer.value = null;
+function closeDrawer(expected: Exclude<ActiveDrawer, null>) {
+  if (activeDrawer.value === expected) {
+    activeDrawer.value = null;
+  }
 }
 
 /** Close settings before native save dialog so focus trap cannot block it. */
@@ -690,7 +692,7 @@ useAppShortcuts({
     <HelpDrawer
       :open="activeDrawer === 'help'"
       :can-reidentify="!!path"
-      @close="closeDrawer"
+      @close="closeDrawer('help')"
       @request-default-app="onRequestDefaultApp"
       @reidentify="(hint) => void onReidentify(hint)"
     />
@@ -701,7 +703,7 @@ useAppShortcuts({
       :document-path="path"
       :file-name="fileName"
       :busy="exportBusy"
-      @close="closeDrawer"
+      @close="closeDrawer('settings')"
       @export-busy="onExportBusy"
       @status-message="(message) => (statusMessage = message)"
     />

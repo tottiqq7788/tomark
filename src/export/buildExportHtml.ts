@@ -3,6 +3,7 @@ import { renderMarkdown } from "@/markdown/renderMarkdown";
 import { renderMermaidForExport } from "@/preview/renderMermaid";
 import {
   EXPORT_CONTENT_WIDTH_PX,
+  ExportFailedError,
   PDF_PAGED_CONTENT_WIDTH_MM,
   type BuiltExportDocument,
   type ExportDocumentOptions,
@@ -56,6 +57,15 @@ export function exportShellCss(): string {
 .export-root img {
   max-width: 100%;
   height: auto;
+}
+
+.export-image-warning {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px dashed #d1d5db;
+  border-radius: 4px;
+  color: #6b7280;
+  font-size: 0.9em;
 }
 `;
 }
@@ -192,16 +202,18 @@ async function hydrateExportMermaid(bodyHtml: string): Promise<string> {
   }
 
   const host = window.document.createElement("div");
-  host.style.cssText =
-    "position:fixed;left:0;top:0;width:1px;height:1px;overflow:hidden;visibility:hidden;pointer-events:none;";
+  host.style.cssText = `position:fixed;left:0;top:0;width:${EXPORT_CONTENT_WIDTH_PX}px;overflow:hidden;visibility:hidden;pointer-events:none;`;
   host.setAttribute("aria-hidden", "true");
   host.innerHTML = bodyHtml;
   window.document.body.appendChild(host);
   try {
-    await renderMermaidForExport(host);
+    const failures = await renderMermaidForExport(host);
+    if (failures.length > 0) {
+      throw new ExportFailedError(
+        `Mermaid 图表渲染失败：${failures[0]}`,
+      );
+    }
     return host.innerHTML;
-  } catch {
-    return bodyHtml;
   } finally {
     host.remove();
   }
@@ -239,10 +251,21 @@ export function buildHtmlAssetsBundle(
 }
 
 function replaceImgSrc(html: string, from: string, to: string): string {
+  if (typeof document !== "undefined") {
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    for (const image of template.content.querySelectorAll("img[src]")) {
+      if (image.getAttribute("src")?.trim() === from) {
+        image.setAttribute("src", to);
+      }
+    }
+    return template.innerHTML;
+  }
+
   const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return html.replace(
     new RegExp(`(<img\\b[^>]*\\bsrc=["'])${escaped}(["'])`, "gi"),
-    `$1${to}$2`,
+    (_match, prefix: string, suffix: string) => `${prefix}${to}${suffix}`,
   );
 }
 
