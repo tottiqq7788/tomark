@@ -60,8 +60,24 @@ vi.mock("@tauri-apps/api/event", () => ({
   listen: vi.fn(async () => vi.fn()),
 }));
 
+const menuMocks = vi.hoisted(() => {
+  let lastHandlers: { isBlocked?: () => boolean } | null = null;
+  return {
+    getLastHandlers: () => lastHandlers,
+    installAppMenu: vi.fn(async (handlers: { isBlocked?: () => boolean }) => {
+      lastHandlers = handlers;
+      return vi.fn();
+    }),
+    reset: () => {
+      lastHandlers = null;
+      // cleared below after mock is created
+    },
+  };
+});
+
 vi.mock("@/app/useAppMenu", () => ({
-  installAppMenu: vi.fn(async () => vi.fn()),
+  installAppMenu: (...args: unknown[]) =>
+    menuMocks.installAppMenu(...(args as [{ isBlocked?: () => boolean }])),
 }));
 
 const platformMocks = vi.hoisted(() => ({
@@ -167,10 +183,13 @@ const PaneStub = defineComponent({
 });
 
 import AppShell from "@/app/AppShell.vue";
+import SettingsDrawer from "@/app/SettingsDrawer.vue";
 
 describe("AppShell", () => {
   beforeEach(() => {
     tauriMocks.reset();
+    menuMocks.installAppMenu.mockClear();
+    menuMocks.reset();
     platformMocks.isMacOS.mockReturnValue(false);
     dirty.value = false;
     dirtyDialogOpen.value = false;
@@ -486,6 +505,96 @@ describe("AppShell", () => {
 
     expect(applyFormatChange).not.toHaveBeenCalled();
     expect(wrapper.text()).toContain("预览内容已更新，请重新选择后再设置格式");
+    wrapper.unmount();
+  });
+
+  it("opens settings from the footer gear and keeps help mutually exclusive", async () => {
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const help = wrapper.get('[data-testid="status-help"]');
+    const settings = wrapper.get('[data-testid="status-settings"]');
+    expect(
+      settings.element.compareDocumentPosition(help.element) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+
+    await settings.trigger("click");
+    await flushPromises();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    expect(document.querySelector('[data-testid="settings-drawer"]')).toBeTruthy();
+
+    await help.trigger("click");
+    await flushPromises();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    await nextTick();
+    expect(
+      document
+        .querySelector('[data-testid="settings-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBeFalsy();
+    expect(
+      document
+        .querySelector('[data-testid="help-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBe(true);
+    wrapper.unmount();
+  });
+
+  it("blocks native file menu while settings are open or export is busy", async () => {
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const handlers = menuMocks.getLastHandlers();
+    expect(handlers?.isBlocked).toBeTypeOf("function");
+    expect(handlers!.isBlocked!()).toBe(false);
+
+    await wrapper.get('[data-testid="status-settings"]').trigger("click");
+    await flushPromises();
+    await nextTick();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+    await nextTick();
+    expect(handlers!.isBlocked!()).toBe(true);
+
+    const settingsDrawer = wrapper.findComponent(SettingsDrawer);
+    settingsDrawer.vm.$emit("close");
+    await flushPromises();
+    await nextTick();
+    expect(handlers!.isBlocked!()).toBe(false);
+
+    settingsDrawer.vm.$emit("export-busy", true);
+    await nextTick();
+    expect(handlers!.isBlocked!()).toBe(true);
+
+    settingsDrawer.vm.$emit("export-busy", false);
+    await nextTick();
+    expect(handlers!.isBlocked!()).toBe(false);
     wrapper.unmount();
   });
 });

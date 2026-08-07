@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
 import HelpDrawer from "@/app/HelpDrawer.vue";
+import SettingsDrawer from "@/app/SettingsDrawer.vue";
 import DefaultAppPrompt from "@/app/DefaultAppPrompt.vue";
 import type { EncodingHint } from "@/shared/types";
 import { useDocumentSession } from "./useDocumentSession";
@@ -17,6 +18,8 @@ import { usePaneLocate } from "./usePaneLocate";
 import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
 import { isMacOS } from "@/shared/isMacOS";
+
+type ActiveDrawer = "help" | "settings" | null;
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
@@ -106,13 +109,34 @@ const saveStatusLabel = computed(() => {
 });
 
 async function onReidentify(hint: EncodingHint) {
-  helpOpen.value = false;
+  activeDrawer.value = null;
   await reidentifyDocument(hint);
 }
 
 const { label: documentStatsLabel } = useDocumentStats(content);
 
-const helpOpen = ref(false);
+const activeDrawer = ref<ActiveDrawer>(null);
+const exportBusy = ref(false);
+
+function openHelp() {
+  activeDrawer.value = "help";
+}
+
+function openSettings() {
+  activeDrawer.value = "settings";
+}
+
+function closeDrawer() {
+  activeDrawer.value = null;
+}
+
+/** Close settings before native save dialog so focus trap cannot block it. */
+function onExportBusy(busy: boolean) {
+  exportBusy.value = busy;
+  if (busy) {
+    activeDrawer.value = null;
+  }
+}
 
 const {
   open: defaultAppPromptOpen,
@@ -125,7 +149,7 @@ const {
 } = useDefaultAppSetup();
 
 function onRequestDefaultApp() {
-  helpOpen.value = false;
+  activeDrawer.value = null;
   showDefaultAppPrompt();
 }
 
@@ -234,6 +258,9 @@ const { fileOpsViaMenu } = useShellLifecycle(
     dispose,
   },
   preview,
+  {
+    isBlocked: () => activeDrawer.value !== null || exportBusy.value,
+  },
 );
 
 function onSplitterKeydown(event: KeyboardEvent) {
@@ -366,7 +393,11 @@ useAppShortcuts({
   beforeAction: () => editBridge.flushCompositionBeforeAction(),
   fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () =>
-    saving.value || dirtyDialogOpen.value || encodingDialogOpen.value,
+    saving.value ||
+    dirtyDialogOpen.value ||
+    encodingDialogOpen.value ||
+    activeDrawer.value !== null ||
+    exportBusy.value,
 });
 </script>
 
@@ -631,19 +662,48 @@ useAppShortcuts({
           class="status-help"
           aria-label="使用说明"
           title="使用说明"
-          @click="helpOpen = true"
+          data-testid="status-help"
+          @click="openHelp"
         >
           ?
+        </button>
+        <button
+          type="button"
+          class="status-settings"
+          aria-label="设置"
+          title="设置"
+          data-testid="status-settings"
+          @click="openSettings"
+        >
+          <svg class="settings-icon" viewBox="0 0 16 16" aria-hidden="true">
+            <!-- Compact 6-tooth gear; evenodd cutout stays sharp at 14px -->
+            <path
+              fill="currentColor"
+              fill-rule="evenodd"
+              d="M8.7 1.4c.25 0 .48.16.56.4l.24.9c.44.14.84.36 1.2.64l.86-.38c.23-.1.5-.03.66.17l.58 1c.15.24.1.55-.1.72l-.74.62c.2.4.34.84.4 1.3l.94.22c.26.06.44.3.44.56v1.16c0 .26-.18.5-.44.56l-.94.22a4.1 4.1 0 0 1-.4 1.3l.74.62c.2.17.25.48.1.72l-.58 1c-.16.2-.43.27-.66.17l-.86-.38c-.36.28-.76.5-1.2.64l-.24.9a.6.6 0 0 1-.56.4H7.3a.6.6 0 0 1-.56-.4l-.24-.9a4.1 4.1 0 0 1-1.2-.64l-.86.38c-.23.1-.5.03-.66-.17l-.58-1a.6.6 0 0 1 .1-.72l.74-.62a4.1 4.1 0 0 1-.4-1.3l-.94-.22A.6.6 0 0 1 1.4 8.58V7.42c0-.26.18-.5.44-.56l.94-.22c.06-.46.2-.9.4-1.3l-.74-.62a.6.6 0 0 1-.1-.72l.58-1c.16-.2.43-.27.66-.17l.86.38c.36-.28.76-.5 1.2-.64l.24-.9a.6.6 0 0 1 .56-.4h1.4ZM8 5.85a2.15 2.15 0 1 0 0 4.3 2.15 2.15 0 0 0 0-4.3Z"
+            />
+          </svg>
         </button>
       </div>
     </footer>
 
     <HelpDrawer
-      :open="helpOpen"
+      :open="activeDrawer === 'help'"
       :can-reidentify="!!path"
-      @close="helpOpen = false"
+      @close="closeDrawer"
       @request-default-app="onRequestDefaultApp"
       @reidentify="(hint) => void onReidentify(hint)"
+    />
+
+    <SettingsDrawer
+      :open="activeDrawer === 'settings'"
+      :markdown-source="content"
+      :document-path="path"
+      :file-name="fileName"
+      :busy="exportBusy"
+      @close="closeDrawer"
+      @export-busy="onExportBusy"
+      @status-message="(message) => (statusMessage = message)"
     />
 
     <DefaultAppPrompt
@@ -917,6 +977,7 @@ useAppShortcuts({
 }
 
 .status-help,
+.status-settings,
 .status-view-mode {
   flex-shrink: 0;
   width: 20px;
@@ -935,6 +996,7 @@ useAppShortcuts({
 }
 
 .status-help:hover,
+.status-settings:hover,
 .status-view-mode:hover {
   border-color: #93c5fd;
   color: #1d4ed8;
@@ -942,12 +1004,14 @@ useAppShortcuts({
 }
 
 .status-help:focus-visible,
+.status-settings:focus-visible,
 .status-view-mode:focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 1px;
 }
 
-.view-mode-icon {
+.view-mode-icon,
+.settings-icon {
   width: 14px;
   height: 14px;
   display: block;

@@ -12,9 +12,13 @@ import {
 } from "./parseMarkdownDocument";
 import type { RenderResult } from "@/shared/types";
 
+export type RenderMarkdownMode = "preview" | "export";
+
 export function renderMarkdown(
   input: string | ParsedMarkdownDocument,
+  options?: { mode?: RenderMarkdownMode },
 ): RenderResult {
+  const mode = options?.mode ?? "preview";
   const parsed =
     typeof input === "string" ? parseMarkdownDocument(input) : input;
   const source = parsed.source;
@@ -23,15 +27,20 @@ export function renderMarkdown(
   const processor = unified()
     .use(remarkRehype, { allowDangerousHtml: false })
     .use(() => (tree: HastRoot) => {
-      anchors = attachAnchors(tree);
-      attachSourceRanges(tree);
+      if (mode === "preview") {
+        anchors = attachAnchors(tree);
+        attachSourceRanges(tree);
+      }
     })
     .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeStringify);
 
   const tree = processor.runSync(parsed.tree);
   const html = String(processor.stringify(tree));
-  const lineToAnchor = buildLineAnchorMap(source, anchors);
+  const lineToAnchor =
+    mode === "preview"
+      ? buildLineAnchorMap(source, anchors)
+      : new Map();
 
   return { html, lineToAnchor, anchors };
 }

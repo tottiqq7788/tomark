@@ -13,7 +13,7 @@ async function flushOpenAnimation() {
 }
 
 function overlay() {
-  return document.querySelector(".help-overlay");
+  return document.querySelector('[data-testid="help-overlay"]');
 }
 
 function drawer() {

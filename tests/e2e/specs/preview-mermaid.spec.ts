@@ -61,7 +61,7 @@ async function setEditorContent(content: string) {
 
 describe("mermaid preview", () => {
   beforeEach(async () => {
-    await browser.url("http://localhost:1420/");
+    await browser.url("/");
     await mockAppIpc();
     await $(".toolbar-title").waitForExist({ timeout: 30_000 });
     await $(".cm-content").waitForExist({ timeout: 30_000 });

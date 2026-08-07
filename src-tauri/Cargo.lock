@@ -4143,9 +4143,10 @@ dependencies = [
 
 [[package]]
 name = "tomark"
-version = "2.1.2"
+version = "3.0.0"
 dependencies = [
  "atomic-write-file",
+ "base64 0.22.1",
  "block2",
  "chardetng",
  "encoding_rs",

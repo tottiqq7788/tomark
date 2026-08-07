@@ -10,6 +10,7 @@ export const config: Options.Testrunner = {
   specs: [
     "./specs/window-close.spec.ts",
     "./specs/preview-selection-native.spec.ts",
+    "./specs/native-export.spec.ts",
   ],
   maxInstances: 1,
   framework: "mocha",

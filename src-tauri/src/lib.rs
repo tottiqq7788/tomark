@@ -1,6 +1,7 @@
 mod atomic_write;
 mod default_app;
 mod document_io;
+mod export_io;
 mod open_file;
 mod text_codec;
 
@@ -11,24 +12,52 @@ use tauri::{Emitter, Manager, Runtime, Url};
 const APP_EXIT_REQUESTED_EVENT: &str = "tomark-app-exit-requested";
 static APP_EXIT_CONFIRMED: AtomicBool = AtomicBool::new(false);
 
-fn is_app_entry_url(url: &Url, is_dev: bool) -> bool {
+fn is_app_entry_url(url: &Url, is_dev: bool, allowed_dev_url: Option<&Url>) -> bool {
+    // WKWebView may briefly land on about:blank before the app entry URL.
+    // html2realpdf print/viewport snapshots also mount inert about:srcdoc iframes.
+    if url.scheme() == "about" {
+        return matches!(url.path(), "" | "blank" | "srcdoc");
+    }
+
     if !matches!(url.path(), "" | "/" | "/index.html") {
         return false;
     }
 
     match url.scheme() {
-        "tauri" => url.host_str() == Some("localhost"),
-        "http" | "https" if url.host_str() == Some("tauri.localhost") => true,
-        "http" if is_dev => {
-            matches!(url.host_str(), Some("localhost" | "127.0.0.1")) && url.port() == Some(1420)
+        "tauri" | "asset" => url.host_str() == Some("localhost"),
+        "http" | "https"
+            if matches!(url.host_str(), Some("tauri.localhost" | "asset.localhost")) =>
+        {
+            true
         }
+        "http" | "https" if is_dev => matches_allowed_dev_url(url, allowed_dev_url),
         _ => false,
     }
 }
 
+fn matches_allowed_dev_url(url: &Url, allowed_dev_url: Option<&Url>) -> bool {
+    let Some(allowed) = allowed_dev_url else {
+        return false;
+    };
+    if allowed.scheme() != "http" && allowed.scheme() != "https" {
+        return false;
+    }
+    url.scheme() == allowed.scheme()
+        && url.host_str() == allowed.host_str()
+        && url.port_or_known_default() == allowed.port_or_known_default()
+}
+
 fn navigation_guard<R: Runtime>() -> tauri::plugin::TauriPlugin<R> {
     tauri::plugin::Builder::new("navigation-guard")
-        .on_navigation(|_webview, url| is_app_entry_url(url, cfg!(debug_assertions)))
+        .on_navigation(|webview, url| {
+            let allowed_dev_url = webview
+                .app_handle()
+                .config()
+                .build
+                .dev_url
+                .as_ref();
+            is_app_entry_url(url, cfg!(debug_assertions), allowed_dev_url)
+        })
         .build()
 }
 
@@ -71,6 +100,12 @@ pub fn run() {
             atomic_write::atomic_write_text_file,
             document_io::load_markdown_document,
             document_io::save_markdown_document,
+            export_io::atomic_write_bytes_file,
+            export_io::read_export_image,
+            export_io::write_html_export_bundle,
+            export_io::poll_force_export_job,
+            export_io::write_force_export_result,
+            export_io::write_force_export_status,
             confirm_app_exit,
             open_file::acknowledge_open_file_listener,
             default_app::request_default_markdown_app
@@ -127,34 +162,81 @@ mod tests {
     fn navigation_only_allows_the_app_entry() {
         assert!(is_app_entry_url(
             &Url::parse("tauri://localhost").unwrap(),
-            false
+            false,
+            None,
         ));
         assert!(is_app_entry_url(
             &Url::parse("tauri://localhost/").unwrap(),
-            false
+            false,
+            None,
         ));
         assert!(is_app_entry_url(
             &Url::parse("https://tauri.localhost/index.html#note").unwrap(),
-            false
+            false,
+            None,
         ));
         assert!(!is_app_entry_url(
             &Url::parse("https://example.com/").unwrap(),
-            false
+            false,
+            None,
         ));
         assert!(!is_app_entry_url(
             &Url::parse("tauri://localhost/other.md").unwrap(),
-            false
+            false,
+            None,
+        ));
+        assert!(is_app_entry_url(
+            &Url::parse("https://asset.localhost/index.html").unwrap(),
+            false,
+            None,
+        ));
+        assert!(is_app_entry_url(
+            &Url::parse("asset://localhost/").unwrap(),
+            false,
+            None,
+        ));
+        assert!(is_app_entry_url(
+            &Url::parse("about:blank").unwrap(),
+            false,
+            None,
+        ));
+        assert!(is_app_entry_url(
+            &Url::parse("about:srcdoc").unwrap(),
+            false,
+            None,
         ));
     }
 
     #[test]
     fn navigation_allows_the_configured_dev_server_only_in_dev() {
+        let allowed = Url::parse("http://localhost:1420/").unwrap();
         let url = Url::parse("http://localhost:1420/").unwrap();
-        assert!(is_app_entry_url(&url, true));
-        assert!(!is_app_entry_url(&url, false));
+        assert!(is_app_entry_url(&url, true, Some(&allowed)));
+        assert!(!is_app_entry_url(&url, false, Some(&allowed)));
         assert!(!is_app_entry_url(
             &Url::parse("http://localhost:9999/").unwrap(),
-            true
+            true,
+            Some(&allowed),
+        ));
+    }
+
+    #[test]
+    fn navigation_allows_linked_worktree_dev_port() {
+        let allowed = Url::parse("http://localhost:1422/").unwrap();
+        assert!(is_app_entry_url(
+            &Url::parse("http://localhost:1422/").unwrap(),
+            true,
+            Some(&allowed),
+        ));
+        assert!(is_app_entry_url(
+            &Url::parse("http://127.0.0.1:1422/index.html").unwrap(),
+            true,
+            Some(&Url::parse("http://127.0.0.1:1422/").unwrap()),
+        ));
+        assert!(!is_app_entry_url(
+            &Url::parse("http://localhost:1420/").unwrap(),
+            true,
+            Some(&allowed),
         ));
     }
 

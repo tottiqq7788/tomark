@@ -26,9 +26,15 @@ export type ShellLifecyclePreview = {
 /**
  * Tauri window close / app-exit guards, native menu install, and e2e hooks.
  */
+export type ShellLifecycleOptions = {
+  /** Extra file-ops gate (drawers / export busy), stacked with saving & dirty dialog. */
+  isBlocked?: () => boolean;
+};
+
 export function useShellLifecycle(
   session: ShellLifecycleSession,
   preview: ShellLifecyclePreview,
+  options: ShellLifecycleOptions = {},
 ) {
   const fileOpsViaMenu = ref(false);
 
@@ -40,6 +46,7 @@ export function useShellLifecycle(
   let destroyingWindow = false;
   let appExitInFlight = false;
   let openInFlight: Promise<void> | null = null;
+  let forceExportTimer: number | null = null;
 
   async function flushPreviewEdits() {
     await preview.flushEditSession?.();
@@ -89,6 +96,14 @@ export function useShellLifecycle(
             replaceContent: (value: string) => void;
             getContent: () => string;
             isDirty: () => boolean;
+            preloadExportRenderers: () => Promise<void>;
+            runExportToPath: (job: {
+              format: string;
+              path: string;
+              markdown?: string;
+              fileName?: string;
+              documentPath?: string | null;
+            }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
           };
         }
       ).__tomarkE2e = {
@@ -99,7 +114,158 @@ export function useShellLifecycle(
         },
         getContent: () => session.content.value,
         isDirty: () => session.dirty.value,
+        preloadExportRenderers: async () => {
+          const { preloadExportRenderer } = await import("@/export/runExport");
+          await Promise.all(
+            (["pdf", "docx", "png"] as const).map(preloadExportRenderer),
+          );
+        },
+        runExportToPath: async (job) => {
+          try {
+            if (!job?.format || !job?.path) {
+              throw new Error("runExportToPath requires format and path");
+            }
+            const { runExport } = await import("@/export/runExport");
+            const result = await runExport({
+              format: job.format as import("@/export/types").ExportFormatId,
+              markdownSource:
+                typeof job.markdown === "string"
+                  ? job.markdown
+                  : session.content.value,
+              documentPath: job.documentPath ?? null,
+              fileName: job.fileName ?? "export.md",
+              targetPath: job.path,
+              onProgress: (message) => {
+                session.statusMessage.value = message;
+              },
+            });
+            session.statusMessage.value = `已导出：${result.fileName}`;
+            return { ok: true as const, fileName: result.fileName };
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            session.statusMessage.value = `导出失败：${message}`;
+            return { ok: false as const, error: message };
+          }
+        },
       };
+    }
+
+    if (import.meta.env.DEV) {
+      let forceExportBusy = false;
+      forceExportTimer = window.setInterval(() => {
+        if (forceExportBusy || unmounted) {
+          return;
+        }
+        void (async () => {
+          const { isTauriIpcReady, invokeTauri } = await import(
+            "@/native/tauriRuntime"
+          );
+          if (!isTauriIpcReady()) {
+            return;
+          }
+          forceExportBusy = true;
+          try {
+            const raw = await invokeTauri<string | null>(
+              "poll_force_export_job",
+            );
+            if (!raw) {
+              return;
+            }
+            const job = JSON.parse(raw) as {
+              format?: string;
+              path?: string;
+              markdown?: string;
+              fileName?: string;
+              documentPath?: string | null;
+            };
+            try {
+              if (!job?.format || !job?.path) {
+                throw new Error("force-export requires format and path");
+              }
+              // Do NOT session.setContent(job.markdown): EditorPane only
+              // reloads from modelValue when documentVersion bumps, so writing
+              // content alone desyncs the preview from the visible editor.
+              const { runExport } = await import("@/export/runExport");
+              const result = await runExport({
+                format: job.format as import("@/export/types").ExportFormatId,
+                markdownSource:
+                  typeof job.markdown === "string" ? job.markdown : "",
+                documentPath: job.documentPath ?? null,
+                fileName: job.fileName ?? "force-export.md",
+                targetPath: job.path,
+                onProgress: (message) => {
+                  session.statusMessage.value = message;
+                  void invokeTauri("write_force_export_status", {
+                    message,
+                  }).catch(() => undefined);
+                },
+              });
+              session.statusMessage.value = `已导出：${result.fileName}`;
+              await invokeTauri("write_force_export_result", {
+                payload: JSON.stringify({ ok: true, result }),
+              });
+            } catch (error) {
+              const message =
+                error instanceof Error ? error.message : String(error);
+              session.statusMessage.value = `导出失败：${message}`;
+              await invokeTauri("write_force_export_result", {
+                payload: JSON.stringify({ ok: false, error: message }),
+              });
+            }
+          } catch {
+            // Ignore poll errors (command missing / IPC not ready).
+          } finally {
+            forceExportBusy = false;
+          }
+        })();
+      }, 500);
+    }
+
+    // Keep Vite HMR force-export as a secondary path for browser-side debugging.
+    if (import.meta.hot) {
+      import.meta.hot.on(
+        "tomark:force-export",
+        async (job: {
+          format?: string;
+          path?: string;
+          markdown?: string;
+          fileName?: string;
+          documentPath?: string | null;
+        }) => {
+          const { isTauriIpcReady } = await import("@/native/tauriRuntime");
+          if (!isTauriIpcReady()) {
+            return;
+          }
+          const send = (payload: unknown) => {
+            import.meta.hot?.send("tomark:force-export-result", payload);
+          };
+          try {
+            if (!job?.format || !job?.path) {
+              throw new Error("force-export requires format and path");
+            }
+            const { runExport } = await import("@/export/runExport");
+            const result = await runExport({
+              format: job.format as import("@/export/types").ExportFormatId,
+              markdownSource:
+                typeof job.markdown === "string" ? job.markdown : "",
+              documentPath: job.documentPath ?? null,
+              fileName: job.fileName ?? "force-export.md",
+              targetPath: job.path,
+              onProgress: (message) => {
+                session.statusMessage.value = message;
+              },
+            });
+            session.statusMessage.value = `已导出：${result.fileName}`;
+            send({ ok: true, result });
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            session.statusMessage.value = `导出失败：${message}`;
+            send({ ok: false, error: message });
+          }
+        },
+      );
     }
 
     const [{ isTauri, invoke }, { getCurrentWindow }, { listen }] =
@@ -172,7 +338,9 @@ export function useShellLifecycle(
           void flushPreviewEdits().then(() => session.saveAs());
         },
         isBlocked: () =>
-          session.saving.value || session.dirtyDialogOpen.value,
+          session.saving.value ||
+          session.dirtyDialogOpen.value ||
+          Boolean(options.isBlocked?.()),
       });
       if (unmounted) {
         unlistenMenu?.();
@@ -229,6 +397,10 @@ export function useShellLifecycle(
 
   onBeforeUnmount(() => {
     unmounted = true;
+    if (forceExportTimer != null) {
+      window.clearInterval(forceExportTimer);
+      forceExportTimer = null;
+    }
     unlistenCloseRequested?.();
     unlistenMenu?.();
     unlistenAppExitRequested?.();

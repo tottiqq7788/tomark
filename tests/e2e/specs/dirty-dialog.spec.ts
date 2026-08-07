@@ -2,7 +2,7 @@ import { mockAppIpc } from "../helpers/tauriMocks";
 
 describe("dirty confirm dialog", () => {
   beforeEach(async () => {
-    await browser.url("http://localhost:1420/");
+    await browser.url("/");
     await mockAppIpc();
     await $(".toolbar-title").waitForExist({ timeout: 30_000 });
   });

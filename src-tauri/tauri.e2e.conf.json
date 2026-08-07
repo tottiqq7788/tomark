@@ -2,7 +2,9 @@
   "$schema": "https://schema.tauri.app/config/2",
   "build": {
     "beforeBuildCommand": "",
-    "features": ["wdio"]
+    "features": [
+      "wdio"
+    ]
   },
   "app": {
     "security": {
@@ -10,7 +12,9 @@
         {
           "identifier": "e2e",
           "description": "Capabilities for WDIO embedded E2E builds",
-          "windows": ["main"],
+          "windows": [
+            "main"
+          ],
           "permissions": [
             "core:default",
             "core:window:allow-destroy",
@@ -20,6 +24,11 @@
             "fs:allow-read-text-file",
             "fs:allow-read-file",
             "allow-atomic-write-text-file",
+            "allow-atomic-write-bytes-file",
+            "allow-read-export-image",
+            "allow-write-html-export-bundle",
+            "allow-write-force-export-result",
+            "allow-poll-force-export-job",
             "allow-load-markdown-document",
             "allow-save-markdown-document",
             "allow-confirm-app-exit",

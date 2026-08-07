@@ -1,14 +1,14 @@
 import { mockAppIpc } from "../helpers/tauriMocks";
 
 describe("keyboard shortcuts", () => {
-  let writeMock: Awaited<ReturnType<typeof mockAppIpc>>["writeMock"];
+  let saveDocumentMock: Awaited<ReturnType<typeof mockAppIpc>>["saveDocumentMock"];
 
   beforeEach(async () => {
-    await browser.url("http://localhost:1420/");
+    await browser.url("/");
     const mocks = await mockAppIpc({
       savePath: "/tmp/tomark-shortcut.md",
     });
-    writeMock = mocks.writeMock;
+    saveDocumentMock = mocks.saveDocumentMock;
     await $(".toolbar-title").waitForExist({ timeout: 30_000 });
     await browser.waitUntil(
       async () =>
@@ -22,7 +22,7 @@ describe("keyboard shortcuts", () => {
     );
   });
 
-  it("saves with Cmd/Ctrl+S through the atomic write command", async () => {
+  it("saves with Cmd/Ctrl+S through the save_markdown_document command", async () => {
     // Untitled docs go through save-as, which uses the dialog save mock path.
     // Host Chrome may swallow Meta/Ctrl+S as native Save Page; fall back to the
     // same save() path the shortcut handler invokes.
@@ -41,8 +41,8 @@ describe("keyboard shortcuts", () => {
     }, isMac);
 
     await browser.pause(200);
-    await writeMock.update();
-    if (writeMock.mock.calls.length === 0) {
+    await saveDocumentMock.update();
+    if (saveDocumentMock.mock.calls.length === 0) {
       await browser.execute(() => {
         (
           window as unknown as { __tomarkE2e: { triggerSave: () => void } }
@@ -52,12 +52,15 @@ describe("keyboard shortcuts", () => {
 
     await browser.waitUntil(
       async () => {
-        await writeMock.update();
-        return writeMock.mock.calls.length > 0;
+        await saveDocumentMock.update();
+        return saveDocumentMock.mock.calls.length > 0;
       },
-      { timeout: 5_000, timeoutMsg: "save shortcut did not write" },
+      {
+        timeout: 10_000,
+        timeoutMsg: "save_markdown_document was not invoked",
+      },
     );
-    expect(writeMock.mock.calls[0][0]).toEqual(
+    expect(saveDocumentMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         request: expect.objectContaining({
           path: "/tmp/tomark-shortcut.md",
