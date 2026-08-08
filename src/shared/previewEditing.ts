@@ -1,9 +1,4 @@
-export type PreviewEditOrigin =
-  | "typing"
-  | "composition"
-  | "paste"
-  | "format"
-  | "structure";
+export type PreviewEditOrigin = "format";
 
 export interface SourcePatch {
   /** UTF-16 offsets into the exact Markdown source used for projection. */

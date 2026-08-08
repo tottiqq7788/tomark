@@ -169,10 +169,8 @@ vi.mock("@/app/usePreviewBridge", () => ({
     beginOwnEdit: vi.fn(),
     endOwnEdit: vi.fn(),
     syncAfterOwnEdit: vi.fn(),
-    setComposing: vi.fn(),
     setPaused: vi.fn(),
     flushEditSession: vi.fn(async () => undefined),
-    flushCompositionOnly: vi.fn(),
   }),
 }));
 

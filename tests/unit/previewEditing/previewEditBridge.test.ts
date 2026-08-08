@@ -1,21 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { usePreviewEditBridge } from "@/app/usePreviewEditBridge";
-import type { SourcePatchTransaction } from "@/shared/previewEditing";
 
 describe("usePreviewEditBridge", () => {
-  it("applies a source transaction and syncs the editable projection", () => {
+  it("applies a format selection and syncs the editable projection", async () => {
     const statusMessage = ref("");
     const syncAfterOwnEdit = vi.fn();
     const beginOwnEdit = vi.fn();
     const endOwnEdit = vi.fn();
-    const applySourceTransaction = vi.fn(
-      (transaction: SourcePatchTransaction) => ({
-        ok: true as const,
-        revision: 1,
-        value: `patched:${transaction.patches[0]?.insert ?? ""}`,
-      }),
-    );
+    const applySourceTransaction = vi.fn(() => ({
+      ok: true as const,
+      revision: 1,
+      value: "Hel**lo**",
+    }));
 
     const bridge = usePreviewEditBridge({
       getEditor: () => ({
@@ -32,72 +29,50 @@ describe("usePreviewEditBridge", () => {
         syncAfterOwnEdit,
         beginOwnEdit,
         endOwnEdit,
-        setComposing: vi.fn(),
-        flushEditSession: vi.fn(async () => undefined),
       },
       statusMessage,
     });
 
-    const result = bridge.applySourceTransaction({
-      revision: 0,
-      origin: "typing",
-      patches: [
-        { from: 5, to: 5, insert: "!", expectedText: "" },
-      ],
-      selection: { anchor: 6, head: 6 },
+    await bridge.onFormatSelection({
+      action: { type: "toggle", format: "bold" },
+      selection: {
+        from: 3,
+        to: 5,
+        expectedText: "lo",
+        revision: 0,
+        blockAnchorId: "p-0",
+        sourceLine: 1,
+        active: {
+          bold: false,
+          italic: false,
+          strike: false,
+          code: false,
+          link: false,
+          linkHref: null,
+          ranges: {},
+        },
+        rect: {
+          top: 0,
+          left: 0,
+          bottom: 10,
+          right: 20,
+          width: 20,
+          height: 10,
+        },
+      },
     });
 
-    expect(result.ok).toBe(true);
     expect(applySourceTransaction).toHaveBeenCalledOnce();
     expect(syncAfterOwnEdit).toHaveBeenCalledWith(
-      "patched:!",
-      { anchor: 6, head: 6 },
-      { bumpSync: false },
+      "Hel**lo**",
+      expect.objectContaining({
+        anchor: expect.any(Number),
+        head: expect.any(Number),
+      }),
+      { bumpSync: true },
     );
     expect(beginOwnEdit).toHaveBeenCalled();
     expect(endOwnEdit).toHaveBeenCalled();
-  });
-
-  it("bumps sync for structure transactions so the host places the caret", () => {
-    const statusMessage = ref("");
-    const syncAfterOwnEdit = vi.fn();
-    const bridge = usePreviewEditBridge({
-      getEditor: () => ({
-        applySourceTransaction: () => ({
-          ok: true as const,
-          revision: 1,
-          value: "A\n\nB\n",
-        }),
-        getRevision: () => 0,
-        getValue: () => "A\nB\n",
-        undo: () => false,
-        redo: () => false,
-      }),
-      preview: {
-        renderedSource: ref("A\nB\n"),
-        isCurrent: () => true,
-        syncNow: vi.fn(async () => true),
-        syncAfterOwnEdit,
-        beginOwnEdit: vi.fn(),
-        endOwnEdit: vi.fn(),
-        setComposing: vi.fn(),
-        flushEditSession: vi.fn(async () => undefined),
-      },
-      statusMessage,
-    });
-
-    bridge.applySourceTransaction({
-      revision: 0,
-      origin: "structure",
-      patches: [{ from: 1, to: 1, insert: "\n\n", expectedText: "" }],
-      selection: { anchor: 3, head: 3 },
-    });
-
-    expect(syncAfterOwnEdit).toHaveBeenCalledWith(
-      "A\n\nB\n",
-      { anchor: 3, head: 3 },
-      { bumpSync: true },
-    );
   });
 
   it("syncs preview selection after undo and redo", () => {
@@ -130,9 +105,6 @@ describe("usePreviewEditBridge", () => {
         syncAfterOwnEdit: vi.fn(),
         beginOwnEdit: vi.fn(),
         endOwnEdit: vi.fn(),
-        setComposing: vi.fn(),
-        flushEditSession: vi.fn(async () => undefined),
-        flushCompositionOnly: vi.fn(),
       },
       statusMessage,
     });
@@ -170,8 +142,6 @@ describe("usePreviewEditBridge", () => {
         syncAfterOwnEdit: vi.fn(),
         beginOwnEdit: vi.fn(),
         endOwnEdit: vi.fn(),
-        setComposing: vi.fn(),
-        flushEditSession: vi.fn(async () => undefined),
       },
       statusMessage,
     });
@@ -184,42 +154,58 @@ describe("usePreviewEditBridge", () => {
     expect(statusMessage.value).toContain("映射已过期");
   });
 
-  it("forces a resync when the editor rejects a stale transaction", () => {
+  it("refuses format when preview content is stale", async () => {
     const statusMessage = ref("");
-    const syncNow = vi.fn(async () => true);
+    const applySourceTransaction = vi.fn();
     const bridge = usePreviewEditBridge({
       getEditor: () => ({
-        applySourceTransaction: () => ({
-          ok: false as const,
-          reason: "stale-revision" as const,
-          revision: 3,
-        }),
-        getRevision: () => 3,
-        getValue: () => "Hello",
+        applySourceTransaction,
+        getRevision: () => 0,
+        getValue: () => "Hello!",
         undo: () => false,
         redo: () => false,
       }),
       preview: {
         renderedSource: ref("Hello"),
-        isCurrent: () => true,
-        syncNow,
+        isCurrent: () => false,
+        syncNow: vi.fn(async () => true),
         syncAfterOwnEdit: vi.fn(),
         beginOwnEdit: vi.fn(),
         endOwnEdit: vi.fn(),
-        setComposing: vi.fn(),
-        flushEditSession: vi.fn(async () => undefined),
       },
       statusMessage,
     });
 
-    const result = bridge.applySourceTransaction({
-      revision: 0,
-      origin: "typing",
-      patches: [{ from: 0, to: 1, insert: "h", expectedText: "H" }],
+    await bridge.onFormatSelection({
+      action: { type: "toggle", format: "bold" },
+      selection: {
+        from: 0,
+        to: 5,
+        expectedText: "Hello",
+        revision: 0,
+        blockAnchorId: "p-0",
+        sourceLine: 1,
+        active: {
+          bold: false,
+          italic: false,
+          strike: false,
+          code: false,
+          link: false,
+          linkHref: null,
+          ranges: {},
+        },
+        rect: {
+          top: 0,
+          left: 0,
+          bottom: 10,
+          right: 40,
+          width: 40,
+          height: 10,
+        },
+      },
     });
 
-    expect(result.ok).toBe(false);
-    expect(syncNow).toHaveBeenCalled();
-    expect(statusMessage.value).toContain("映射已过期");
+    expect(applySourceTransaction).not.toHaveBeenCalled();
+    expect(statusMessage.value).toContain("预览内容已更新");
   });
 });

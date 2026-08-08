@@ -1,15 +1,11 @@
 import {
-  backspaceTimes,
-  clickTrailingBlankAfter,
   dragFromTrailingBlankInto,
   dragSelectPreviewText,
   exerciseBlankCaretRegressionScenarios,
-  placeCollapsedCaretInPreviewText,
-  readPreviewContent,
   readSelectionConsistency,
 } from "../helpers/previewSelection";
 
-describe("editable preview typing", () => {
+describe("preview selection host (non-editable)", () => {
   beforeEach(async () => {
     await browser.url("/");
     await $(".toolbar-title").waitForExist({ timeout: 30_000 });
@@ -25,7 +21,7 @@ describe("editable preview typing", () => {
     );
   });
 
-  it("types into a paragraph and patches Markdown source", async () => {
+  it("does not patch Markdown source when typing in the preview", async () => {
     await browser.execute(() => {
       (
         window as unknown as {
@@ -42,12 +38,17 @@ describe("editable preview typing", () => {
       { timeout: 10_000, timeoutMsg: "editable preview not ready" },
     );
 
-    const typed = await browser.execute(() => {
+    const before = await browser.execute(() => {
+      return (
+        window as unknown as { __tomarkE2e: { getContent: () => string } }
+      ).__tomarkE2e.getContent();
+    });
+
+    await browser.execute(() => {
       const root = document.querySelector(".tm-editable-preview");
       if (!(root instanceof HTMLElement)) {
-        return false;
+        return;
       }
-      root.focus();
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       let node = walker.nextNode();
       while (node) {
@@ -65,23 +66,26 @@ describe("editable preview typing", () => {
         node = walker.nextNode();
       }
       document.execCommand("insertText", false, "X");
-      return true;
-    });
-    expect(typed).toBe(true);
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const content = (
-            window as unknown as { __tomarkE2e: { getContent: () => string } }
-          ).__tomarkE2e.getContent();
-          return content.includes("Xworld") || content.includes("Hello X");
+      root.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "a",
+          code: "KeyA",
+          bubbles: true,
+          cancelable: true,
         }),
-      { timeout: 10_000, timeoutMsg: "editable preview did not patch source" },
-    );
+      );
+    });
+
+    await browser.pause(300);
+    const after = await browser.execute(() => {
+      return (
+        window as unknown as { __tomarkE2e: { getContent: () => string } }
+      ).__tomarkE2e.getContent();
+    });
+    expect(after).toBe(before);
   });
 
-  it("keeps fenced code read-only in the editable preview", async () => {
+  it("keeps fenced code read-only in the preview host", async () => {
     await browser.execute(() => {
       (
         window as unknown as {
@@ -121,201 +125,6 @@ describe("editable preview typing", () => {
       ).__tomarkE2e.getContent();
     });
     expect(after).toBe(before);
-  });
-
-  it("inserts at the clicked glyph without painting a block outline", async () => {
-    await browser.execute(() => {
-      (
-        window as unknown as {
-          __tomarkE2e: { replaceContent: (value: string) => void };
-        }
-      ).__tomarkE2e.replaceContent(
-        "Hello world\n\n- list item\n\n| A | B |\n| - | - |\n| 1 | 2 |\n",
-      );
-    });
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => Boolean(document.querySelector(".tm-editable-preview"))),
-      { timeout: 10_000 },
-    );
-
-    const result = await browser.execute(() => {
-      const root = document.querySelector(".tm-editable-preview");
-      if (!(root instanceof HTMLElement)) {
-        return { ok: false, reason: "no-root" };
-      }
-
-      const findText = (needle: string): Text | null => {
-        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-        let node = walker.nextNode();
-        while (node) {
-          if ((node.textContent ?? "").includes(needle)) {
-            return node as Text;
-          }
-          node = walker.nextNode();
-        }
-        return null;
-      };
-
-      const clickGlyph = (needle: string, offsetInNeedle: number) => {
-        const text = findText(needle);
-        if (!text) {
-          return false;
-        }
-        const start = (text.textContent ?? "").indexOf(needle) + offsetInNeedle;
-        const range = document.createRange();
-        range.setStart(text, start);
-        range.setEnd(text, start + 1);
-        const rect = range.getBoundingClientRect();
-        const x = rect.left + Math.max(1, rect.width / 2);
-        const y = rect.top + Math.max(1, rect.height / 2);
-        const target = document.elementFromPoint(x, y);
-        target?.dispatchEvent(
-          new MouseEvent("mousedown", {
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y,
-          }),
-        );
-        target?.dispatchEvent(
-          new MouseEvent("mouseup", {
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y,
-          }),
-        );
-        target?.dispatchEvent(
-          new MouseEvent("click", {
-            bubbles: true,
-            cancelable: true,
-            clientX: x,
-            clientY: y,
-          }),
-        );
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        const caret = document.createRange();
-        caret.setStart(text, start);
-        caret.collapse(true);
-        selection?.addRange(caret);
-        return true;
-      };
-
-      if (!clickGlyph("world", 0)) {
-        return { ok: false, reason: "click-world" };
-      }
-      document.execCommand("insertText", false, "Q");
-
-      const focused = document.querySelector(".tm-preview-focus");
-      const outlinePainted = Boolean(focused);
-
-      return { ok: true, outlinePainted };
-    });
-
-    expect(result.ok).toBe(true);
-    expect(result.outlinePainted).toBe(false);
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const content = (
-            window as unknown as { __tomarkE2e: { getContent: () => string } }
-          ).__tomarkE2e.getContent();
-          return content.includes("Qworld") || content.includes("Hello Q");
-        }),
-      { timeout: 10_000, timeoutMsg: "click insert did not land on glyph" },
-    );
-  });
-
-  it("undoes a preview edit through the unified history shortcut", async () => {
-    await browser.execute(() => {
-      (
-        window as unknown as {
-          __tomarkE2e: { replaceContent: (value: string) => void };
-        }
-      ).__tomarkE2e.replaceContent("Hello world\n");
-    });
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => Boolean(document.querySelector(".tm-editable-preview"))),
-      { timeout: 10_000 },
-    );
-
-    await browser.execute(() => {
-      const root = document.querySelector(".tm-editable-preview");
-      if (!(root instanceof HTMLElement)) {
-        return;
-      }
-      root.focus();
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let node = walker.nextNode();
-      while (node) {
-        const text = node.textContent ?? "";
-        const index = text.indexOf("world");
-        if (index >= 0) {
-          const range = document.createRange();
-          range.setStart(node, index);
-          range.collapse(true);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-          break;
-        }
-        node = walker.nextNode();
-      }
-      document.execCommand("insertText", false, "Z");
-    });
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const content = (
-            window as unknown as { __tomarkE2e: { getContent: () => string } }
-          ).__tomarkE2e.getContent();
-          return content.includes("Zworld") || content.includes("Hello Z");
-        }),
-      { timeout: 10_000 },
-    );
-
-    const isMac = process.platform === "darwin";
-    await browser.execute((meta: boolean) => {
-      const root = document.querySelector(".tm-editable-preview");
-      root?.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "z",
-          code: "KeyZ",
-          metaKey: meta,
-          ctrlKey: !meta,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-      window.dispatchEvent(
-        new KeyboardEvent("keydown", {
-          key: "z",
-          code: "KeyZ",
-          metaKey: meta,
-          ctrlKey: !meta,
-          bubbles: true,
-          cancelable: true,
-        }),
-      );
-    }, isMac);
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const content = (
-            window as unknown as { __tomarkE2e: { getContent: () => string } }
-          ).__tomarkE2e.getContent();
-          return content === "Hello world\n";
-        }),
-      { timeout: 10_000, timeoutMsg: "undo did not restore preview source" },
-    );
   });
 
   it("supports reverse drag and trailing-blank forward drag selection", async () => {
@@ -363,47 +172,6 @@ describe("editable preview typing", () => {
     );
   });
 
-  it("places caret at block end after a trailing-blank click", async () => {
-    await browser.execute(() => {
-      (
-        window as unknown as {
-          __tomarkE2e: { replaceContent: (value: string) => void };
-        }
-      ).__tomarkE2e.replaceContent(
-        "- 已打开文件：停止输入约 2 秒后自动保存\n- 未命名文档：用菜单落盘\n",
-      );
-    });
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() =>
-          Boolean(
-            document
-              .querySelector(".tm-editable-preview")
-              ?.textContent?.includes("自动保存"),
-          ),
-        ),
-      { timeout: 10_000 },
-    );
-
-    await clickTrailingBlankAfter("自动保存");
-    await browser.keys(["!"]);
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          const content = (
-            window as unknown as { __tomarkE2e: { getContent: () => string } }
-          ).__tomarkE2e.getContent();
-          return content.includes("自动保存!");
-        }),
-      {
-        timeout: 10_000,
-        timeoutMsg: "trailing blank click did not insert at block end",
-      },
-    );
-  });
-
   it("resolves wrapped-line, margin, task-list, and jittered blank clicks", async () => {
     await exerciseBlankCaretRegressionScenarios();
   });
@@ -445,43 +213,5 @@ describe("editable preview typing", () => {
     expect(state?.hasHr).toBe(true);
     expect(state?.text).not.toContain("分隔线");
     expect(state?.readonly).toContain("thematicBreak");
-  });
-
-  it("deletes ordered-list text one character at a time with Backspace", async () => {
-    const needle =
-      "打开文档时沿第一条标题链展开到正文，其余标题折叠；展开另一标题时会收起无关分支，始终只保留一条展开链";
-    await browser.execute((text: string) => {
-      (
-        window as unknown as {
-          __tomarkE2e: { replaceContent: (value: string) => void };
-        }
-      ).__tomarkE2e.replaceContent(
-        `1. 在左侧改写任意段落\n2. ${text}\n3. 打开文档时沿第一条标题链\n`,
-      );
-    }, needle);
-
-    await browser.waitUntil(
-      async () =>
-        browser.execute(
-          (text: string) =>
-            Boolean(
-              document
-                .querySelector(".tm-editable-preview")
-                ?.textContent?.includes(text),
-            ),
-          needle,
-        ),
-      { timeout: 10_000 },
-    );
-
-    await placeCollapsedCaretInPreviewText(needle, 12);
-    const before = await readPreviewContent();
-    await backspaceTimes(3);
-    const after = await readPreviewContent();
-
-    expect(after.includes(needle)).toBe(false);
-    expect(before.length - after.length).toBe(3);
-    expect(after).toContain("1. 在左侧改写任意段落");
-    expect(after).toContain("3. 打开文档时沿第一条标题链");
   });
 });

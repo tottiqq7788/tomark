@@ -33,11 +33,6 @@ function mountEditablePreview(source: string) {
       editableSyncToken: 1,
       selectionRecovery: null,
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false as const,
-        reason: "stale-revision" as const,
-        revision: 0,
-      }),
     },
     attachTo: document.body,
   });
@@ -54,11 +49,6 @@ function mountFallbackPreview(source: string) {
       renderMode: "fallback" as const,
       editableSyncToken: 0,
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false as const,
-        reason: "stale-revision" as const,
-        revision: 0,
-      }),
     },
     attachTo: document.body,
   });

@@ -23,8 +23,6 @@ export type PreviewLocateApi = {
   attachPreview: (
     el: {
       scrollToSourceLine: (line: number) => Promise<void>;
-      flushComposition?: () => void;
-      isComposing?: () => boolean;
     } | null,
   ) => void;
   syncNow: () => Promise<boolean>;
@@ -43,7 +41,6 @@ export function usePaneLocate(options: {
   isPreviewVisible: Ref<boolean>;
   viewMode: Ref<unknown>;
   statusMessage: Ref<string>;
-  /** Optional: flush preview composition before locate / view switches. */
   flushPreviewEdit?: () => Promise<void>;
 }) {
   const {
@@ -61,14 +58,10 @@ export function usePaneLocate(options: {
   function setPreviewRef(el: unknown) {
     const candidate = el as {
       scrollToSourceLine?: (line: number) => Promise<void>;
-      flushComposition?: () => void;
-      isComposing?: () => boolean;
     } | null;
     if (candidate && typeof candidate.scrollToSourceLine === "function") {
       preview.attachPreview({
         scrollToSourceLine: candidate.scrollToSourceLine,
-        flushComposition: candidate.flushComposition,
-        isComposing: candidate.isComposing,
       });
       return;
     }

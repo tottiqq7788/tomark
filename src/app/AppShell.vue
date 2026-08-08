@@ -387,7 +387,6 @@ if (import.meta.env.VITE_WDIO === "1") {
         return previewPaneApi.value?.getFormatSelection?.() ?? null;
       };
       e2e.triggerSave = () => {
-        editBridge.flushCompositionBeforeAction();
         void save();
       };
     };
@@ -406,7 +405,6 @@ useAppShortcuts({
   openDocument,
   undo: editBridge.undoEdit,
   redo: editBridge.redoEdit,
-  beforeAction: () => editBridge.flushCompositionBeforeAction(),
   fileOpsViaMenu: () => fileOpsViaMenu.value,
   isBlocked: () =>
     saving.value ||
@@ -576,12 +574,10 @@ useAppShortcuts({
             :editable-sync-token="previewEditableSyncToken"
             :selection-recovery="previewSelectionRecovery"
             :get-revision="editBridge.getRevision"
-            :apply-source-transaction="editBridge.applySourceTransaction"
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
             @format-selection="editBridge.onFormatSelection"
             @edit-status="editBridge.onEditStatus"
-            @composing-change="editBridge.onComposingChange"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>

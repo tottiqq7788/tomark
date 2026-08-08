@@ -8,8 +8,6 @@ import {
   createPreviewEditSession,
   type PreviewEditSession,
 } from "@/preview/editing/usePreviewEditSession";
-import { applySourcePatches } from "@/shared/previewEditing";
-import type { SourcePatchTransaction } from "@/shared/previewEditing";
 
 describe("createPreviewEditSession", () => {
   let host: HTMLElement | null = null;
@@ -129,69 +127,21 @@ describe("createPreviewEditSession", () => {
     return paragraph;
   }
 
-  it("commits a typing patch through applySourceTransaction", () => {
+  it("ignores document mutations because the preview is non-editable", () => {
     host = document.createElement("div");
     document.body.append(host);
     const source = "Hello world\n";
     const projection = buildEditableProjection(source);
-    const applied: SourcePatchTransaction[] = [];
-    let revision = 0;
-
-    const session = createPreviewEditSession(host, projection, {
-      getRevision: () => revision,
-      applySourceTransaction: (transaction) => {
-        applied.push(transaction);
-        revision += 1;
-        return {
-          ok: true,
-          revision,
-          value:
-            source.slice(0, transaction.patches[0]!.from) +
-            transaction.patches[0]!.insert +
-            source.slice(transaction.patches[0]!.to),
-        };
-      },
-      onStatus: vi.fn(),
-    });
-
-    const segment = projection.sourceMap.segments[0]!;
-    const pos = segment.pmFrom + "Hello ".length;
-    const tr = session.view.state.tr.insertText("X", pos, pos);
-    session.view.dispatch(tr);
-
-    expect(applied).toHaveLength(1);
-    expect(applied[0]?.origin).toBe("typing");
-    expect(applied[0]?.patches[0]?.insert).toContain("X");
-    session.destroy();
-  });
-
-  it("rejects edits that touch read-only atoms without writing source", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    const source = "before `code` after\n";
-    const projection = buildEditableProjection(source);
-    const apply = vi.fn();
-    const onStatus = vi.fn();
-
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: apply,
-      onStatus,
     });
 
-    const readonly = projection.sourceMap.segments.find(
-      (segment) => segment.policy === "read-only",
-    );
-    expect(readonly).toBeTruthy();
-    const tr = session.view.state.tr.insertText(
-      "!",
-      readonly!.pmFrom,
-      readonly!.pmTo,
-    );
-    session.view.dispatch(tr);
-
-    expect(apply).not.toHaveBeenCalled();
-    expect(onStatus).toHaveBeenCalled();
+    expect(session.view.editable).toBe(false);
+    const before = session.view.state.doc.textContent;
+    const segment = projection.sourceMap.segments[0]!;
+    const pos = segment.pmFrom + "Hello ".length;
+    session.view.dispatch(session.view.state.tr.insertText("X", pos, pos));
+    expect(session.view.state.doc.textContent).toBe(before);
     session.destroy();
   });
 
@@ -202,11 +152,6 @@ describe("createPreviewEditSession", () => {
     const projection = buildEditableProjection(source);
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
 
     const segment = projection.sourceMap.segments[0]!;
@@ -231,58 +176,13 @@ describe("createPreviewEditSession", () => {
     const projection = buildEditableProjection("Hello world\n");
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
     session.focus();
     expect(host.querySelector(".tm-preview-focus")).toBeNull();
-    expect(getComputedStyle(session.view.dom).outlineStyle === "none" ||
-      getComputedStyle(session.view.dom).outlineWidth === "0px").toBe(true);
-    session.destroy();
-  });
-
-  it("keeps rapid consecutive keystrokes without rolling back the prior commit", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    let source = "Hello world\n";
-    let revision = 0;
-    const applied: string[] = [];
-
-    const session = createPreviewEditSession(
-      host,
-      buildEditableProjection(source),
-      {
-        getRevision: () => revision,
-        applySourceTransaction: (transaction) => {
-          const next = applySourcePatches(source, transaction.patches);
-          source = next;
-          revision += 1;
-          applied.push(next);
-          return { ok: true, revision, value: next };
-        },
-      },
-    );
-
-    const firstSeg = buildEditableProjection("Hello world\n").sourceMap
-      .segments[0]!;
-    const insertAt = firstSeg.pmFrom + "Hello ".length;
-    // insertText alone does not move an untouched selection — place the caret
-    // first, matching real keyboard input.
-    session.view.dispatch(
-      session.view.state.tr
-        .setSelection(TextSelection.create(session.view.state.doc, insertAt))
-        .insertText("X"),
-    );
-    expect(applied[0]).toContain("Hello Xworld");
-
-    // Second keystroke must translate against the accepted projection.
-    const head = session.view.state.selection.head;
-    session.view.dispatch(session.view.state.tr.insertText("Y", head, head));
-    expect(applied).toHaveLength(2);
-    expect(applied[1]).toContain("Hello XYworld");
+    expect(
+      getComputedStyle(session.view.dom).outlineStyle === "none" ||
+        getComputedStyle(session.view.dom).outlineWidth === "0px",
+    ).toBe(true);
     session.destroy();
   });
 
@@ -293,15 +193,9 @@ describe("createPreviewEditSession", () => {
     const projection = buildEditableProjection(source);
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
 
     const worldIndex = source.indexOf("world");
-    // Exact offset inside the bold label.
     session.rebuild(buildEditableProjection(source), {
       selection: { anchor: worldIndex, head: worldIndex },
     });
@@ -311,8 +205,6 @@ describe("createPreviewEditSession", () => {
     )!;
     expect(mapped).toBe(segment.pmFrom);
 
-    // Mid-delimiter offset (second `*`) has no exact editable map — fall back
-    // to the block content start instead of snapping ±2 onto "world".
     const innerStarOffset = source.indexOf("**") + 1;
     const block = projection.sourceMap.blocks.find(
       (item) => item.policy === "editable",
@@ -321,131 +213,6 @@ describe("createPreviewEditSession", () => {
       selection: { anchor: innerStarOffset, head: innerStarOffset },
     });
     expect(session.view.state.selection.head).toBe(block.contentPmFrom);
-    expect(session.view.state.selection.head).not.toBe(segment.pmFrom);
-    session.destroy();
-  });
-
-  it("keeps the optimistic caret after a successful typing commit", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    const source = "Hello world\n";
-    let current = source;
-    const projection = buildEditableProjection(source);
-    let revision = 0;
-
-    const session = createPreviewEditSession(host, projection, {
-      getRevision: () => revision,
-      applySourceTransaction: (transaction) => {
-        current = applySourcePatches(current, transaction.patches);
-        revision += 1;
-        return { ok: true, revision, value: current };
-      },
-    });
-
-    const segment = projection.sourceMap.segments[0]!;
-    const pos = segment.pmFrom + "Hello ".length;
-    session.view.dispatch(
-      session.view.state.tr
-        .setSelection(TextSelection.create(session.view.state.doc, pos))
-        .insertText("X"),
-    );
-
-    expect(session.view.state.selection.head).toBe(pos + 1);
-    expect(current).toContain("Hello Xworld");
-    session.destroy();
-  });
-
-  it("flushes pending composition before Enter splits a block", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    const source = "Hello world\n";
-    let current = source;
-    const projection = buildEditableProjection(source);
-    const applied: SourcePatchTransaction[] = [];
-    let revision = 0;
-
-    const session = createPreviewEditSession(host, projection, {
-      getRevision: () => revision,
-      applySourceTransaction: (transaction) => {
-        applied.push(transaction);
-        current = applySourcePatches(current, transaction.patches);
-        revision += 1;
-        return { ok: true, revision, value: current };
-      },
-    });
-
-    const segment = projection.sourceMap.segments[0]!;
-    const pos = segment.pmFrom + "Hello ".length;
-    session.view.dispatch(
-      session.view.state.tr.setSelection(
-        TextSelection.create(session.view.state.doc, pos),
-      ),
-    );
-    session.view.dom.dispatchEvent(
-      new CompositionEvent("compositionstart", { bubbles: true }),
-    );
-    session.view.dispatch(session.view.state.tr.insertText("你"));
-    expect(session.isComposing()).toBe(true);
-
-    // Enter while composition is still open must flush composed text first.
-    const enter = new KeyboardEvent("keydown", {
-      key: "Enter",
-      code: "Enter",
-      bubbles: true,
-      cancelable: true,
-    });
-    session.view.someProp("handleKeyDown", (f) => f(session.view, enter));
-
-    expect(applied.some((item) => item.origin === "composition")).toBe(true);
-    expect(applied.some((item) => item.origin === "structure")).toBe(true);
-    expect(current).toContain("你");
-    // Synthetic compositionstart can leave view.composing true until compositionend;
-    // the important contract is that Enter already flushed and committed the text.
-    session.view.dom.dispatchEvent(
-      new CompositionEvent("compositionend", { bubbles: true }),
-    );
-    session.flushComposition();
-    expect(session.isComposing()).toBe(false);
-    session.destroy();
-  });
-
-  it("rolls the view back when composition commit fails", async () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    const source = "Hello world\n";
-    const projection = buildEditableProjection(source);
-    const onStatus = vi.fn();
-    const session = createPreviewEditSession(host, projection, {
-      getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "expected-text-mismatch",
-        revision: 0,
-      }),
-      onStatus,
-    });
-
-    session.view.dom.dispatchEvent(
-      new CompositionEvent("compositionstart", { bubbles: true }),
-    );
-    const segment = projection.sourceMap.segments[0]!;
-    const pos = segment.pmFrom + "Hello ".length;
-    // Simulate composed characters landing in the view during IME.
-    session.view.dispatch(session.view.state.tr.insertText("你", pos, pos));
-    expect(session.isComposing()).toBe(true);
-
-    session.view.dom.dispatchEvent(
-      new CompositionEvent("compositionend", { bubbles: true }),
-    );
-    // Match the production microtask settle used by compositionend.
-    await Promise.resolve();
-    session.flushComposition();
-
-    expect(onStatus).toHaveBeenCalled();
-    expect(session.view.state.doc.textContent).toBe(
-      projection.doc.textContent,
-    );
-    expect(session.isComposing()).toBe(false);
     session.destroy();
   });
 
@@ -457,11 +224,6 @@ describe("createPreviewEditSession", () => {
     const block = projection.sourceMap.blocks[0]!;
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
     const paragraph = installSingleLinePointerGeometry(session, block);
 
@@ -510,11 +272,6 @@ describe("createPreviewEditSession", () => {
     const block = projection.sourceMap.blocks[0]!;
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
     const paragraph = installSingleLinePointerGeometry(session, block);
 
@@ -550,9 +307,7 @@ describe("createPreviewEditSession", () => {
 
     expect(session.view.state.selection.empty).toBe(false);
     expect(session.view.state.selection.anchor).toBe(block.contentPmTo);
-    expect(session.view.state.selection.head).toBe(
-      block.contentPmFrom + 5,
-    );
+    expect(session.view.state.selection.head).toBe(block.contentPmFrom + 5);
     session.destroy();
   });
 
@@ -564,11 +319,6 @@ describe("createPreviewEditSession", () => {
     let published: string | null = null;
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 1,
-      applySourceTransaction: () => ({
-        ok: true,
-        value: source,
-        revision: 1,
-      }),
       onSelectionChange: (selection) => {
         published = selection?.expectedText ?? null;
       },
@@ -611,11 +361,6 @@ describe("createPreviewEditSession", () => {
     const located: number[] = [];
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 1,
-      applySourceTransaction: () => ({
-        ok: true,
-        value: source,
-        revision: 1,
-      }),
       onLocateSource: (line) => {
         located.push(line);
       },
@@ -645,186 +390,6 @@ describe("createPreviewEditSession", () => {
     session.destroy();
   });
 
-  function pressBackspace(session: PreviewEditSession) {
-    const event = new KeyboardEvent("keydown", {
-      key: "Backspace",
-      code: "Backspace",
-      bubbles: true,
-      cancelable: true,
-    });
-    session.view.someProp("handleKeyDown", (f) => f(session.view, event));
-  }
-
-  function placeDomCaretInText(
-    root: HTMLElement,
-    needle: string,
-    offsetInNeedle: number,
-  ) {
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let node = walker.nextNode();
-    while (node) {
-      const text = node.textContent ?? "";
-      const index = text.indexOf(needle);
-      if (index >= 0) {
-        const range = document.createRange();
-        range.setStart(node, index + offsetInNeedle);
-        range.collapse(true);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        return;
-      }
-      node = walker.nextNode();
-    }
-    throw new Error(`missing text ${needle}`);
-  }
-
-  it("syncs stale PM selection to mid-block caret before Backspace deletes", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    let source =
-      "1. first\n2. 打开文档时沿第一条标题链展开到正文，其余标题折叠\n";
-    let revision = 0;
-    const origins: string[] = [];
-    const session = createPreviewEditSession(
-      host,
-      buildEditableProjection(source),
-      {
-        getRevision: () => revision,
-        applySourceTransaction: (transaction) => {
-          origins.push(transaction.origin);
-          source = applySourcePatches(source, transaction.patches);
-          revision += 1;
-          return { ok: true, revision, value: source };
-        },
-      },
-    );
-
-    const needle = "打开文档时沿第一条标题链展开到正文，其余标题折叠";
-    const caretOffset = 8;
-    const projection = buildEditableProjection(source);
-    const segment = projection.sourceMap.segments.find(
-      (item) => item.text === needle,
-    )!;
-    // Stale PM selection covers the whole list item while the DOM caret is mid-text.
-    session.view.dispatch(
-      session.view.state.tr.setSelection(
-        TextSelection.create(
-          session.view.state.doc,
-          segment.pmFrom,
-          segment.pmTo,
-        ),
-      ),
-    );
-    placeDomCaretInText(session.view.dom, needle, caretOffset);
-
-    // Stale whole-segment PM selection must sync to the mid caret, then delete
-    // exactly one character (no structure join / whole-block wipe).
-    pressBackspace(session);
-    expect(origins.at(-1)).toBe("typing");
-    const afterFirst =
-      needle.slice(0, caretOffset - 1) + needle.slice(caretOffset);
-    expect(source).toContain(afterFirst);
-    expect(source.includes(needle)).toBe(false);
-    expect(session.view.state.selection.empty).toBe(true);
-    expect(session.view.state.selection.head).toBeGreaterThan(segment.pmFrom);
-
-    placeDomCaretInText(session.view.dom, afterFirst, caretOffset - 1);
-    const beforeSecond = source;
-    pressBackspace(session);
-    expect(origins.at(-1)).toBe("typing");
-    expect(source.length).toBe(beforeSecond.length - 1);
-    expect(origins.includes("structure")).toBe(false);
-    session.destroy();
-  });
-
-  it("does not write source when Backspace cannot confirm a native caret", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    let source = "Hello world\n";
-    let revision = 0;
-    const origins: string[] = [];
-    const onStatus = vi.fn();
-    const session = createPreviewEditSession(
-      host,
-      buildEditableProjection(source),
-      {
-        getRevision: () => revision,
-        applySourceTransaction: (transaction) => {
-          origins.push(transaction.origin);
-          source = applySourcePatches(source, transaction.patches);
-          revision += 1;
-          return { ok: true, revision, value: source };
-        },
-        onStatus,
-      },
-    );
-
-    const segment = buildEditableProjection(source).sourceMap.segments[0]!;
-    session.view.dispatch(
-      session.view.state.tr.setSelection(
-        TextSelection.create(
-          session.view.state.doc,
-          segment.pmFrom,
-          segment.pmTo,
-        ),
-      ),
-    );
-
-    // Point the native selection at the preview element itself (not a text node)
-    // so posAtDOM cannot produce an editable caret.
-    const selection = window.getSelection();
-    const chromeRange = document.createRange();
-    chromeRange.setStart(session.view.dom, 0);
-    chromeRange.collapse(true);
-    selection?.removeAllRanges();
-    selection?.addRange(chromeRange);
-
-    const before = source;
-    pressBackspace(session);
-    expect(source).toBe(before);
-    expect(origins).toEqual([]);
-    expect(onStatus).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: "rejected" }),
-    );
-    session.destroy();
-  });
-
-  it("joins adjacent paragraphs only from a real block-start caret", () => {
-    host = document.createElement("div");
-    document.body.append(host);
-    let source = "one\n\ntwo\n";
-    let revision = 0;
-    const origins: string[] = [];
-    const session = createPreviewEditSession(
-      host,
-      buildEditableProjection(source),
-      {
-        getRevision: () => revision,
-        applySourceTransaction: (transaction) => {
-          origins.push(transaction.origin);
-          source = applySourcePatches(source, transaction.patches);
-          revision += 1;
-          return { ok: true, revision, value: source };
-        },
-      },
-    );
-
-    const two = buildEditableProjection("one\n\ntwo\n").sourceMap.segments.find(
-      (item) => item.text === "two",
-    )!;
-    session.view.dispatch(
-      session.view.state.tr.setSelection(
-        TextSelection.create(session.view.state.doc, two.pmFrom),
-      ),
-    );
-    placeDomCaretInText(session.view.dom, "two", 0);
-    pressBackspace(session);
-    expect(origins.at(-1)).toBe("structure");
-    expect(source).toBe("onetwo\n");
-    session.destroy();
-  });
-
   it("keeps relative caret after rebuild without snapping to block start", () => {
     host = document.createElement("div");
     document.body.append(host);
@@ -832,14 +397,10 @@ describe("createPreviewEditSession", () => {
     const projection = buildEditableProjection(source);
     const session = createPreviewEditSession(host, projection, {
       getRevision: () => 0,
-      applySourceTransaction: () => ({
-        ok: false,
-        reason: "stale-revision",
-        revision: 0,
-      }),
     });
+
     const segment = projection.sourceMap.segments[0]!;
-    const mid = segment.pmFrom + "Hello wor".length;
+    const mid = segment.pmFrom + "Hello wo".length;
     session.view.dispatch(
       session.view.state.tr.setSelection(
         TextSelection.create(session.view.state.doc, mid),
@@ -847,9 +408,23 @@ describe("createPreviewEditSession", () => {
     );
     session.rebuild(buildEditableProjection(source));
     expect(session.view.state.selection.head).toBe(mid);
-    expect(session.view.state.selection.head).not.toBe(
-      projection.sourceMap.blocks[0]!.contentPmFrom,
-    );
+    session.destroy();
+  });
+
+  it("places a source-offset selection for format toolbar recovery", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const source = "Hello world today\n";
+    const projection = buildEditableProjection(source);
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 0,
+    });
+
+    const from = source.indexOf("world");
+    const to = from + 5;
+    expect(session.setSourceSelection(from, to)).toBe(true);
+    const selection = session.getFormatSelection();
+    expect(selection).toMatchObject({ from, to });
     session.destroy();
   });
 });

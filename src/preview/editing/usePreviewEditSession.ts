@@ -1,27 +1,9 @@
-import { baseKeymap, chainCommands, exitCode } from "prosemirror-commands";
-import { keymap } from "prosemirror-keymap";
-import type { Node as ProseMirrorNode } from "prosemirror-model";
-import { EditorState, Plugin, TextSelection, Selection, type Transaction } from "prosemirror-state";
-import { goToNextCell } from "prosemirror-tables";
+import { EditorState, Plugin, TextSelection, Selection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import {
-  buildEditableProjection,
-  type EditableProjection,
-} from "@/markdown/buildEditableProjection";
-import type {
-  ApplySourceTransactionResult,
-  PreviewEditOrigin,
-  SourcePatchTransaction,
-  SourceSelectionRecovery,
-} from "@/shared/previewEditing";
+import type { EditableProjection } from "@/markdown/buildEditableProjection";
 import { isLocateModifier } from "@/shared/locateModifier";
 import { isSafeLinkHref } from "@/shared/previewFormatting";
 import type { PreviewFormatSelection } from "@/shared/previewFormatting";
-import {
-  structureCommandToSourcePatches,
-  transactionToSourcePatches,
-  type PatchTranslationFailureReason,
-} from "./transactionToSourcePatches";
 import { editablePreviewSchema } from "./schema";
 import {
   createReadonlyBlockNodeView,
@@ -29,44 +11,10 @@ import {
   waitForEditableMermaidReady,
 } from "./mermaidNodeView";
 import {
-  mapNativeSelectionToPmExact,
   resolveEditableFormatSelection,
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
 import { resolvePointerCaret } from "./resolvePointerCaret";
-
-function isHighSurrogate(code: number): boolean {
-  return code >= 0xd800 && code <= 0xdbff;
-}
-
-/** Inclusive start of the UTF-16 code point immediately before `pos`. */
-function codePointStartBefore(doc: ProseMirrorNode, pos: number): number {
-  if (pos <= 0) {
-    return 0;
-  }
-  if (pos >= 2) {
-    const pair = doc.textBetween(pos - 2, pos);
-    if (pair.length === 2 && isHighSurrogate(pair.charCodeAt(0))) {
-      return pos - 2;
-    }
-  }
-  return pos - 1;
-}
-
-/** Exclusive end of the UTF-16 code point immediately after `pos`. */
-function codePointEndAfter(doc: ProseMirrorNode, pos: number): number {
-  const size = doc.content.size;
-  if (pos >= size) {
-    return size;
-  }
-  if (pos + 2 <= size) {
-    const pair = doc.textBetween(pos, pos + 2);
-    if (pair.length === 2 && isHighSurrogate(pair.charCodeAt(0))) {
-      return pos + 2;
-    }
-  }
-  return pos + 1;
-}
 
 export type PreviewEditStatusKind =
   | "editing"
@@ -81,12 +29,8 @@ export interface PreviewEditStatus {
 }
 
 export interface PreviewEditSessionHandlers {
-  applySourceTransaction: (
-    transaction: SourcePatchTransaction,
-  ) => ApplySourceTransactionResult;
   onStatus?: (status: PreviewEditStatus) => void;
   onSelectionChange?: (selection: PreviewFormatSelection | null) => void;
-  onComposingChange?: (composing: boolean) => void;
   onLocateSource?: (sourceLine: number) => void;
   onOpenLink?: (url: string) => void;
   /** Current CodeMirror revision used for optimistic locking. */
@@ -95,8 +39,6 @@ export interface PreviewEditSessionHandlers {
 
 export interface PreviewEditSession {
   readonly view: EditorView;
-  isComposing: () => boolean;
-  flushComposition: () => void;
   rebuild: (
     projection: EditableProjection,
     options?: { selection?: { anchor: number; head: number } | null },
@@ -108,69 +50,6 @@ export interface PreviewEditSession {
   focus: () => void;
   blur: () => void;
   destroy: () => void;
-}
-
-function statusForFailure(
-  reason: PatchTranslationFailureReason | string,
-): PreviewEditStatus {
-  switch (reason) {
-    case "read-only":
-      return {
-        kind: "read-only",
-        message: "该内容暂不支持在预览中编辑，请改用源码区",
-      };
-    case "table-structure-read-only":
-      return {
-        kind: "rejected",
-        message: "表格单元格暂不支持换行，请在源码区调整表格结构",
-      };
-    case "cross-block-edit":
-    case "incompatible-blocks":
-    case "unsupported-structure":
-    case "structural-command-required":
-    case "mixed-edit-context":
-      return {
-        kind: "rejected",
-        message: "该操作暂不支持在预览中完成，请改用源码区",
-      };
-    case "stale-projection":
-    case "stale-revision":
-      return {
-        kind: "stale",
-        message: "映射已过期，已重新同步",
-      };
-    default:
-      return {
-        kind: "rejected",
-        message: "无法应用到源码，请改用源码区编辑",
-      };
-  }
-}
-
-function findDiffRange(
-  before: ProseMirrorNode,
-  after: ProseMirrorNode,
-): { from: number; to: number; insertFrom: number; insertTo: number } | null {
-  const start = before.content.findDiffStart(after.content);
-  if (start == null) {
-    return null;
-  }
-  const end = before.content.findDiffEnd(after.content);
-  if (!end) {
-    return {
-      from: start,
-      to: before.content.size,
-      insertFrom: start,
-      insertTo: after.content.size,
-    };
-  }
-  let { a: endA, b: endB } = end;
-  const overlap = start - Math.min(endA, endB);
-  if (overlap > 0) {
-    endA += overlap;
-    endB += overlap;
-  }
-  return { from: start, to: endA, insertFrom: start, insertTo: endB };
 }
 
 /**
@@ -241,7 +120,6 @@ function selectionNearBlock(
       (block) => block.id === preferredBlockId,
     );
     if (held) {
-      // Empty held blocks must keep the caret at the empty content start.
       if (held.contentPmFrom === held.contentPmTo) {
         try {
           return TextSelection.create(
@@ -285,7 +163,36 @@ function selectionNearBlock(
 }
 
 /**
- * Mount a history-free ProseMirror view that commits only local Markdown patches.
+ * Write a native DOM selection for a ProseMirror TextSelection.
+ * Required when the preview is non-editable: PM will not call selectionToDOM
+ * unless a native selection already owns the preview DOM.
+ */
+function applyNativeSelection(view: EditorView, selection: Selection): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  try {
+    const anchor = view.domAtPos(selection.anchor);
+    const head = view.domAtPos(selection.head);
+    const domSelection = window.getSelection();
+    if (!domSelection) {
+      return false;
+    }
+    domSelection.setBaseAndExtent(
+      anchor.node,
+      anchor.offset,
+      head.node,
+      head.offset,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mount a history-free, non-editable ProseMirror view used for selection,
+ * format toolbar mapping, Mermaid node views, and locate — not typing.
  */
 export function createPreviewEditSession(
   parent: HTMLElement,
@@ -293,13 +200,8 @@ export function createPreviewEditSession(
   handlers: PreviewEditSessionHandlers,
 ): PreviewEditSession {
   let projection = initialProjection;
-  let composing = false;
-  let compositionBase: ProseMirrorNode | null = null;
-  let compositionRevision: number | null = null;
   let destroyed = false;
   let applyingExternal = false;
-  /** Hold an empty editable paragraph that would otherwise collapse on rebuild. */
-  let heldEmptyBlockId: string | null = null;
   let flashTimer: ReturnType<typeof setTimeout> | null = null;
   let publishSelectionToken = 0;
   let blankPointerDrag:
@@ -395,9 +297,14 @@ export function createPreviewEditSession(
       ) {
         return;
       }
+      // Non-editable PM will not push state.selection to the DOM; write native
+      // first so DOMObserver can sync PM state from the browser selection.
+      applyNativeSelection(view, selection);
+      applyingExternal = true;
       view.dispatch(
         view.state.tr.setSelection(selection).scrollIntoView(),
       );
+      applyingExternal = false;
     };
     const up: EventListener = (rawEvent) => {
       if (rawEvent instanceof MouseEvent && rawEvent.button !== 0) {
@@ -410,347 +317,13 @@ export function createPreviewEditSession(
     root.addEventListener("mouseup", up, true);
   };
 
-  const acceptProjection = (
-    next: EditableProjection,
-    selection?: SourceSelectionRecovery | null,
-  ) => {
-    const previousHead = Math.min(
-      view.state.selection.head,
-      view.state.doc.content.size,
-    );
-    const previousBlock = projection.sourceMap.blockAt(previousHead);
-    const relativeContentOffset = previousBlock
-      ? Math.max(0, previousHead - previousBlock.contentPmFrom)
-      : null;
-    projection = next;
-    let nextSelection: Selection | undefined;
-    if (selection) {
-      nextSelection =
-        selectionFromSourceOffsets(next, selection.anchor, selection.head) ??
-        undefined;
-      if (!nextSelection) {
-        // Explicit recovery pointed at an unmappable source offset (delimiter).
-        // Prefer the block start over fuzzy nearby text.
-        nextSelection = selectionNearBlock(
-          next,
-          previousBlock?.id ?? null,
-          previousBlock?.sourceLine ?? null,
-          0,
-        );
-      }
-    }
-    if (!nextSelection && heldEmptyBlockId) {
-      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null, 0);
-    }
-    if (!nextSelection) {
-      nextSelection = selectionNearBlock(
-        next,
-        previousBlock?.id ?? null,
-        previousBlock?.sourceLine ?? null,
-        relativeContentOffset,
-      );
-    }
-    applyingExternal = true;
-    view.updateState(
-      EditorState.create({
-        schema: editablePreviewSchema,
-        doc: next.doc,
-        plugins,
-        selection: nextSelection,
-      }),
-    );
-    applyingExternal = false;
-  };
-
-  const commitSourceTransaction = (
-    transaction: SourcePatchTransaction,
-  ): boolean => {
-    const result = handlers.applySourceTransaction(transaction);
-    if (!result.ok) {
-      handlers.onStatus?.(statusForFailure(result.reason));
-      return false;
-    }
-    // Immediately adopt the post-patch projection so the next keystroke does
-    // not translate against a stale source map while Vue's syncToken catches up.
-    try {
-      const next = buildEditableProjection(result.value);
-      // Typing/composition/paste already applied an optimistic PM doc. When the
-      // rebuilt tree matches, keep that document node and the verified caret —
-      // remapping via source offsets can snap away from the live deletion point.
-      const keepOptimisticDoc =
-        heldEmptyBlockId == null &&
-        view.state.doc.eq(next.doc) &&
-        (transaction.origin === "typing" ||
-          transaction.origin === "composition" ||
-          transaction.origin === "paste");
-      if (keepOptimisticDoc) {
-        projection = next;
-      } else {
-        acceptProjection(next, transaction.selection ?? null);
-      }
-    } catch {
-      // Bridge already updated source; Vue rebuild will reconcile.
-    }
-    heldEmptyBlockId = null;
-    handlers.onStatus?.({
-      kind: "editing",
-      message: "正在预览中编辑",
-    });
-    return true;
-  };
-
-  const revertToProjection = (preferredHead?: number) => {
-    applyingExternal = true;
-    const head = Math.min(
-      preferredHead ?? view.state.selection.head,
-      projection.doc.content.size,
-    );
-    const block = projection.sourceMap.blockAt(head);
-    const relative = block ? Math.max(0, head - block.contentPmFrom) : null;
-    view.updateState(
-      EditorState.create({
-        schema: editablePreviewSchema,
-        doc: projection.doc,
-        plugins,
-        selection: selectionNearBlock(
-          projection,
-          block?.id ?? null,
-          block?.sourceLine ?? null,
-          relative,
-        ),
-      }),
-    );
-    applyingExternal = false;
-  };
-
-  const commitStructure = (
-    type: "split-block" | "join-backward" | "join-forward",
-  ): boolean => {
-    // compositionend settles via microtask; structure keys must flush first so
-    // Enter/Backspace never translate against a projection that omits composed text.
-    if (composing || view.composing) {
-      finishComposition();
-    }
-    const translated = structureCommandToSourcePatches({
-      projection,
-      command: { type, pmPosition: view.state.selection.head },
-      revision: handlers.getRevision(),
-    });
-    if (!translated.ok) {
-      handlers.onStatus?.(statusForFailure(translated.reason));
-      return true;
-    }
-    return commitSourceTransaction(translated.sourceTransaction);
-  };
-
-  /**
-   * Align PM selection with the live browser caret before structural delete
-   * decisions. Fail closed when a native caret exists but cannot be mapped.
-   */
-  const syncSelectionFromNativeBeforeDelete = (): boolean => {
-    if (typeof window === "undefined") {
-      return true;
-    }
-    const domSelection = window.getSelection();
-    if (!domSelection || domSelection.rangeCount === 0) {
-      // Programmatic / unit-test path with only a PM selection.
-      return true;
-    }
-    const range = domSelection.getRangeAt(0);
-    if (!view.dom.contains(range.commonAncestorContainer)) {
-      return true;
-    }
-    const native = mapNativeSelectionToPmExact(view, projection);
-    if (!native) {
-      handlers.onStatus?.({
-        kind: "rejected",
-        message: "无法确认删除位置，请重新放置光标后再试",
-      });
-      return false;
-    }
-    const { from, to } = view.state.selection;
-    if (native.from === from && native.to === to) {
-      return true;
-    }
-    try {
-      applyingExternal = true;
-      view.updateState(
-        view.state.apply(
-          view.state.tr.setSelection(
-            TextSelection.create(view.state.doc, native.from, native.to),
-          ),
-        ),
-      );
-      applyingExternal = false;
-      return true;
-    } catch {
-      applyingExternal = false;
-      handlers.onStatus?.({
-        kind: "rejected",
-        message: "无法确认删除位置，请重新放置光标后再试",
-      });
-      return false;
-    }
-  };
-
-  const translateAndCommit = (
-    tr: Transaction,
-    origin: Exclude<PreviewEditOrigin, "structure">,
-  ): boolean => {
-    if (!tr.before.eq(projection.doc)) {
-      handlers.onStatus?.(statusForFailure("stale-projection"));
-      return false;
-    }
-    const translated = transactionToSourcePatches({
-      projection,
-      transaction: tr,
-      revision: handlers.getRevision(),
-      origin,
-    });
-    if (!translated.ok) {
-      handlers.onStatus?.(statusForFailure(translated.reason));
-      return false;
-    }
-    return commitSourceTransaction(translated.sourceTransaction);
-  };
-
-  const finishComposition = () => {
-    if (!compositionBase) {
-      composing = false;
-      compositionRevision = null;
-      handlers.onComposingChange?.(false);
-      return;
-    }
-    const base = compositionBase;
-    const baseRevision = compositionRevision;
-    compositionBase = null;
-    compositionRevision = null;
-    composing = false;
-    handlers.onComposingChange?.(false);
-
-    if (
-      baseRevision != null &&
-      baseRevision !== handlers.getRevision()
-    ) {
-      handlers.onStatus?.(statusForFailure("stale-revision"));
-      revertToProjection();
-      emitSelection();
-      return;
-    }
-
-    const diff = findDiffRange(base, view.state.doc);
-    if (!diff) {
-      return;
-    }
-    // Translate against the composition base, which must still match the
-    // session projection used when composition started.
-    if (!base.eq(projection.doc)) {
-      handlers.onStatus?.(statusForFailure("stale-projection"));
-      revertToProjection();
-      emitSelection();
-      return;
-    }
-    const tr = EditorState.create({
-      schema: editablePreviewSchema,
-      doc: base,
-    }).tr.replace(
-      diff.from,
-      diff.to,
-      view.state.doc.slice(diff.insertFrom, diff.insertTo),
-    );
-    if (!translateAndCommit(tr, "composition")) {
-      revertToProjection();
-      emitSelection();
-    }
-  };
-
   const plugins = [
-    keymap({
-      Enter: () => commitStructure("split-block"),
-      "Shift-Enter": exitCode,
-      Backspace: chainCommands((_state, dispatch) => {
-        if (!syncSelectionFromNativeBeforeDelete()) {
-          return true;
-        }
-        const { $from, empty, from } = view.state.selection;
-        if (!empty) {
-          // Non-empty ranges fall through to baseKeymap deleteSelection.
-          return false;
-        }
-        if ($from.parentOffset === 0) {
-          if (dispatch) {
-            commitStructure("join-backward");
-          }
-          return true;
-        }
-        // Delete explicitly after sync. Relying on the browser default fails when
-        // a projection rebuild leaves the DOM caret detached while PM is correct.
-        if (dispatch) {
-          view.dispatch(
-            view.state.tr.delete(codePointStartBefore(view.state.doc, from), from),
-          );
-        }
-        return true;
-      }),
-      Delete: chainCommands((_state, dispatch) => {
-        if (!syncSelectionFromNativeBeforeDelete()) {
-          return true;
-        }
-        const { $from, empty, from } = view.state.selection;
-        if (!empty) {
-          return false;
-        }
-        if ($from.parentOffset >= $from.parent.content.size) {
-          if (dispatch) {
-            commitStructure("join-forward");
-          }
-          return true;
-        }
-        if (dispatch) {
-          view.dispatch(
-            view.state.tr.delete(from, codePointEndAfter(view.state.doc, from)),
-          );
-        }
-        return true;
-      }),
-      Tab: goToNextCell(1),
-      "Shift-Tab": goToNextCell(-1),
-    }),
-    keymap(baseKeymap),
     new Plugin({
       props: {
         attributes: {
           class: "ProseMirror tm-editable-preview markdown-body",
-          role: "textbox",
-          "aria-multiline": "true",
-          "aria-label": "可编辑 Markdown 预览",
-        },
-        handlePaste(_view, event) {
-          event.preventDefault();
-          const text = event.clipboardData?.getData("text/plain") ?? "";
-          if (!text) {
-            return true;
-          }
-          if (/[\r\n]/.test(text)) {
-            const block = projection.sourceMap.blockAt(
-              view.state.selection.head,
-            );
-            if (block?.context.tableCell) {
-              handlers.onStatus?.(statusForFailure("table-structure-read-only"));
-              return true;
-            }
-            handlers.onStatus?.({
-              kind: "rejected",
-              message: "多行粘贴暂请在源码区完成",
-            });
-            return true;
-          }
-          const { from, to } = view.state.selection;
-          const tr = view.state.tr.insertText(text, from, to);
-          if (!translateAndCommit(tr, "paste")) {
-            // Paste was not applied optimistically to the view.
-          }
-          return true;
+          role: "document",
+          "aria-label": "Markdown 预览",
         },
         handleDrop() {
           return true;
@@ -777,18 +350,18 @@ export function createPreviewEditSession(
               return false;
             }
             event.preventDefault();
-            if (!view.hasFocus()) {
-              view.focus();
-            }
+            const selection = TextSelection.create(
+              view.state.doc,
+              resolved.pos,
+            );
+            applyNativeSelection(view, selection);
             if (
               !view.state.selection.empty ||
               view.state.selection.head !== resolved.pos
             ) {
-              view.dispatch(
-                view.state.tr.setSelection(
-                  TextSelection.create(view.state.doc, resolved.pos),
-                ),
-              );
+              applyingExternal = true;
+              view.dispatch(view.state.tr.setSelection(selection));
+              applyingExternal = false;
             }
             beginBlankPointerDrag(resolved.pos);
             return true;
@@ -820,23 +393,8 @@ export function createPreviewEditSession(
             return true;
           },
           cut() {
-            return false;
-          },
-          compositionstart() {
-            composing = true;
-            compositionBase = view.state.doc;
-            compositionRevision = handlers.getRevision();
-            handlers.onComposingChange?.(true);
-            return false;
-          },
-          compositionend() {
-            // Allow ProseMirror to settle the composed characters first.
-            queueMicrotask(() => {
-              if (!destroyed) {
-                finishComposition();
-              }
-            });
-            return false;
+            // Cut would mutate content; block it in the non-editable preview.
+            return true;
           },
           mouseup() {
             // Drag/click gesture finished — publish a settled snapshot without
@@ -876,8 +434,8 @@ export function createPreviewEditSession(
                 handlers.onOpenLink?.(link.href);
                 return true;
               }
-              // Plain click places the caret for label editing.
-              return false;
+              // Plain click no longer places a caret for label editing.
+              return true;
             }
 
             const readonly = event.target.closest("[data-tm-readonly]");
@@ -898,7 +456,7 @@ export function createPreviewEditSession(
           },
         },
         editable() {
-          return true;
+          return false;
         },
       },
     }),
@@ -917,69 +475,12 @@ export function createPreviewEditSession(
       if (destroyed) {
         return;
       }
-      if (applyingExternal) {
-        view.updateState(view.state.apply(tr));
-        emitSelection();
+      // Selection-only updates. Document mutations are ignored because the
+      // preview is non-editable and no longer translates typing to source.
+      if (tr.docChanged && !applyingExternal) {
         return;
       }
-
-      if (!tr.docChanged) {
-        view.updateState(view.state.apply(tr));
-        emitSelection();
-        return;
-      }
-
-      if (composing || view.composing) {
-        composing = true;
-        if (!compositionBase) {
-          // WebKit may skip compositionstart — never fall back to a possibly
-          // stale projection.doc; use the live view document instead.
-          compositionBase = view.state.doc;
-          compositionRevision = handlers.getRevision();
-          handlers.onComposingChange?.(true);
-        }
-        view.updateState(view.state.apply(tr));
-        return;
-      }
-
-      // Translate against the current projection before mutating the view so a
-      // rejected transaction never leaves an optimistic desync.
-      const origin: Exclude<PreviewEditOrigin, "structure"> =
-        tr.getMeta("uiEvent") === "paste" ? "paste" : "typing";
-
-      if (!tr.before.eq(projection.doc)) {
-        handlers.onStatus?.(statusForFailure("stale-projection"));
-        // Do not roll back an already-committed previous keystroke — refuse this
-        // one and ask the host to force-resync (status kind "stale").
-        return;
-      }
-
-      const translated = transactionToSourcePatches({
-        projection,
-        transaction: tr,
-        revision: handlers.getRevision(),
-        origin,
-      });
-      if (!translated.ok) {
-        handlers.onStatus?.(statusForFailure(translated.reason));
-        return;
-      }
-
-      const nextState = view.state.apply(tr);
-      view.updateState(nextState);
-
-      const block = projection.sourceMap.blockAt(tr.selection.head);
-      if (
-        block &&
-        block.policy === "editable" &&
-        nextState.doc.textBetween(block.contentPmFrom, block.contentPmTo) === ""
-      ) {
-        heldEmptyBlockId = block.id;
-      }
-
-      if (!commitSourceTransaction(translated.sourceTransaction)) {
-        revertToProjection(tr.selection.head);
-      }
+      view.updateState(view.state.apply(tr));
       emitSelection();
     },
   });
@@ -990,17 +491,6 @@ export function createPreviewEditSession(
   ) {
     if (destroyed) {
       return;
-    }
-    if (composing) {
-      // External change during composition: discard temporary input.
-      compositionBase = null;
-      compositionRevision = null;
-      composing = false;
-      handlers.onComposingChange?.(false);
-      handlers.onStatus?.({
-        kind: "stale",
-        message: "映射已过期，已重新同步",
-      });
     }
     const previousHead = Math.min(
       view.state.selection.head,
@@ -1028,9 +518,6 @@ export function createPreviewEditSession(
         );
       }
     }
-    if (!nextSelection && heldEmptyBlockId) {
-      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null, 0);
-    }
     if (!nextSelection) {
       nextSelection = selectionNearBlock(
         next,
@@ -1049,13 +536,10 @@ export function createPreviewEditSession(
       }),
     );
     applyingExternal = false;
-    emitSelection();
-  }
-
-  function flushComposition() {
-    if (composing || view.composing) {
-      finishComposition();
+    if (nextSelection && !nextSelection.empty) {
+      applyNativeSelection(view, nextSelection);
     }
+    emitSelection();
   }
 
   function getFormatSelection(): PreviewFormatSelection | null {
@@ -1072,10 +556,14 @@ export function createPreviewEditSession(
     if (!mapped) {
       return false;
     }
+    // Non-editable roots cannot take focus; write the native selection so
+    // DOMObserver can own and sync it into PM state.
+    if (!applyNativeSelection(view, mapped)) {
+      return false;
+    }
     applyingExternal = true;
     view.dispatch(view.state.tr.setSelection(mapped));
     applyingExternal = false;
-    view.focus();
     emitSelection();
     return true;
   }
@@ -1127,14 +615,14 @@ export function createPreviewEditSession(
 
   return {
     view,
-    isComposing: () => composing || view.composing,
-    flushComposition,
     rebuild,
     getFormatSelection,
     syncDomSelection,
     setSourceSelection,
     scrollToSourceLine,
-    focus: () => view.focus(),
+    focus: () => {
+      // Non-editable roots reject focus; no-op is intentional.
+    },
     blur: () => view.dom.blur(),
     destroy: () => {
       destroyed = true;

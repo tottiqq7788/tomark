@@ -236,19 +236,8 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     }, 1200);
   }
 
-  function sourceUserEvent(origin: PreviewEditOrigin): string {
-    switch (origin) {
-      case "typing":
-        return "input.type.preview";
-      case "composition":
-        return "input.type.compose.preview";
-      case "paste":
-        return "input.paste.preview";
-      case "format":
-        return "input.preview.format";
-      case "structure":
-        return "input.preview.structure";
-    }
+  function sourceUserEvent(_origin: PreviewEditOrigin): string {
+    return "input.preview.format";
   }
 
   function applySourceTransaction(
@@ -264,14 +253,11 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
       return validation;
     }
 
+    // Format patches are always an explicit undo boundary.
     const annotations = [
       Transaction.userEvent.of(sourceUserEvent(transaction.origin)),
+      isolateHistory.of("full"),
     ];
-    // Continuous adjacent typing may coalesce. Every composition, paste,
-    // formatting action, and structure command is an explicit undo boundary.
-    if (transaction.origin !== "typing") {
-      annotations.push(isolateHistory.of("full"));
-    }
     view.dispatch({
       changes: validation.patches.map((patch) => ({
         from: patch.from,

@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import type { EditableProjection } from "@/markdown/buildEditableProjection";
-import type {
-  ApplySourceTransactionResult,
-  SourcePatchTransaction,
-} from "@/shared/previewEditing";
 import type { PreviewFormatSelection } from "@/shared/previewFormatting";
 import {
   createPreviewEditSession,
@@ -18,15 +14,11 @@ const props = defineProps<{
   syncToken: number;
   selectionRecovery?: { anchor: number; head: number } | null;
   getRevision: () => number;
-  applySourceTransaction: (
-    transaction: SourcePatchTransaction,
-  ) => ApplySourceTransactionResult;
 }>();
 
 const emit = defineEmits<{
   status: [status: PreviewEditStatus];
   "selection-change": [selection: PreviewFormatSelection | null];
-  "composing-change": [composing: boolean];
   "locate-source": [sourceLine: number];
   "open-link": [url: string];
 }>();
@@ -40,12 +32,9 @@ onMounted(() => {
     return;
   }
   session = createPreviewEditSession(host.value, props.projection, {
-    applySourceTransaction: (transaction) =>
-      props.applySourceTransaction(transaction),
     getRevision: () => props.getRevision(),
     onStatus: (status) => emit("status", status),
     onSelectionChange: (selection) => emit("selection-change", selection),
-    onComposingChange: (composing) => emit("composing-change", composing),
     onLocateSource: (line) => emit("locate-source", line),
     onOpenLink: (url) => emit("open-link", url),
   });
@@ -78,14 +67,6 @@ function hideFormatToolbar() {
   emit("selection-change", null);
 }
 
-function flushComposition() {
-  session?.flushComposition();
-}
-
-function isComposing(): boolean {
-  return session?.isComposing() ?? false;
-}
-
 function getFormatSelection(): PreviewFormatSelection | null {
   return session?.syncDomSelection() ?? session?.getFormatSelection() ?? null;
 }
@@ -105,8 +86,6 @@ function blur() {
 defineExpose({
   scrollToSourceLine,
   hideFormatToolbar,
-  flushComposition,
-  isComposing,
   getFormatSelection,
   setSourceSelection,
   focus,

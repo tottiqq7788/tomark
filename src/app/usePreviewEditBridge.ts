@@ -39,13 +39,10 @@ export type PreviewEditBridgePreviewApi = {
   ) => void;
   beginOwnEdit: () => void;
   endOwnEdit: () => void;
-  setComposing: (composing: boolean) => void;
-  flushEditSession: () => Promise<void>;
-  flushCompositionOnly?: () => void;
 };
 
 /**
- * Connect editable-preview patches to CodeMirror's single undo history.
+ * Connect preview format patches to CodeMirror's single undo history.
  */
 export function usePreviewEditBridge(options: {
   getEditor: () => PreviewEditEditorApi | null;
@@ -78,11 +75,8 @@ export function usePreviewEditBridge(options: {
         return result;
       }
       preview.syncAfterOwnEdit(result.value, transaction.selection ?? null, {
-        // Structure/format need a host rebuild to place the caret. Typing and
-        // composition already updated the PM session optimistically.
-        bumpSync:
-          transaction.origin === "structure" ||
-          transaction.origin === "format",
+        // Format always needs a host rebuild to place the caret.
+        bumpSync: true,
       });
       return result;
     } finally {
@@ -102,18 +96,10 @@ export function usePreviewEditBridge(options: {
     }
   }
 
-  function onComposingChange(composing: boolean) {
-    preview.setComposing(composing);
-    if (composing) {
-      statusMessage.value = "正在预览中编辑";
-    }
-  }
-
   async function onFormatSelection(payload: {
     action: PreviewFormatAction;
     selection: PreviewFormatSelection;
   }) {
-    preview.flushCompositionOnly?.();
     if (!preview.isCurrent()) {
       statusMessage.value = "预览内容已更新，请重新选择后再设置格式";
       return;
@@ -205,17 +191,7 @@ export function usePreviewEditBridge(options: {
     }
   }
 
-  async function flushBeforeAction(): Promise<void> {
-    await preview.flushEditSession();
-  }
-
-  /** Prefer for keyboard shortcuts so handlers stay same-tick when idle. */
-  function flushCompositionBeforeAction(): void {
-    preview.flushCompositionOnly?.();
-  }
-
   function undoEdit(): boolean {
-    preview.flushCompositionOnly?.();
     const editor = getEditor();
     if (!editor) {
       return false;
@@ -230,7 +206,6 @@ export function usePreviewEditBridge(options: {
   }
 
   function redoEdit(): boolean {
-    preview.flushCompositionOnly?.();
     const editor = getEditor();
     if (!editor) {
       return false;
@@ -245,13 +220,9 @@ export function usePreviewEditBridge(options: {
   }
 
   return {
-    applySourceTransaction,
     getRevision,
     onEditStatus,
-    onComposingChange,
     onFormatSelection,
-    flushBeforeAction,
-    flushCompositionBeforeAction,
     undoEdit,
     redoEdit,
   };

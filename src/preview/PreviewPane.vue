@@ -3,10 +3,6 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import type { PreviewAnchor } from "@/shared/types";
 import type { EditableProjection } from "@/markdown/buildEditableProjection";
 import type {
-  ApplySourceTransactionResult,
-  SourcePatchTransaction,
-} from "@/shared/previewEditing";
-import type {
   ActiveFormats,
   InlineFormat,
   PreviewFormatAction,
@@ -37,9 +33,6 @@ const props = defineProps<{
   editableSyncToken: number;
   selectionRecovery?: { anchor: number; head: number } | null;
   getRevision: () => number;
-  applySourceTransaction: (
-    transaction: SourcePatchTransaction,
-  ) => ApplySourceTransactionResult;
 }>();
 
 const emit = defineEmits<{
@@ -52,7 +45,6 @@ const emit = defineEmits<{
     },
   ];
   "edit-status": [status: PreviewEditStatus];
-  "composing-change": [composing: boolean];
 }>();
 
 const scrollRoot = ref<HTMLElement | null>(null);
@@ -60,8 +52,6 @@ const fallbackContainer = ref<HTMLElement | null>(null);
 const editableHost = ref<{
   scrollToSourceLine: (line: number) => Promise<void>;
   hideFormatToolbar: () => void;
-  flushComposition: () => void;
-  isComposing: () => boolean;
   getFormatSelection: () => PreviewFormatSelection | null;
   setSourceSelection: (anchor: number, head: number) => boolean;
   focus: () => void;
@@ -526,14 +516,6 @@ function hideFormatToolbar() {
   editableHost.value?.hideFormatToolbar();
 }
 
-function flushComposition() {
-  editableHost.value?.flushComposition();
-}
-
-function isComposing(): boolean {
-  return editableHost.value?.isComposing() ?? false;
-}
-
 /** Place a source-offset selection and show the format toolbar when non-empty. */
 function selectSourceRange(from: number, to: number): boolean {
   if (!useEditable.value || !editableHost.value) {
@@ -561,8 +543,6 @@ function getFormatSelection(): PreviewFormatSelection | null {
 defineExpose({
   scrollToSourceLine,
   hideFormatToolbar,
-  flushComposition,
-  isComposing,
   selectSourceRange,
   getFormatSelection,
 });
@@ -615,10 +595,8 @@ onBeforeUnmount(() => {
       :sync-token="editableSyncToken"
       :selection-recovery="selectionRecovery"
       :get-revision="getRevision"
-      :apply-source-transaction="applySourceTransaction"
       @status="emit('edit-status', $event)"
       @selection-change="onEditableSelectionChange"
-      @composing-change="emit('composing-change', $event)"
       @locate-source="emit('locate-source', $event)"
       @open-link="emit('open-link', $event)"
     />

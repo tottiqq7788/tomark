@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { undoDepth } from "@codemirror/commands";
-import { EditorState } from "prosemirror-state";
 import { createEditor, type EditorHandle } from "@/editor/createEditor";
-import { buildEditableProjection } from "@/markdown/buildEditableProjection";
-import { transactionToSourcePatches } from "@/preview/editing/transactionToSourcePatches";
 import {
   applySourcePatches,
   validateSourcePatchTransaction,
@@ -19,7 +16,7 @@ describe("source patch validation", () => {
     ];
     const result = validateSourcePatchTransaction(source, 4, {
       revision: 4,
-      origin: "typing",
+      origin: "format",
       patches,
     });
 
@@ -36,14 +33,14 @@ describe("source patch validation", () => {
     expect(
       validateSourcePatchTransaction(source, 1, {
         revision: 0,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 0, to: 1, insert: "x", expectedText: "a" }],
       }),
     ).toMatchObject({ ok: false, reason: "stale-revision" });
     expect(
       validateSourcePatchTransaction(source, 1, {
         revision: 1,
-        origin: "typing",
+        origin: "format",
         patches: [
           { from: 1, to: 4, insert: "", expectedText: "bcd" },
           { from: 3, to: 5, insert: "", expectedText: "de" },
@@ -53,7 +50,7 @@ describe("source patch validation", () => {
     expect(
       validateSourcePatchTransaction(source, 1, {
         revision: 1,
-        origin: "typing",
+        origin: "format",
         patches: [
           { from: 2, to: 2, insert: "x", expectedText: "" },
           { from: 2, to: 2, insert: "y", expectedText: "" },
@@ -63,7 +60,7 @@ describe("source patch validation", () => {
     expect(
       validateSourcePatchTransaction(source, 1, {
         revision: 1,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 0, to: 1, insert: "x", expectedText: "z" }],
       }),
     ).toMatchObject({ ok: false, reason: "expected-text-mismatch" });
@@ -93,7 +90,7 @@ describe("CodeMirror source transactions", () => {
     host = null;
   });
 
-  it("applies multiple patches in one dispatch and one undo step", () => {
+  it("applies multiple format patches in one dispatch and one undo step", () => {
     const instance = mount("alpha beta gamma");
     const result = instance.applySourceTransaction({
       revision: instance.getRevision(),
@@ -125,14 +122,14 @@ describe("CodeMirror source transactions", () => {
     expect(
       instance.applySourceTransaction({
         revision: revision - 1,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 0, to: 5, insert: "x", expectedText: "hello" }],
       }),
     ).toMatchObject({ ok: false, reason: "stale-revision" });
     expect(
       instance.applySourceTransaction({
         revision,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 0, to: 5, insert: "x", expectedText: "other" }],
       }),
     ).toMatchObject({ ok: false, reason: "expected-text-mismatch" });
@@ -140,62 +137,27 @@ describe("CodeMirror source transactions", () => {
     expect(instance.getRevision()).toBe(revision);
   });
 
-  it("coalesces adjacent typing but isolates paste and structure history", () => {
+  it("isolates each format patch as its own undo boundary", () => {
     const instance = mount("a");
     expect(
       instance.applySourceTransaction({
         revision: 0,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 1, to: 1, insert: "b", expectedText: "" }],
       }).ok,
     ).toBe(true);
     expect(
       instance.applySourceTransaction({
         revision: 1,
-        origin: "typing",
+        origin: "format",
         patches: [{ from: 2, to: 2, insert: "c", expectedText: "" }],
       }).ok,
     ).toBe(true);
-    expect(undoDepth(instance.view.state)).toBe(1);
-
-    expect(
-      instance.applySourceTransaction({
-        revision: 2,
-        origin: "paste",
-        patches: [{ from: 3, to: 3, insert: "d", expectedText: "" }],
-      }).ok,
-    ).toBe(true);
     expect(undoDepth(instance.view.state)).toBe(2);
+
     expect(instance.undo()).toBe(true);
-    expect(instance.getValue()).toBe("abc");
+    expect(instance.getValue()).toBe("ab");
     expect(instance.undo()).toBe(true);
     expect(instance.getValue()).toBe("a");
-  });
-
-  it("applies a translated multi-patch preview edit through unified history", () => {
-    const source = "a **bold** z";
-    const projection = buildEditableProjection(source);
-    const bold = projection.sourceMap.segments.find(
-      (segment) => segment.text === "bold",
-    )!;
-    const pmState = EditorState.create({ doc: projection.doc });
-    const translated = transactionToSourcePatches({
-      projection,
-      transaction: pmState.tr.delete(bold.pmFrom, bold.pmTo),
-      revision: 0,
-      origin: "typing",
-    });
-    expect(translated.ok).toBe(true);
-    if (!translated.ok) {
-      return;
-    }
-
-    const instance = mount(source);
-    expect(
-      instance.applySourceTransaction(translated.sourceTransaction),
-    ).toMatchObject({ ok: true, value: "a  z" });
-    expect(undoDepth(instance.view.state)).toBe(1);
-    expect(instance.undo()).toBe(true);
-    expect(instance.getValue()).toBe(source);
   });
 });

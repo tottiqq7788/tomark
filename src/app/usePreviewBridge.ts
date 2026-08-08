@@ -9,8 +9,6 @@ import { nextTick, onBeforeUnmount, ref, watch, type Ref } from "vue";
 
 type PreviewHandle = {
   scrollToSourceLine: (line: number) => Promise<void>;
-  flushComposition?: () => void;
-  isComposing?: () => boolean;
 };
 
 export type PreviewRenderMode = "editable" | "fallback";
@@ -34,7 +32,6 @@ export function usePreviewBridge(content: Ref<string>) {
   let locateGeneration = 0;
   /** Skip debounced full refresh while the preview owns the latest patch. */
   let ownEditDepth = 0;
-  let composing = false;
   let paused = false;
 
   async function ensureMarkdown() {
@@ -225,7 +222,7 @@ export function usePreviewBridge(content: Ref<string>) {
   }
 
   const refreshPreview = debounce((source: string) => {
-    if (ownEditDepth > 0 || composing || paused) {
+    if (ownEditDepth > 0 || paused) {
       return;
     }
     void renderPreview(source);
@@ -237,7 +234,7 @@ export function usePreviewBridge(content: Ref<string>) {
       if (ownEditDepth > 0) {
         return;
       }
-      if (composing || paused) {
+      if (paused) {
         return;
       }
       const openedOrReplaced =
@@ -290,7 +287,6 @@ export function usePreviewBridge(content: Ref<string>) {
 
   async function locate(line: number) {
     const generation = ++locateGeneration;
-    previewRef.value?.flushComposition?.();
     const ok = await syncNow();
     if (!ok || generation !== locateGeneration) {
       return;
@@ -326,8 +322,6 @@ export function usePreviewBridge(content: Ref<string>) {
     try {
       applyEditableProjection(source, {
         selection,
-        // Typing already adopted the projection inside the PM session; bumping
-        // would rebuild the host and risk snapping the caret to a block start.
         bumpSync: options?.bumpSync !== false,
       });
     } finally {
@@ -335,31 +329,18 @@ export function usePreviewBridge(content: Ref<string>) {
     }
   }
 
-  function setComposing(next: boolean) {
-    composing = next;
-    if (!next && ownEditDepth === 0 && !paused) {
-      refreshPreview(content.value);
-    }
-  }
-
   function setPaused(next: boolean) {
     paused = next;
-    if (!next && ownEditDepth === 0 && !composing) {
+    if (!next && ownEditDepth === 0) {
       void renderPreview(content.value, { force: true });
     }
   }
 
   async function flushEditSession(): Promise<void> {
-    previewRef.value?.flushComposition?.();
     refreshPreview.cancel();
     if (!isCurrent()) {
       await renderPreview(content.value, { force: true });
     }
-  }
-
-  /** Sync IME flush for shortcuts / menus that must not await a rebuild. */
-  function flushCompositionOnly(): void {
-    previewRef.value?.flushComposition?.();
   }
 
   return {
@@ -381,10 +362,8 @@ export function usePreviewBridge(content: Ref<string>) {
     beginOwnEdit,
     endOwnEdit,
     syncAfterOwnEdit,
-    setComposing,
     setPaused,
     flushEditSession,
-    flushCompositionOnly,
   };
 }
 
