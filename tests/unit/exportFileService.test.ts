@@ -23,8 +23,8 @@ describe("exportFileService", () => {
     const { pickExportPath } = await import("@/native/exportFileService");
     await expect(
       pickExportPath({
-        defaultPath: "a.pdf",
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "a.html",
+        filters: [{ name: "HTML", extensions: ["html", "htm"] }],
       }),
     ).rejects.toThrow(/桌面应用内可用/);
     expect(save).not.toHaveBeenCalled();
@@ -47,8 +47,8 @@ describe("exportFileService", () => {
     const { pickExportPath } = await import("@/native/exportFileService");
     await expect(
       pickExportPath({
-        defaultPath: "a.pdf",
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "a.html",
+        filters: [{ name: "HTML", extensions: ["html", "htm"] }],
       }),
     ).resolves.toBeNull();
   });
@@ -56,20 +56,20 @@ describe("exportFileService", () => {
   it("writes bytes after a successful dialog selection", async () => {
     (window as unknown as { __TAURI_INTERNALS__: { invoke: typeof invoke } }).__TAURI_INTERNALS__ =
       { invoke };
-    save.mockResolvedValue("/tmp/out.pdf");
+    save.mockResolvedValue("/tmp/out.html");
     invoke.mockResolvedValue(null);
     const { saveBytesWithDialog } = await import("@/native/exportFileService");
     const result = await saveBytesWithDialog({
-      defaultPath: "out.pdf",
-      filters: [{ name: "PDF", extensions: ["pdf"] }],
-      bytes: new Uint8Array([0x25, 0x50, 0x44, 0x46]),
+      defaultPath: "out.html",
+      filters: [{ name: "HTML", extensions: ["html", "htm"] }],
+      bytes: new TextEncoder().encode("<!DOCTYPE html>"),
     });
-    expect(result).toEqual({ path: "/tmp/out.pdf", fileName: "out.pdf" });
+    expect(result).toEqual({ path: "/tmp/out.html", fileName: "out.html" });
     expect(invoke).toHaveBeenCalledWith(
       "atomic_write_bytes_file",
       expect.objectContaining({
-        path: "/tmp/out.pdf",
-        contentsBase64: btoa("%PDF"),
+        path: "/tmp/out.html",
+        contentsBase64: btoa("<!DOCTYPE html>"),
       }),
     );
   });
@@ -81,18 +81,18 @@ describe("exportFileService", () => {
     const { saveBytesWithDialog } = await import("@/native/exportFileService");
     await expect(
       saveBytesWithDialog({
-        defaultPath: "out.pdf",
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "out.html",
+        filters: [{ name: "HTML", extensions: ["html", "htm"] }],
         bytes: new Uint8Array([1]),
       }),
     ).rejects.toThrow(/已取消导出/);
 
-    save.mockResolvedValue("/tmp/out.pdf");
+    save.mockResolvedValue("/tmp/out.html");
     invoke.mockRejectedValue("disk full");
     await expect(
       saveBytesWithDialog({
-        defaultPath: "out.pdf",
-        filters: [{ name: "PDF", extensions: ["pdf"] }],
+        defaultPath: "out.html",
+        filters: [{ name: "HTML", extensions: ["html", "htm"] }],
         bytes: new Uint8Array([1]),
       }),
     ).rejects.toThrow("disk full");

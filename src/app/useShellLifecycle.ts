@@ -126,9 +126,7 @@ export function useShellLifecycle(
         isDirty: () => session.dirty.value,
         preloadExportRenderers: async () => {
           const { preloadExportRenderer } = await import("@/export/runExport");
-          await Promise.all(
-            (["pdf", "docx", "png"] as const).map(preloadExportRenderer),
-          );
+          await preloadExportRenderer("png");
         },
         runExportToPath: async (job) => {
           let lastProgress = "尚未开始";

@@ -44,7 +44,7 @@ describe("ExportProgressDialog", () => {
         open: true,
         phase: "success",
         title: "导出完成",
-        message: "已导出：a.pdf",
+        message: "已导出：a.html",
         warnings: [{ src: "x.png", reason: "缺失" }],
       },
       attachTo: document.body,

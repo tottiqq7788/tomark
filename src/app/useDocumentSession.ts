@@ -264,7 +264,7 @@ quadrantChart
   标题折叠: [0.3, 0.8]
   Mermaid 预览: [0.55, 0.7]
   主题系统: [0.75, 0.45]
-  导出 PDF: [0.85, 0.35]
+  导出 HTML: [0.85, 0.35]
 \`\`\`
 
 柱状图（XY Chart）：
@@ -367,7 +367,7 @@ Autosave,Close,5
 kanban
   Todo
     [主题系统]
-    [导出 PDF]
+    [导出 HTML]
   Doing
     [Mermaid 图例扩充]
   Done

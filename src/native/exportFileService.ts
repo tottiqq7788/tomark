@@ -18,7 +18,7 @@ function mapInvokeError(error: unknown): Error {
 
 /**
  * Encode binary for Tauri JSON IPC. Do not pass Uint8Array / number[] for
- * multi‑MB PDFs — WKWebView freezes building or serializing huge arrays.
+ * multi‑MB exports — WKWebView freezes building or serializing huge arrays.
  */
 export function bytesToBase64(bytes: Uint8Array): string {
   const chunkSize = 0x8000;

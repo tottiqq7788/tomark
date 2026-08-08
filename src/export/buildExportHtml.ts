@@ -4,7 +4,6 @@ import { renderMermaidForExport } from "@/preview/renderMermaid";
 import {
   EXPORT_CONTENT_WIDTH_PX,
   ExportFailedError,
-  PDF_PAGED_CONTENT_WIDTH_MM,
   type BuiltExportDocument,
   type ExportDocumentOptions,
   type HtmlAssetsBundle,
@@ -33,17 +32,8 @@ const EXPORT_BODY_FONT_STACK =
 const EXPORT_CODE_FONT_STACK =
   '"Source Code Pro", "Source Han Sans SC", "Noto Sans Symbols 2", "Noto Emoji", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
-/** Shared shell for HTML / PNG / DOCX intermediate HTML (not PDF-specific sizing). */
+/** Shared shell for HTML / PNG exports. */
 export function exportShellCss(): string {
-  return buildWideExportCss("14px");
-}
-
-/** Long single-page PDF shell: larger body size for print readability. */
-export function exportLongPdfCss(): string {
-  return buildWideExportCss("16px");
-}
-
-function buildWideExportCss(fontSize: string): string {
   return `${markdownBodyCss}
 
 .markdown-body.export-root {
@@ -55,7 +45,7 @@ function buildWideExportCss(fontSize: string): string {
   background: #fff;
   color: #000000;
   font-family: ${EXPORT_BODY_FONT_STACK};
-  font-size: ${fontSize};
+  font-size: 14px;
   font-weight: 400;
 }
 
@@ -79,74 +69,6 @@ function buildWideExportCss(fontSize: string): string {
   border-radius: 4px;
   color: #6b7280;
   font-size: 0.9em;
-}
-`;
-}
-
-/** Print-oriented shell for A4 vector pagination (margins owned by page.margin). */
-export function exportPagedPdfCss(): string {
-  return `${markdownBodyCss}
-
-.markdown-body.export-root.export-root-paged {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: ${PDF_PAGED_CONTENT_WIDTH_MM}mm;
-  margin: 0 auto;
-  padding: 0;
-  background: #fff;
-  color: #000000;
-  font-family: ${EXPORT_BODY_FONT_STACK};
-  font-size: 12pt;
-  font-weight: 400;
-  line-height: 1.55;
-}
-
-.export-root.export-root-paged code,
-.export-root.export-root-paged pre,
-.export-root.export-root-paged kbd,
-.export-root.export-root-paged samp {
-  font-family: ${EXPORT_CODE_FONT_STACK};
-  font-weight: 400;
-}
-
-.export-root.export-root-paged img,
-.export-root.export-root-paged svg,
-.export-root.export-root-paged canvas {
-  max-width: 100%;
-  height: auto;
-}
-
-.export-root.export-root-paged h1,
-.export-root.export-root-paged h2,
-.export-root.export-root-paged h3,
-.export-root.export-root-paged h4,
-.export-root.export-root-paged h5,
-.export-root.export-root-paged h6 {
-  break-after: avoid;
-  page-break-after: avoid;
-}
-
-.export-root.export-root-paged thead,
-.export-root.export-root-paged tr {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-.export-root.export-root-paged .pdf-atomic,
-.export-root.export-root-paged figure.pdf-atomic {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-.export-root.export-root-paged .pdf-flow {
-  break-inside: auto;
-  page-break-inside: auto;
-}
-
-.export-root.export-root-paged figcaption {
-  margin-top: 0.35em;
-  color: #333333;
-  font-size: 0.92em;
 }
 `;
 }

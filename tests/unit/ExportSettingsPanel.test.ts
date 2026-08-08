@@ -16,7 +16,7 @@ describe("ExportSettingsPanel", () => {
   beforeEach(() => {
     runExport.mockReset();
     selectExportTargetPath.mockReset();
-    selectExportTargetPath.mockResolvedValue("/tmp/a.pdf");
+    selectExportTargetPath.mockResolvedValue("/tmp/a.html");
   });
 
   afterEach(() => {
@@ -35,10 +35,33 @@ describe("ExportSettingsPanel", () => {
     await flushPromises();
   }
 
-  it("selects a path then exports pdf through the progress dialog", async () => {
+  it("lists only html and png export actions", () => {
+    const wrapper = mount(ExportSettingsPanel, {
+      props: {
+        markdownSource: "# hi",
+        documentPath: null,
+        fileName: "a.md",
+      },
+    });
+    expect(wrapper.find('[data-testid="export-action-html-embedded"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="export-action-html-assets"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="export-action-png"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="export-action-pdf"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="export-action-pdf-paged"]').exists()).toBe(
+      false,
+    );
+    expect(wrapper.find('[data-testid="export-action-docx"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("selects a path then exports html through the progress dialog", async () => {
     runExport.mockResolvedValue({
-      path: "/tmp/a.pdf",
-      fileName: "a.pdf",
+      path: "/tmp/a.html",
+      fileName: "a.html",
       warnings: [],
     });
     const wrapper = mount(ExportSettingsPanel, {
@@ -49,19 +72,19 @@ describe("ExportSettingsPanel", () => {
       },
       attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-pdf");
-    expect(selectExportTargetPath).toHaveBeenCalledWith("pdf", "a.md");
+    await clickExportAndFlush(wrapper, "export-action-html-embedded");
+    expect(selectExportTargetPath).toHaveBeenCalledWith("html-embedded", "a.md");
     expect(runExport).toHaveBeenCalledWith(
       expect.objectContaining({
-        format: "pdf",
+        format: "html-embedded",
         fileName: "a.md",
-        targetPath: "/tmp/a.pdf",
+        targetPath: "/tmp/a.html",
       }),
     );
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,
-    ).toContain("已导出：a.pdf");
+    ).toContain("已导出：a.html");
     expect(wrapper.emitted("busy")).toEqual([[true]]);
     document
       .querySelector('[data-testid="export-progress-close"]')
@@ -71,13 +94,13 @@ describe("ExportSettingsPanel", () => {
     wrapper.unmount();
   });
 
-  it("exports paged pdf via the dedicated action", async () => {
-    selectExportTargetPath.mockResolvedValue("/tmp/a-分页.pdf");
+  it("exports png via the dedicated action", async () => {
+    selectExportTargetPath.mockResolvedValue("/tmp/a.png");
     runExport.mockResolvedValue({
-      path: "/tmp/a-分页.pdf",
-      fileName: "a-分页.pdf",
+      path: "/tmp/a.png",
+      fileName: "a.png",
       warnings: [],
-      note: "共 2 页（A4 矢量分页）。",
+      note: "长图已按 1.00x 降采样，以避免超出画布上限。",
     });
     const wrapper = mount(ExportSettingsPanel, {
       props: {
@@ -87,16 +110,16 @@ describe("ExportSettingsPanel", () => {
       },
       attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-pdf-paged");
-    expect(selectExportTargetPath).toHaveBeenCalledWith("pdf-paged", "a.md");
+    await clickExportAndFlush(wrapper, "export-action-png");
+    expect(selectExportTargetPath).toHaveBeenCalledWith("png", "a.md");
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,
-    ).toContain("a-分页.pdf");
+    ).toContain("a.png");
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,
-    ).toContain("共 2 页");
+    ).toContain("降采样");
     wrapper.unmount();
   });
 
@@ -170,7 +193,7 @@ describe("ExportSettingsPanel", () => {
       },
       attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-docx");
+    await clickExportAndFlush(wrapper, "export-action-html-assets");
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,
@@ -190,7 +213,7 @@ describe("ExportSettingsPanel", () => {
       },
       attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-docx");
+    await clickExportAndFlush(wrapper, "export-action-png");
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,
@@ -208,7 +231,7 @@ describe("ExportSettingsPanel", () => {
       },
       attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-pdf");
+    await clickExportAndFlush(wrapper, "export-action-html-embedded");
     expect(
       document.querySelector('[data-testid="export-progress-message"]')
         ?.textContent,

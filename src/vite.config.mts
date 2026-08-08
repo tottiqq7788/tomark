@@ -119,27 +119,10 @@ export default defineConfig(({ command }) => ({
       "@": srcDir,
     },
   },
-  // Browser shims for Node-oriented export packages (html-to-docx, etc.).
-  define: {
-    global: "globalThis",
-  },
   optimizeDeps: {
-    // These renderers are only reached through lazy export actions. If Vite
-    // discovers them on first click, WebKit can keep the transient optimizer
-    // URL after the dependency cache is committed and report the unhelpful
-    // "Importing a module script failed." Prebundle stable URLs at startup.
-    include: [
-      "@imggion/html2realpdf",
-      "@turbodocx/html-to-docx",
-      "html2canvas",
-    ],
-    rolldownOptions: {
-      transform: {
-        define: {
-          global: "globalThis",
-        },
-      },
-    },
+    // Lazy export renderer. Prebundle a stable URL at startup so WebKit does
+    // not keep a transient optimizer URL after the dependency cache commits.
+    include: ["html2canvas"],
   },
   clearScreen: false,
   server: {
@@ -149,7 +132,7 @@ export default defineConfig(({ command }) => ({
     headers: {
       "Content-Security-Policy": [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'",
+        "script-src 'self' 'unsafe-eval'",
         `connect-src ${connectSrc} https: http:`,
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' https: http: data: blob:",
@@ -221,16 +204,6 @@ export default defineConfig(({ command }) => ({
             {
               name: "html2canvas",
               test: /node_modules[\\/]html2canvas[\\/]/,
-              priority: 8,
-            },
-            {
-              name: "html2realpdf",
-              test: /node_modules[\\/]@imggion[\\/]html2realpdf[\\/]/,
-              priority: 8,
-            },
-            {
-              name: "html-to-docx",
-              test: /node_modules[\\/]@turbodocx[\\/]html-to-docx[\\/]/,
               priority: 8,
             },
           ],

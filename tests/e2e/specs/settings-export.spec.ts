@@ -18,16 +18,16 @@ describe("settings export drawer", () => {
     await drawer.waitForDisplayed({ timeout: 10_000 });
   }
 
-  it("opens settings from the footer gear and shows export actions including paged PDF", async () => {
+  it("opens settings from the footer gear and shows html and png export actions", async () => {
     await openExportPanel();
 
     await expect($('[data-testid="export-settings-panel"]')).toBeDisplayed();
-    await expect($('[data-testid="export-action-pdf"]')).toBeDisplayed();
-    await expect($('[data-testid="export-action-pdf-paged"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-html-embedded"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-html-assets"]')).toBeDisplayed();
-    await expect($('[data-testid="export-action-docx"]')).toBeDisplayed();
     await expect($('[data-testid="export-action-png"]')).toBeDisplayed();
+    await expect($('[data-testid="export-action-pdf"]')).not.toBeDisplayed();
+    await expect($('[data-testid="export-action-pdf-paged"]')).not.toBeDisplayed();
+    await expect($('[data-testid="export-action-docx"]')).not.toBeDisplayed();
   });
 
   it("opens the help settings panel from the footer question mark", async () => {

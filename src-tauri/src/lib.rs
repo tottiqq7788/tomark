@@ -14,9 +14,8 @@ static APP_EXIT_CONFIRMED: AtomicBool = AtomicBool::new(false);
 
 fn is_app_entry_url(url: &Url, is_dev: bool, allowed_dev_url: Option<&Url>) -> bool {
     // WKWebView may briefly land on about:blank before the app entry URL.
-    // html2realpdf print/viewport snapshots also mount inert about:srcdoc iframes.
     if url.scheme() == "about" {
-        return matches!(url.path(), "" | "blank" | "srcdoc");
+        return matches!(url.path(), "" | "blank");
     }
 
     if !matches!(url.path(), "" | "/" | "/index.html") {
@@ -193,7 +192,7 @@ mod tests {
             false,
             None,
         ));
-        assert!(is_app_entry_url(
+        assert!(!is_app_entry_url(
             &Url::parse("about:srcdoc").unwrap(),
             false,
             None,

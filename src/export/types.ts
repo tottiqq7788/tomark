@@ -1,17 +1,7 @@
-export type ExportFormatId =
-  | "pdf"
-  | "pdf-paged"
-  | "html-embedded"
-  | "html-assets"
-  | "docx"
-  | "png";
+export type ExportFormatId = "html-embedded" | "html-assets" | "png";
 
 /** Optional progress callback for status-bar updates during long exports. */
 export type ExportProgressHandler = (message: string) => void;
-
-/** A4 printable content box with 12/13 mm margins (mm). */
-export const PDF_PAGED_CONTENT_WIDTH_MM = 184;
-export const PDF_PAGED_CONTENT_HEIGHT_MM = 273;
 
 export interface ImageWarning {
   src: string;

@@ -33,17 +33,6 @@ const actions: {
   description: string;
 }[] = [
   {
-    id: "pdf",
-    title: "导出 PDF（单页长页）",
-    description: "矢量文字、中文可选择搜索；整篇一页，不分页。",
-  },
-  {
-    id: "pdf-paged",
-    title: "导出 PDF（矢量分页）",
-    description:
-      "A4 纵向分页；矢量可搜索；图片/图表尽量整块换页，避免从中间切开。",
-  },
-  {
     id: "html-embedded",
     title: "导出 HTML（嵌入图片）",
     description: "单文件 HTML，尽量把图片写成 data URL。",
@@ -52,11 +41,6 @@ const actions: {
     id: "html-assets",
     title: "导出 HTML（资源目录）",
     description: "生成 HTML 与同名 _files 目录，图片使用相对路径。",
-  },
-  {
-    id: "docx",
-    title: "导出 Word（DOCX）",
-    description: "可编辑的 Word 文档，尽量内嵌图片。",
   },
   {
     id: "png",

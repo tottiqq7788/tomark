@@ -43,6 +43,3 @@ src-tauri/WixTools/
 .env
 .env.*
 !.env.example
-
-# Large vendored binaries (synced from node_modules on build/install)
-src/assets/pdf/libhtml2realpdf.wasm
