@@ -43,8 +43,9 @@ export function exportShellCss(): string {
   margin: 0 auto;
   padding: 24px 28px 48px;
   background: #fff;
-  color: #1f2937;
+  color: #000000;
   font-family: ${EXPORT_BODY_FONT_STACK};
+  font-size: 14px;
 }
 
 .export-root code,
@@ -81,9 +82,9 @@ export function exportPagedPdfCss(): string {
   margin: 0 auto;
   padding: 0;
   background: #fff;
-  color: #1f2937;
+  color: #000000;
   font-family: ${EXPORT_BODY_FONT_STACK};
-  font-size: 10.5pt;
+  font-size: 11pt;
   line-height: 1.55;
 }
 
@@ -130,7 +131,7 @@ export function exportPagedPdfCss(): string {
 
 .export-root.export-root-paged figcaption {
   margin-top: 0.35em;
-  color: #4b5563;
+  color: #333333;
   font-size: 0.92em;
 }
 `;
