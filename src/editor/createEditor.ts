@@ -13,7 +13,6 @@ import {
   keymap,
   highlightActiveLine,
   drawSelection,
-  lineNumbers,
 } from "@codemirror/view";
 import {
   defaultKeymap,
@@ -172,20 +171,38 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     ".cm-content": {
       padding: "12px 0",
     },
-    ".cm-heading-fold-gutter": {
-      width: "16px",
+    ".cm-heading-number-gutter": {
+      minWidth: "2.75em",
+      padding: "0 4px 0 6px",
     },
-    ".cm-heading-fold-marker": {
+    ".cm-heading-number-marker": {
       border: "none",
       background: "transparent",
       cursor: "pointer",
-      color: "#4b5563",
+      color: "#9ca3af",
       fontSize: "12px",
+      fontVariantNumeric: "tabular-nums",
+      fontWeight: "500",
       padding: "0 2px",
-      lineHeight: "1",
+      lineHeight: "1.55",
+      minWidth: "100%",
+      textAlign: "right",
+      borderRadius: "3px",
     },
-    ".cm-heading-fold-marker:hover": {
-      color: "#111827",
+    ".cm-heading-number-marker--expanded": {
+      color: "#4f46e5",
+      fontWeight: "600",
+    },
+    ".cm-heading-number-marker--collapsed": {
+      color: "#9ca3af",
+      fontWeight: "500",
+    },
+    ".cm-heading-number-marker:hover": {
+      color: "#312e81",
+    },
+    ".cm-heading-number-marker:focus-visible": {
+      outline: "2px solid #93c5fd",
+      outlineOffset: "1px",
     },
     ".cm-gutters": {
       backgroundColor: "#f8fafc",
@@ -203,7 +220,6 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
   const startState = EditorState.create({
     doc: options.doc,
     extensions: [
-      lineNumbers(),
       ...headingFoldExtensions(),
       drawSelection(),
       highlightActiveLine(),

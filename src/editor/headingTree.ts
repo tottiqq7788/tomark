@@ -227,6 +227,17 @@ export function pathKey(path: number[]): string {
   return path.join(".");
 }
 
+/**
+ * Display outline number for a heading path (0-based ordinals → 1-based labels).
+ * Examples: [0] → "1", [0, 0] → "1.1", [0, 1] → "1.2", [1] → "2".
+ */
+export function formatHeadingOutlineNumber(path: number[]): string {
+  if (path.length === 0) {
+    return "";
+  }
+  return path.map((ordinal) => String(ordinal + 1)).join(".");
+}
+
 /** True when `prefix` is an exact path-array prefix of `path` (safe vs string startsWith). */
 export function isPathPrefix(prefix: number[], path: number[]): boolean {
   if (prefix.length > path.length) {

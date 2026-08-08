@@ -208,4 +208,28 @@ describe("headingFoldExtension", () => {
     expect(fold.headingLines.get(5)).toBe(true);
     expect(fold.headingLines.get(7)).toBe(true);
   });
+
+  it("keeps outline numbers aligned after inserting a sibling heading", () => {
+    let state = EditorState.create({
+      doc: "# Root\n## A\nbody A\n## B\nbody B\n",
+      extensions: headingFoldExtensions(),
+    });
+    expect(
+      state.field(headingFoldField).flat.map((h) =>
+        [h.line, h.text, h.path.join(".")].join(":"),
+      ),
+    ).toEqual(["1:Root:0", "2:A:0.0", "4:B:0.1"]);
+
+    state = state.update({
+      changes: {
+        from: state.doc.line(2).from,
+        insert: "## New\nnew body\n",
+      },
+    }).state;
+
+    const fold = state.field(headingFoldField);
+    expect(
+      fold.flat.map((h) => [h.line, h.text, h.path.map((n) => n + 1).join(".")].join(":")),
+    ).toEqual(["1:Root:1", "2:New:1.1", "4:A:1.2", "6:B:1.3"]);
+  });
 });

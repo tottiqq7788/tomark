@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { undo, undoDepth } from "@codemirror/commands";
 import { createEditor, type EditorHandle } from "@/editor/createEditor";
-import { headingFoldField } from "@/editor/headingFoldExtension";
+import {
+  headingFoldField,
+  toggleHeadingFold,
+} from "@/editor/headingFoldExtension";
 
 function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
   const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -159,6 +162,8 @@ describe("createEditor", () => {
         from: 6,
         to: 11,
         insert: "**world**",
+        selectionFrom: 8,
+        selectionTo: 13,
       }),
     ).toBe(true);
     expect(editor.getValue()).toBe("Hello **world**\n");
@@ -166,5 +171,53 @@ describe("createEditor", () => {
     expect(editor.getValue()).toBe("Hello world\n");
     expect(editor.redo()).toBe(true);
     expect(editor.getValue()).toBe("Hello **world**\n");
+  });
+
+  it("shows outline numbers only on heading lines and toggles on click", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    editor = createEditor({
+      parent: host,
+      doc: "# Root\n\nbody line\n## Child\nmore\n# Other\ntail\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+    });
+
+    expect(host.querySelector(".cm-lineNumbers")).toBeNull();
+    expect(host.querySelector(".cm-heading-fold-gutter")).toBeNull();
+    expect(host.querySelector(".cm-heading-number-gutter")).toBeTruthy();
+
+    const markers = [
+      ...host.querySelectorAll<HTMLButtonElement>(".cm-heading-number-marker"),
+    ];
+    expect(markers.map((marker) => marker.textContent)).toEqual([
+      "1",
+      "1.1",
+      "2",
+    ]);
+    expect(
+      markers.map((marker) =>
+        marker.classList.contains("cm-heading-number-marker--expanded"),
+      ),
+    ).toEqual([true, true, false]);
+    expect(
+      markers.map((marker) =>
+        marker.classList.contains("cm-heading-number-marker--collapsed"),
+      ),
+    ).toEqual([false, false, true]);
+
+    // jsdom lacks gutter hit-testing geometry; exercise the same effect the
+    // gutter click handler dispatches, then assert marker classes refresh.
+    editor.view.dispatch({
+      effects: toggleHeadingFold.of(4),
+    });
+    const fold = editor.view.state.field(headingFoldField);
+    expect(fold.headingLines.get(4)).toBe(true);
+    const after = host.querySelector(
+      '.cm-heading-number-marker[aria-label="展开标题 1.1"]',
+    );
+    expect(after?.classList.contains("cm-heading-number-marker--collapsed")).toBe(
+      true,
+    );
   });
 });

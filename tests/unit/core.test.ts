@@ -3,6 +3,7 @@ import {
   buildHeadingTree,
   extractHeadings,
   flattenHeadingTree,
+  formatHeadingOutlineNumber,
   isPathPrefix,
   pathKey,
 } from "@/editor/headingTree";
@@ -36,6 +37,20 @@ describe("headingTree", () => {
     expect(roots[0].children.map((c) => c.text)).toEqual(["Two", "Four"]);
     expect(roots[0].children[0].children[0].text).toBe("Three");
     expect(pathKey(roots[0].children[0].path)).toBe("0.0");
+  });
+
+  it("formats outline numbers from 0-based heading paths", () => {
+    expect(formatHeadingOutlineNumber([])).toBe("");
+    expect(formatHeadingOutlineNumber([0])).toBe("1");
+    expect(formatHeadingOutlineNumber([0, 0])).toBe("1.1");
+    expect(formatHeadingOutlineNumber([0, 1])).toBe("1.2");
+    expect(formatHeadingOutlineNumber([1])).toBe("2");
+    expect(formatHeadingOutlineNumber([0, 9, 0])).toBe("1.10.1");
+
+    const skipped = buildHeadingTree("# Root\n\n### Deep\n");
+    const flat = flattenHeadingTree(skipped);
+    expect(formatHeadingOutlineNumber(flat[0].path)).toBe("1");
+    expect(formatHeadingOutlineNumber(flat[1].path)).toBe("1.1");
   });
 
   it("compares path prefixes by array, not string startsWith", () => {

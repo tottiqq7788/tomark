@@ -15,6 +15,7 @@ import {
 import {
   buildHeadingTreeFromDoc,
   flattenHeadingTree,
+  formatHeadingOutlineNumber,
   isPathPrefix,
   looksLikeHeadingOrFenceLine,
   mapHeadingTreeLines,
@@ -35,22 +36,30 @@ export const toggleHeadingFold = StateEffect.define<number>();
 /** Expand the exclusive path so the given 1-based source line becomes visible. */
 export const revealSourceLineEffect = StateEffect.define<number>();
 
-class FoldMarker extends GutterMarker {
-  constructor(readonly collapsed: boolean) {
+class HeadingNumberMarker extends GutterMarker {
+  constructor(
+    readonly collapsed: boolean,
+    readonly label: string,
+  ) {
     super();
   }
 
-  eq(other: FoldMarker) {
-    return this.collapsed === other.collapsed;
+  eq(other: HeadingNumberMarker) {
+    return this.collapsed === other.collapsed && this.label === other.label;
   }
 
   toDOM() {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "cm-heading-fold-marker";
-    btn.textContent = this.collapsed ? "▸" : "▾";
-    btn.title = this.collapsed ? "展开" : "折叠";
+    btn.className = this.collapsed
+      ? "cm-heading-number-marker cm-heading-number-marker--collapsed"
+      : "cm-heading-number-marker cm-heading-number-marker--expanded";
+    btn.textContent = this.label;
+    btn.title = this.collapsed
+      ? `展开标题 ${this.label}`
+      : `折叠标题 ${this.label}`;
     btn.setAttribute("aria-label", btn.title);
+    btn.setAttribute("aria-expanded", this.collapsed ? "false" : "true");
     return btn;
   }
 }
@@ -551,18 +560,27 @@ export const headingFoldField = StateField.define<FoldFieldValue>({
   provide: (f) => EditorView.decorations.from(f, (v) => v.decorations),
 });
 
-const foldGutterMarker = gutter({
-  class: "cm-heading-fold-gutter",
+const headingNumberGutter = gutter({
+  class: "cm-heading-number-gutter",
   markers: (view) => {
     const value = view.state.field(headingFoldField);
     const builder = new RangeSetBuilder<GutterMarker>();
-    const lines = [...value.headingLines.entries()].sort((a, b) => a[0] - b[0]);
-    for (const [line, collapsed] of lines) {
-      if (line < 1 || line > view.state.doc.lines) {
+    const headings = [...value.flat].sort((a, b) => a.line - b.line);
+    for (const heading of headings) {
+      if (heading.line < 1 || heading.line > view.state.doc.lines) {
         continue;
       }
-      const lineObj = view.state.doc.line(line);
-      builder.add(lineObj.from, lineObj.from, new FoldMarker(collapsed));
+      const collapsed = value.headingLines.get(heading.line) ?? false;
+      const label = formatHeadingOutlineNumber(heading.path);
+      if (!label) {
+        continue;
+      }
+      const lineObj = view.state.doc.line(heading.line);
+      builder.add(
+        lineObj.from,
+        lineObj.from,
+        new HeadingNumberMarker(collapsed, label),
+      );
     }
     return builder.finish();
   },
@@ -584,7 +602,7 @@ const foldGutterMarker = gutter({
 });
 
 export function headingFoldExtensions() {
-  return [headingFoldField, foldGutterMarker];
+  return [headingFoldField, headingNumberGutter];
 }
 
 /** Apply default heading folds (first-child chain expanded; others collapsed). */
