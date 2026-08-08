@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
+import ExportProgressDialog, {
+  type ExportProgressPhase,
+} from "@/app/ExportProgressDialog.vue";
 import {
   ExportCancelledError,
   type ExportFormatId,
@@ -15,12 +18,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   busy: [busy: boolean];
-  "status-message": [message: string];
 }>();
 
 const exporting = ref<ExportFormatId | null>(null);
-const lastMessage = ref("");
-const lastWarnings = ref<ImageWarning[]>([]);
+const progressOpen = ref(false);
+const progressPhase = ref<ExportProgressPhase>("running");
+const progressTitle = ref("正在导出");
+const progressMessage = ref("");
+const progressWarnings = ref<ImageWarning[]>([]);
 
 const actions: {
   id: ExportFormatId;
@@ -35,7 +40,8 @@ const actions: {
   {
     id: "pdf-paged",
     title: "导出 PDF（矢量分页）",
-    description: "A4 纵向分页；矢量可搜索；图片/图表尽量整块换页，避免从中间切开。",
+    description:
+      "A4 纵向分页；矢量可搜索；图片/图表尽量整块换页，避免从中间切开。",
   },
   {
     id: "html-embedded",
@@ -66,8 +72,45 @@ function isExportCancelled(error: unknown): boolean {
   );
 }
 
+function actionTitle(format: ExportFormatId): string {
+  return actions.find((action) => action.id === format)?.title ?? "导出";
+}
+
+function openProgress(title: string, message: string) {
+  progressTitle.value = title;
+  progressMessage.value = message;
+  progressPhase.value = "running";
+  progressWarnings.value = [];
+  progressOpen.value = true;
+}
+
+function finishProgress(
+  phase: Exclude<ExportProgressPhase, "running">,
+  title: string,
+  message: string,
+  warnings: ImageWarning[] = [],
+) {
+  progressPhase.value = phase;
+  progressTitle.value = title;
+  progressMessage.value = message;
+  progressWarnings.value = warnings;
+}
+
+function closeProgress() {
+  progressOpen.value = false;
+  exporting.value = null;
+  emit("busy", false);
+}
+
+async function yieldForPaint(): Promise<void> {
+  await nextTick();
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => resolve());
+  });
+}
+
 async function onExport(format: ExportFormatId) {
-  if (exporting.value || props.disabled) {
+  if (exporting.value || props.disabled || progressOpen.value) {
     return;
   }
   const snapshot = {
@@ -76,44 +119,52 @@ async function onExport(format: ExportFormatId) {
     fileName: props.fileName,
   };
   exporting.value = format;
-  lastWarnings.value = [];
-  lastMessage.value = "";
   emit("busy", true);
-  emit("status-message", "正在导出…");
-  // Let the settings drawer close and release its focus trap before any
-  // native save dialog (otherwise macOS can leave the export looking stuck).
-  await nextTick();
-  await new Promise<void>((resolve) => {
-    window.setTimeout(resolve, 50);
-  });
+
   try {
-    const { runExport } = await import("@/export/runExport");
+    const { selectExportTargetPath, runExport } = await import(
+      "@/export/runExport"
+    );
+    // Suspend drawer focus trap first (via busy), then open the native save
+    // dialog before painting the progress modal.
+    await nextTick();
+    const targetPath = await selectExportTargetPath(format, snapshot.fileName);
+    if (!targetPath) {
+      exporting.value = null;
+      emit("busy", false);
+      return;
+    }
+
+    openProgress(actionTitle(format), "正在准备导出…");
+    await yieldForPaint();
+
     const result = await runExport({
       format,
       ...snapshot,
-      onProgress: (message) => emit("status-message", message),
+      targetPath,
+      onProgress: (message) => {
+        progressMessage.value = message;
+      },
     });
-    lastWarnings.value = result.warnings;
     const warningText =
       result.warnings.length > 0
         ? `（${result.warnings.length} 张图片未能嵌入）`
         : "";
     const noteText = result.note ? ` ${result.note}` : "";
-    lastMessage.value = `已导出：${result.fileName}${warningText}${noteText}`;
-    emit("status-message", lastMessage.value);
+    finishProgress(
+      "success",
+      "导出完成",
+      `已导出：${result.fileName}${warningText}${noteText}`,
+      result.warnings,
+    );
   } catch (error) {
     if (isExportCancelled(error)) {
-      lastMessage.value = "已取消导出";
-      emit("status-message", lastMessage.value);
+      // Path cancel is handled above; treat mid-export cancel as a soft result.
+      finishProgress("error", "已取消导出", "已取消导出");
     } else {
-      const message =
-        error instanceof Error ? error.message : String(error);
-      lastMessage.value = `导出失败：${message}`;
-      emit("status-message", lastMessage.value);
+      const message = error instanceof Error ? error.message : String(error);
+      finishProgress("error", "导出失败", `导出失败：${message}`);
     }
-  } finally {
-    exporting.value = null;
-    emit("busy", false);
   }
 }
 </script>
@@ -131,7 +182,7 @@ async function onExport(format: ExportFormatId) {
         :key="action.id"
         type="button"
         class="export-action"
-        :disabled="Boolean(exporting) || disabled"
+        :disabled="Boolean(exporting) || disabled || progressOpen"
         :data-testid="`export-action-${action.id}`"
         :aria-busy="exporting === action.id ? 'true' : 'false'"
         @click="void onExport(action.id)"
@@ -145,24 +196,14 @@ async function onExport(format: ExportFormatId) {
       </button>
     </div>
 
-    <p
-      v-if="lastMessage"
-      class="export-status"
-      data-testid="export-status"
-      role="status"
-    >
-      {{ lastMessage }}
-    </p>
-
-    <ul
-      v-if="lastWarnings.length > 0"
-      class="export-warnings"
-      data-testid="export-warnings"
-    >
-      <li v-for="(warning, index) in lastWarnings" :key="`${warning.src}-${index}`">
-        {{ warning.src }}：{{ warning.reason }}
-      </li>
-    </ul>
+    <ExportProgressDialog
+      :open="progressOpen"
+      :phase="progressPhase"
+      :title="progressTitle"
+      :message="progressMessage"
+      :warnings="progressWarnings"
+      @close="closeProgress"
+    />
   </div>
 </template>
 
@@ -227,21 +268,5 @@ async function onExport(format: ExportFormatId) {
 .export-action-desc {
   font-size: 12px;
   color: #6b7280;
-}
-
-.export-status {
-  margin: 14px 0 0;
-  color: #111827;
-}
-
-.export-warnings {
-  margin: 8px 0 0;
-  padding-left: 1.2em;
-  color: #b45309;
-  font-size: 12px;
-}
-
-.export-warnings li + li {
-  margin-top: 4px;
 }
 </style>

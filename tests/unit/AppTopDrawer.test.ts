@@ -88,4 +88,19 @@ describe("AppTopDrawer", () => {
 
     wrapper.unmount();
   });
+
+  it("suspends and restores the focus trap while open", async () => {
+    const wrapper = mount(AppTopDrawer, {
+      props: { open: true, title: "测试" },
+      slots: { default: '<button data-testid="inside">inside</button>' },
+      attachTo: document.body,
+    });
+    await flushOpenAnimation();
+
+    const resume = wrapper.vm.suspendFocusTrap();
+    expect(typeof resume).toBe("function");
+    resume();
+    resume();
+    wrapper.unmount();
+  });
 });

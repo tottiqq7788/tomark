@@ -2,9 +2,12 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
-import HelpDrawer from "@/app/HelpDrawer.vue";
 import SettingsDrawer from "@/app/SettingsDrawer.vue";
 import DefaultAppPrompt from "@/app/DefaultAppPrompt.vue";
+import {
+  DEFAULT_SETTINGS_MENU_ID,
+  type SettingsMenuId,
+} from "@/app/settings/settingsMenus";
 import type { EncodingHint } from "@/shared/types";
 import { useDocumentSession } from "./useDocumentSession";
 import { useAppShortcuts } from "./useAppShortcuts";
@@ -19,7 +22,7 @@ import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
 import { isMacOS } from "@/shared/isMacOS";
 
-type ActiveDrawer = "help" | "settings" | null;
+type ActiveDrawer = "settings" | null;
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
@@ -116,13 +119,18 @@ async function onReidentify(hint: EncodingHint) {
 const { label: documentStatsLabel } = useDocumentStats(content);
 
 const activeDrawer = ref<ActiveDrawer>(null);
+const settingsInitialMenu = ref<SettingsMenuId>(DEFAULT_SETTINGS_MENU_ID);
 const exportBusy = ref(false);
+const settingsDrawerRef = ref<InstanceType<typeof SettingsDrawer> | null>(null);
+let resumeSettingsFocusTrap: (() => void) | null = null;
 
 function openHelp() {
-  activeDrawer.value = "help";
+  settingsInitialMenu.value = "help";
+  activeDrawer.value = "settings";
 }
 
 function openSettings() {
+  settingsInitialMenu.value = DEFAULT_SETTINGS_MENU_ID;
   activeDrawer.value = "settings";
 }
 
@@ -132,12 +140,18 @@ function closeDrawer(expected: Exclude<ActiveDrawer, null>) {
   }
 }
 
-/** Close settings before native save dialog so focus trap cannot block it. */
+/** Keep settings open; only suspend its focus trap for native save / progress UI. */
 function onExportBusy(busy: boolean) {
   exportBusy.value = busy;
   if (busy) {
-    activeDrawer.value = null;
+    resumeSettingsFocusTrap?.();
+    resumeSettingsFocusTrap =
+      settingsDrawerRef.value?.suspendFocusTrap() ?? null;
+    return;
   }
+  const resume = resumeSettingsFocusTrap;
+  resumeSettingsFocusTrap = null;
+  resume?.();
 }
 
 const {
@@ -689,23 +703,19 @@ useAppShortcuts({
       </div>
     </footer>
 
-    <HelpDrawer
-      :open="activeDrawer === 'help'"
-      :can-reidentify="!!path"
-      @close="closeDrawer('help')"
-      @request-default-app="onRequestDefaultApp"
-      @reidentify="(hint) => void onReidentify(hint)"
-    />
-
     <SettingsDrawer
+      ref="settingsDrawerRef"
       :open="activeDrawer === 'settings'"
+      :initial-menu="settingsInitialMenu"
       :markdown-source="content"
       :document-path="path"
       :file-name="fileName"
       :busy="exportBusy"
+      :can-reidentify="!!path"
       @close="closeDrawer('settings')"
       @export-busy="onExportBusy"
-      @status-message="(message) => (statusMessage = message)"
+      @request-default-app="onRequestDefaultApp"
+      @reidentify="(hint) => void onReidentify(hint)"
     />
 
     <DefaultAppPrompt

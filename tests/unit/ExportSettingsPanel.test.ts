@@ -4,19 +4,23 @@ import ExportSettingsPanel from "@/app/settings/ExportSettingsPanel.vue";
 import { ExportCancelledError, ExportFailedError } from "@/export/types";
 
 const runExport = vi.fn();
+const selectExportTargetPath = vi.fn();
 
 vi.mock("@/export/runExport", () => ({
   runExport: (...args: unknown[]) => runExport(...args),
+  selectExportTargetPath: (...args: unknown[]) =>
+    selectExportTargetPath(...args),
 }));
 
 describe("ExportSettingsPanel", () => {
   beforeEach(() => {
     runExport.mockReset();
-    vi.useFakeTimers();
+    selectExportTargetPath.mockReset();
+    selectExportTargetPath.mockResolvedValue("/tmp/a.pdf");
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    document.body.innerHTML = "";
   });
 
   async function clickExportAndFlush(
@@ -25,11 +29,13 @@ describe("ExportSettingsPanel", () => {
   ) {
     await wrapper.get(`[data-testid="${testId}"]`).trigger("click");
     await flushPromises();
-    await vi.advanceTimersByTimeAsync(60);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
     await flushPromises();
   }
 
-  it("exports pdf and shows success status", async () => {
+  it("selects a path then exports pdf through the progress dialog", async () => {
     runExport.mockResolvedValue({
       path: "/tmp/a.pdf",
       fileName: "a.pdf",
@@ -41,23 +47,32 @@ describe("ExportSettingsPanel", () => {
         documentPath: null,
         fileName: "a.md",
       },
+      attachTo: document.body,
     });
-    const buttons = wrapper.findAll(".export-action");
-    expect(buttons[0]?.attributes("data-testid")).toBe("export-action-pdf");
-    expect(buttons[1]?.attributes("data-testid")).toBe("export-action-pdf-paged");
     await clickExportAndFlush(wrapper, "export-action-pdf");
+    expect(selectExportTargetPath).toHaveBeenCalledWith("pdf", "a.md");
     expect(runExport).toHaveBeenCalledWith(
-      expect.objectContaining({ format: "pdf", fileName: "a.md" }),
+      expect.objectContaining({
+        format: "pdf",
+        fileName: "a.md",
+        targetPath: "/tmp/a.pdf",
+      }),
     );
-    expect(wrapper.get('[data-testid="export-status"]').text()).toContain(
-      "已导出：a.pdf",
-    );
-    expect(wrapper.emitted("status-message")?.at(-1)?.[0]).toContain("已导出");
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toContain("已导出：a.pdf");
+    expect(wrapper.emitted("busy")).toEqual([[true]]);
+    document
+      .querySelector('[data-testid="export-progress-close"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.emitted("busy")).toEqual([[true], [false]]);
     wrapper.unmount();
   });
 
   it("exports paged pdf via the dedicated action", async () => {
+    selectExportTargetPath.mockResolvedValue("/tmp/a-分页.pdf");
     runExport.mockResolvedValue({
       path: "/tmp/a-分页.pdf",
       fileName: "a-分页.pdf",
@@ -70,17 +85,23 @@ describe("ExportSettingsPanel", () => {
         documentPath: null,
         fileName: "a.md",
       },
+      attachTo: document.body,
     });
     await clickExportAndFlush(wrapper, "export-action-pdf-paged");
-    expect(runExport).toHaveBeenCalledWith(
-      expect.objectContaining({ format: "pdf-paged", fileName: "a.md" }),
-    );
-    expect(wrapper.get('[data-testid="export-status"]').text()).toContain("a-分页.pdf");
-    expect(wrapper.get('[data-testid="export-status"]').text()).toContain("共 2 页");
+    expect(selectExportTargetPath).toHaveBeenCalledWith("pdf-paged", "a.md");
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toContain("a-分页.pdf");
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toContain("共 2 页");
     wrapper.unmount();
   });
 
   it("exports the document snapshot captured at click time", async () => {
+    selectExportTargetPath.mockResolvedValue("/tmp/old.html");
     runExport.mockResolvedValue({
       path: "/tmp/old.html",
       fileName: "old.html",
@@ -92,6 +113,7 @@ describe("ExportSettingsPanel", () => {
         documentPath: "/notes/old.md",
         fileName: "old.md",
       },
+      attachTo: document.body,
     });
 
     await wrapper
@@ -102,7 +124,10 @@ describe("ExportSettingsPanel", () => {
       documentPath: "/notes/new.md",
       fileName: "new.md",
     });
-    await vi.advanceTimersByTimeAsync(60);
+    await flushPromises();
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
     await flushPromises();
 
     expect(runExport).toHaveBeenCalledWith(
@@ -110,12 +135,32 @@ describe("ExportSettingsPanel", () => {
         markdownSource: "# old",
         documentPath: "/notes/old.md",
         fileName: "old.md",
+        targetPath: "/tmp/old.html",
       }),
     );
     wrapper.unmount();
   });
 
-  it("treats cancel as a non-error status and clears busy", async () => {
+  it("treats path cancel as a silent reset without a progress dialog", async () => {
+    selectExportTargetPath.mockResolvedValue(null);
+    const wrapper = mount(ExportSettingsPanel, {
+      props: {
+        markdownSource: "# hi",
+        documentPath: null,
+        fileName: "a.md",
+      },
+      attachTo: document.body,
+    });
+    await clickExportAndFlush(wrapper, "export-action-html-embedded");
+    expect(runExport).not.toHaveBeenCalled();
+    expect(
+      document.querySelector('[data-testid="export-progress-dialog"]'),
+    ).toBeNull();
+    expect(wrapper.emitted("busy")).toEqual([[true], [false]]);
+    wrapper.unmount();
+  });
+
+  it("shows cancel results in the progress dialog", async () => {
     runExport.mockRejectedValue(new ExportCancelledError());
     const wrapper = mount(ExportSettingsPanel, {
       props: {
@@ -123,11 +168,13 @@ describe("ExportSettingsPanel", () => {
         documentPath: null,
         fileName: "a.md",
       },
+      attachTo: document.body,
     });
-    await clickExportAndFlush(wrapper, "export-action-html-embedded");
-    expect(wrapper.get('[data-testid="export-status"]').text()).toBe("已取消导出");
-    expect(wrapper.emitted("status-message")?.at(-1)?.[0]).toBe("已取消导出");
-    expect(wrapper.emitted("busy")).toEqual([[true], [false]]);
+    await clickExportAndFlush(wrapper, "export-action-docx");
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toBe("已取消导出");
     wrapper.unmount();
   });
 
@@ -141,13 +188,17 @@ describe("ExportSettingsPanel", () => {
         documentPath: null,
         fileName: "a.md",
       },
+      attachTo: document.body,
     });
     await clickExportAndFlush(wrapper, "export-action-docx");
-    expect(wrapper.get('[data-testid="export-status"]').text()).toBe("已取消导出");
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toBe("已取消导出");
     wrapper.unmount();
   });
 
-  it("shows failure status and clears busy", async () => {
+  it("shows failure status until the dialog is closed", async () => {
     runExport.mockRejectedValue(new ExportFailedError("渲染失败"));
     const wrapper = mount(ExportSettingsPanel, {
       props: {
@@ -155,11 +206,18 @@ describe("ExportSettingsPanel", () => {
         documentPath: null,
         fileName: "a.md",
       },
+      attachTo: document.body,
     });
     await clickExportAndFlush(wrapper, "export-action-pdf");
-    expect(wrapper.get('[data-testid="export-status"]').text()).toBe(
-      "导出失败：渲染失败",
-    );
+    expect(
+      document.querySelector('[data-testid="export-progress-message"]')
+        ?.textContent,
+    ).toBe("导出失败：渲染失败");
+    expect(wrapper.emitted("busy")).toEqual([[true]]);
+    document
+      .querySelector('[data-testid="export-progress-close"]')
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flushPromises();
     expect(wrapper.emitted("busy")).toEqual([[true], [false]]);
     wrapper.unmount();
   });

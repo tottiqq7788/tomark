@@ -162,6 +162,26 @@ const nodes: Record<string, NodeSpec> = {
       String(node.attrs.label),
     ],
   },
+  thematic_break: {
+    attrs: {
+      sourceFrom: { default: 0 },
+      sourceTo: { default: 0 },
+      reason: { default: "thematicBreak-read-only" },
+    },
+    group: "block",
+    atom: true,
+    selectable: true,
+    draggable: false,
+    toDOM: (node): DOMOutputSpec => [
+      "hr",
+      {
+        contenteditable: "false",
+        "data-tm-readonly": String(node.attrs.reason),
+        "data-tm-from": String(node.attrs.sourceFrom),
+        "data-tm-to": String(node.attrs.sourceTo),
+      },
+    ],
+  },
   text: {
     group: "inline",
   },

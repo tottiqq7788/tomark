@@ -599,4 +599,49 @@ describe("createPreviewEditSession", () => {
     expect(published).toBe("Hello");
     session.destroy();
   });
+
+  it("locates thematic break clicks back to the source line", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const source = "before\n\n---\n\nafter\n";
+    const projection = buildEditableProjection(source);
+    const breakBlock = projection.sourceMap.blocks.find(
+      (block) => block.nodeType === "thematicBreak",
+    )!;
+    const located: number[] = [];
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 1,
+      applySourceTransaction: () => ({
+        ok: true,
+        value: source,
+        revision: 1,
+      }),
+      onLocateSource: (line) => {
+        located.push(line);
+      },
+    });
+
+    expect(host.querySelector("hr")).toBeTruthy();
+    expect(host.textContent).not.toContain("分隔线");
+
+    vi.spyOn(session.view, "posAtCoords").mockReturnValue({
+      pos: breakBlock.pmFrom,
+      inside: breakBlock.pmFrom,
+    });
+    const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
+    session.view.dom.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 80,
+        clientY: 100,
+        ...(isApple
+          ? { metaKey: true, ctrlKey: false }
+          : { metaKey: false, ctrlKey: true }),
+      }),
+    );
+
+    expect(located).toEqual([breakBlock.sourceLine]);
+    session.destroy();
+  });
 });

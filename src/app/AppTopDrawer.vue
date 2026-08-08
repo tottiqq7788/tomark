@@ -56,6 +56,20 @@ function releaseTrap() {
   releaseFocusTrap = undefined;
 }
 
+/** Temporarily release the focus trap so a native dialog can take focus. */
+function suspendFocusTrap(): () => void {
+  releaseTrap();
+  let restored = false;
+  return () => {
+    if (restored || !shown.value || !drawerRef.value) {
+      return;
+    }
+    restored = true;
+    releaseTrap();
+    releaseFocusTrap = trapFocus(drawerRef.value);
+  };
+}
+
 function bindKeydown() {
   if (keydownBound) {
     return;
@@ -234,7 +248,7 @@ onBeforeUnmount(() => {
   releaseTrap();
 });
 
-defineExpose({ requestClose });
+defineExpose({ requestClose, suspendFocusTrap });
 </script>
 
 <template>

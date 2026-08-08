@@ -1362,6 +1362,74 @@ function buildReadonlyBlock(
   };
 }
 
+function buildThematicBreak(
+  state: ProjectionBuildState,
+  node: MdNode,
+  context: BuildContext,
+): RelativeBuild {
+  const range = nodeRange(node) ?? { from: 0, to: 0 };
+  const blockId = `block-${++state.blockCounter}`;
+  const pmNode = editablePreviewSchema.nodes.thematic_break.create({
+    sourceFrom: range.from,
+    sourceTo: range.to,
+    reason: "thematicBreak-read-only",
+  });
+  const immutable: ProjectionImmutableRange = {
+    from: range.from,
+    to: range.to,
+    text: state.source.slice(range.from, range.to),
+    kind: "read-only",
+    blockId,
+  };
+  return {
+    node: pmNode,
+    segments: [
+      {
+        id: `segment-${++state.segmentCounter}`,
+        blockId,
+        nodeType: node.type,
+        pmFrom: 0,
+        pmTo: pmNode.nodeSize,
+        sourceFrom: range.from,
+        sourceTo: range.to,
+        sourceText: state.source.slice(range.from, range.to),
+        text: "",
+        sourceOffsets: [range.from, range.to],
+        sourceLine: lineAtOffset(state.lineStarts, range.from),
+        sourceEndLine: lineAtOffset(state.lineStarts, range.to),
+        policy: "read-only",
+        context: "text",
+        marks: [],
+        readOnlyReason: "thematicBreak-read-only",
+      },
+    ],
+    wrappers: [],
+    blocks: [
+      {
+        id: blockId,
+        nodeType: node.type,
+        pmFrom: 0,
+        pmTo: pmNode.nodeSize,
+        contentPmFrom: 0,
+        contentPmTo: pmNode.nodeSize,
+        sourceFrom: range.from,
+        sourceTo: range.to,
+        contentSourceFrom: range.from,
+        contentSourceTo: range.to,
+        sourceLine: lineAtOffset(state.lineStarts, range.from),
+        sourceEndLine: lineAtOffset(state.lineStarts, range.to),
+        policy: "read-only",
+        context: {
+          linePrefix: linePrefixAt(state.source, range.from),
+          quoteDepth: context.quoteDepth,
+          ...(context.listItem ? { listItem: context.listItem } : {}),
+        },
+      },
+    ],
+    immutable: [immutable],
+  };
+}
+
 function buildBlockNode(
   state: ProjectionBuildState,
   node: MdNode,
@@ -1378,9 +1446,10 @@ function buildBlockNode(
       return buildList(state, node, context);
     case "table":
       return buildTable(state, node, context);
+    case "thematicBreak":
+      return buildThematicBreak(state, node, context);
     case "code":
     case "html":
-    case "thematicBreak":
     case "definition":
     case "footnoteDefinition":
     case "yaml":

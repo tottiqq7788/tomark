@@ -231,6 +231,38 @@ describe("PreviewPane locate", () => {
     wrapper.unmount();
   });
 
+  it("renders thematic breaks as hr and keeps source locate mapping", async () => {
+    const source = "before\n\n---\n\nafter\n";
+    const wrapper = mountEditablePreview(source);
+    await flushPromises();
+    await nextTick();
+
+    const hr = wrapper.find("hr");
+    expect(hr.exists()).toBe(true);
+    expect(wrapper.text()).not.toContain("分隔线");
+    expect(hr.attributes("data-tm-readonly")).toContain("thematicBreak");
+    expect(hr.attributes("contenteditable")).toBe("false");
+
+    const block = buildEditableProjection(source).sourceMap.blocks.find(
+      (candidate) => candidate.nodeType === "thematicBreak",
+    )!;
+    expect(block.sourceLine).toBe(3);
+
+    const calls: Element[] = [];
+    const realScroll = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      calls.push(this);
+    };
+    const pane = wrapper.vm as unknown as {
+      scrollToSourceLine: (line: number) => Promise<void>;
+    };
+    await pane.scrollToSourceLine(3);
+    Element.prototype.scrollIntoView = realScroll;
+    expect(calls[0]).toBe(hr.element);
+
+    wrapper.unmount();
+  });
+
   it("locates mermaid diagrams after async mount and Cmd/Ctrl+click on fallback", async () => {
     __setMermaidLoaderForTests(async () => ({
       default: {

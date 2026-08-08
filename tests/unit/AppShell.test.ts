@@ -508,7 +508,7 @@ describe("AppShell", () => {
     wrapper.unmount();
   });
 
-  it("opens settings from the footer gear and keeps help mutually exclusive", async () => {
+  it("opens settings from the footer gear and routes help into the same drawer", async () => {
     const wrapper = mount(AppShell, {
       global: {
         stubs: {
@@ -535,6 +535,11 @@ describe("AppShell", () => {
       requestAnimationFrame(() => resolve());
     });
     expect(document.querySelector('[data-testid="settings-drawer"]')).toBeTruthy();
+    expect(
+      document
+        .querySelector('[data-testid="settings-nav-export"]')
+        ?.getAttribute("aria-current"),
+    ).toBe("page");
 
     await help.trigger("click");
     await flushPromises();
@@ -547,27 +552,14 @@ describe("AppShell", () => {
       document
         .querySelector('[data-testid="settings-overlay"]')
         ?.classList.contains("is-shown"),
-    ).toBeFalsy();
+    ).toBe(true);
     expect(
       document
-        .querySelector('[data-testid="help-overlay"]')
-        ?.classList.contains("is-shown"),
-    ).toBe(true);
-
-    document
-      .querySelector('[data-testid="settings-drawer"]')
-      ?.dispatchEvent(
-        new TransitionEvent("transitionend", {
-          propertyName: "transform",
-          bubbles: true,
-        }),
-      );
-    await flushPromises();
-    expect(
-      document
-        .querySelector('[data-testid="help-overlay"]')
-        ?.classList.contains("is-shown"),
-    ).toBe(true);
+        .querySelector('[data-testid="settings-nav-help"]')
+        ?.getAttribute("aria-current"),
+    ).toBe("page");
+    expect(document.querySelector('[data-testid="help-overlay"]')).toBeNull();
+    expect(document.querySelector('[data-testid="help-settings-panel"]')).toBeTruthy();
     wrapper.unmount();
   });
 
@@ -598,16 +590,21 @@ describe("AppShell", () => {
     expect(handlers!.isBlocked!()).toBe(true);
 
     const settingsDrawer = wrapper.findComponent(SettingsDrawer);
-    settingsDrawer.vm.$emit("close");
-    await flushPromises();
-    await nextTick();
-    expect(handlers!.isBlocked!()).toBe(false);
-
     settingsDrawer.vm.$emit("export-busy", true);
     await nextTick();
     expect(handlers!.isBlocked!()).toBe(true);
+    expect(
+      document
+        .querySelector('[data-testid="settings-overlay"]')
+        ?.classList.contains("is-shown"),
+    ).toBe(true);
 
     settingsDrawer.vm.$emit("export-busy", false);
+    await nextTick();
+    expect(handlers!.isBlocked!()).toBe(true);
+
+    settingsDrawer.vm.$emit("close");
+    await flushPromises();
     await nextTick();
     expect(handlers!.isBlocked!()).toBe(false);
     wrapper.unmount();

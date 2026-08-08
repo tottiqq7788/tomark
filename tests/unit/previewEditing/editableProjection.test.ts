@@ -21,6 +21,7 @@ describe("editable Markdown projection", () => {
       "readonly_inline",
       "readonly_block",
       "hard_break",
+      "thematic_break",
     ]) {
       const type = editablePreviewSchema.nodes[name]!;
       expect(type.isLeaf, name).toBe(true);
@@ -28,6 +29,31 @@ describe("editable Markdown projection", () => {
         expect(type.create().nodeSize, name).toBe(1);
       }
     }
+  });
+
+  it("projects thematic breaks as real readonly hr nodes", () => {
+    const source = "before\n\n---\n\nafter\n";
+    const projection = buildEditableProjection(source);
+    const breakNode = [...Array(projection.doc.childCount)]
+      .map((_, index) => projection.doc.child(index))
+      .find((child) => child.type.name === "thematic_break");
+
+    expect(breakNode).toBeTruthy();
+    expect(projection.doc.textContent).not.toContain("分隔线");
+    expect(
+      projection.sourceMap.blocks.some(
+        (block) =>
+          block.nodeType === "thematicBreak" && block.policy === "read-only",
+      ),
+    ).toBe(true);
+
+    const serializer = DOMSerializer.fromSchema(editablePreviewSchema);
+    const dom = serializer.serializeNode(breakNode!);
+    expect(dom.nodeName).toBe("HR");
+    expect((dom as HTMLElement).getAttribute("data-tm-readonly")).toContain(
+      "thematicBreak",
+    );
+    expect((dom as HTMLElement).getAttribute("data-tm-from")).toBeTruthy();
   });
 
   it("parses once for both the projection and sanitized fallback", () => {

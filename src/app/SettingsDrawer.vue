@@ -2,28 +2,41 @@
 import { computed, ref, watch } from "vue";
 import AppTopDrawer from "@/app/AppTopDrawer.vue";
 import ExportSettingsPanel from "@/app/settings/ExportSettingsPanel.vue";
+import HelpSettingsPanel from "@/app/settings/HelpSettingsPanel.vue";
+import {
+  DEFAULT_SETTINGS_MENU_ID,
+  SETTINGS_MENUS,
+  type SettingsMenuId,
+} from "@/app/settings/settingsMenus";
+import type { EncodingHint } from "@/shared/types";
 
-export type SettingsMenuId = "export";
-
-const props = defineProps<{
-  open: boolean;
-  markdownSource: string;
-  documentPath: string | null;
-  fileName: string;
-  busy?: boolean;
-}>();
+const props = withDefaults(
+  defineProps<{
+    open: boolean;
+    initialMenu?: SettingsMenuId;
+    markdownSource: string;
+    documentPath: string | null;
+    fileName: string;
+    busy?: boolean;
+    canReidentify?: boolean;
+  }>(),
+  {
+    initialMenu: DEFAULT_SETTINGS_MENU_ID,
+    busy: false,
+    canReidentify: false,
+  },
+);
 
 const emit = defineEmits<{
   close: [];
   "export-busy": [busy: boolean];
-  "status-message": [message: string];
+  "request-default-app": [];
+  reidentify: [hint: EncodingHint];
 }>();
 
-const activeMenu = ref<SettingsMenuId>("export");
-
-const menus: { id: SettingsMenuId; label: string }[] = [
-  { id: "export", label: "导出" },
-];
+const drawerRef = ref<InstanceType<typeof AppTopDrawer> | null>(null);
+const activeMenu = ref<SettingsMenuId>(props.initialMenu);
+const menus = SETTINGS_MENUS;
 
 const panelTitle = computed(() => {
   const found = menus.find((item) => item.id === activeMenu.value);
@@ -31,17 +44,24 @@ const panelTitle = computed(() => {
 });
 
 watch(
-  () => props.open,
-  (open) => {
+  () => [props.open, props.initialMenu] as const,
+  ([open, menu]) => {
     if (open) {
-      activeMenu.value = "export";
+      activeMenu.value = menu ?? DEFAULT_SETTINGS_MENU_ID;
     }
   },
 );
+
+function suspendFocusTrap(): () => void {
+  return drawerRef.value?.suspendFocusTrap() ?? (() => undefined);
+}
+
+defineExpose({ suspendFocusTrap });
 </script>
 
 <template>
   <AppTopDrawer
+    ref="drawerRef"
     :open="open"
     title="设置"
     test-id-prefix="settings"
@@ -73,7 +93,13 @@ watch(
           :file-name="fileName"
           :disabled="busy"
           @busy="(value) => emit('export-busy', value)"
-          @status-message="(message) => emit('status-message', message)"
+        />
+        <HelpSettingsPanel
+          v-else-if="activeMenu === 'help'"
+          :active="activeMenu === 'help'"
+          :can-reidentify="canReidentify"
+          @request-default-app="emit('request-default-app')"
+          @reidentify="(hint) => emit('reidentify', hint)"
         />
       </section>
     </div>

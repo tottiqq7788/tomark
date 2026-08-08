@@ -30,6 +30,19 @@ describe("settings export drawer", () => {
     await expect($('[data-testid="export-action-png"]')).toBeDisplayed();
   });
 
+  it("opens the help settings panel from the footer question mark", async () => {
+    const help = await $('[data-testid="status-help"]');
+    await help.waitForExist({ timeout: 10_000 });
+    await help.click();
+
+    const drawer = await $('[data-testid="settings-drawer"]');
+    await drawer.waitForDisplayed({ timeout: 10_000 });
+    await expect($('[data-testid="help-settings-panel"]')).toBeDisplayed();
+    await expect(
+      $('[data-testid="settings-nav-help"]'),
+    ).toHaveAttribute("aria-current", "page");
+  });
+
   it("loads every lazy renderer module before exporting", async () => {
     await browser.setTimeout({ script: 30_000 });
     const errorMessage = await browser.executeAsync((done) => {

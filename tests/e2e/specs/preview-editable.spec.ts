@@ -404,4 +404,43 @@ describe("editable preview typing", () => {
   it("resolves wrapped-line, margin, task-list, and jittered blank clicks", async () => {
     await exerciseBlankCaretRegressionScenarios();
   });
+
+  it("renders thematic breaks as a real horizontal rule", async () => {
+    await browser.execute(() => {
+      (
+        window as unknown as {
+          __tomarkE2e: { replaceContent: (value: string) => void };
+        }
+      ).__tomarkE2e.replaceContent("before\n\n---\n\nafter\n");
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const preview = document.querySelector(".tm-editable-preview");
+          if (!(preview instanceof HTMLElement)) {
+            return false;
+          }
+          return Boolean(preview.querySelector("hr"));
+        }),
+      { timeout: 10_000, timeoutMsg: "thematic break hr not rendered" },
+    );
+
+    const state = await browser.execute(() => {
+      const preview = document.querySelector(".tm-editable-preview");
+      if (!(preview instanceof HTMLElement)) {
+        return null;
+      }
+      const hr = preview.querySelector("hr");
+      return {
+        hasHr: Boolean(hr),
+        text: preview.textContent ?? "",
+        readonly: hr?.getAttribute("data-tm-readonly") ?? "",
+      };
+    });
+
+    expect(state?.hasHr).toBe(true);
+    expect(state?.text).not.toContain("分隔线");
+    expect(state?.readonly).toContain("thematicBreak");
+  });
 });

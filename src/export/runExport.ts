@@ -72,6 +72,55 @@ function suggestPagedPdfName(fileName: string): string {
   return `${defaultExportBaseName(fileName)}-分页.pdf`;
 }
 
+export function exportTargetDialogOptions(
+  format: ExportFormatId,
+  fileName: string,
+): {
+  defaultPath: string;
+  filters: { name: string; extensions: string[] }[];
+} {
+  switch (format) {
+    case "pdf":
+      return {
+        defaultPath: suggestName(fileName, "pdf"),
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      };
+    case "pdf-paged":
+      return {
+        defaultPath: suggestPagedPdfName(fileName),
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      };
+    case "html-embedded":
+    case "html-assets":
+      return {
+        defaultPath: suggestName(fileName, "html"),
+        filters: [{ name: "HTML", extensions: ["html", "htm"] }],
+      };
+    case "docx":
+      return {
+        defaultPath: suggestName(fileName, "docx"),
+        filters: [{ name: "Word", extensions: ["docx"] }],
+      };
+    case "png":
+      return {
+        defaultPath: suggestName(fileName, "png"),
+        filters: [{ name: "PNG", extensions: ["png"] }],
+      };
+    default: {
+      const exhaustive: never = format;
+      throw new ExportFailedError(`未知导出格式：${String(exhaustive)}`);
+    }
+  }
+}
+
+/** Ask for a save path without building the export document. Returns null if cancelled. */
+export async function selectExportTargetPath(
+  format: ExportFormatId,
+  fileName: string,
+): Promise<string | null> {
+  return pickExportPath(exportTargetDialogOptions(format, fileName));
+}
+
 function ensureBrowserGlobals(): void {
   const root = globalThis as typeof globalThis & { global?: typeof globalThis };
   if (root.global === undefined) {
@@ -150,10 +199,7 @@ async function exportEmbeddedHtml(
     documentPath: options.documentPath,
     embedImages: true,
   });
-  const targetPath = await resolveExportTargetPath(options, {
-    defaultPath: suggestName(options.fileName, "html"),
-    filters: [{ name: "HTML", extensions: ["html", "htm"] }],
-  });
+  const targetPath = await resolveExportTargetPathForFormat(options);
   await writeExportBytes(
     targetPath,
     new TextEncoder().encode(document.fullHtml),
@@ -176,10 +222,7 @@ async function exportAssetsHtml(
     documentPath: options.documentPath,
     embedImages: false,
   });
-  const htmlPath = await resolveExportTargetPath(options, {
-    defaultPath: suggestName(options.fileName, "html"),
-    filters: [{ name: "HTML", extensions: ["html", "htm"] }],
-  });
+  const htmlPath = await resolveExportTargetPathForFormat(options);
   const outputFileName = fileNameFromPath(htmlPath);
   const extensionIndex = outputFileName.lastIndexOf(".");
   const outputBaseName =
@@ -234,18 +277,21 @@ async function resolveExportTargetPath(
   return targetPath;
 }
 
+async function resolveExportTargetPathForFormat(
+  options: RunExportOptions,
+): Promise<string> {
+  return resolveExportTargetPath(
+    options,
+    exportTargetDialogOptions(options.format, options.fileName),
+  );
+}
+
 async function exportPdf(
   options: RunExportOptions,
   title: string,
   layout: PdfLayoutMode,
 ): Promise<RunExportResult> {
-  const targetPath = await resolveExportTargetPath(options, {
-    defaultPath:
-      layout === "paged"
-        ? suggestPagedPdfName(options.fileName)
-        : suggestName(options.fileName, "pdf"),
-    filters: [{ name: "PDF", extensions: ["pdf"] }],
-  });
+  const targetPath = await resolveExportTargetPathForFormat(options);
 
   reportProgress(options, "正在准备文档…");
   await yieldToUi();
@@ -620,10 +666,7 @@ async function exportDocx(
   title: string,
   _baseName: string,
 ): Promise<RunExportResult> {
-  const targetPath = await resolveExportTargetPath(options, {
-    defaultPath: suggestName(options.fileName, "docx"),
-    filters: [{ name: "Word", extensions: ["docx"] }],
-  });
+  const targetPath = await resolveExportTargetPathForFormat(options);
 
   reportProgress(options, "正在生成 Word 文档…");
   const exportDoc = await buildExportDocument({
@@ -750,10 +793,7 @@ async function exportPng(
   title: string,
   _baseName: string,
 ): Promise<RunExportResult> {
-  const targetPath = await resolveExportTargetPath(options, {
-    defaultPath: suggestName(options.fileName, "png"),
-    filters: [{ name: "PNG", extensions: ["png"] }],
-  });
+  const targetPath = await resolveExportTargetPathForFormat(options);
 
   reportProgress(options, "正在生成长图…");
   const exportDoc = await buildExportDocument({

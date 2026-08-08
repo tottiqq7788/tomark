@@ -69,6 +69,9 @@ export function usePreviewBridge(content: Ref<string>) {
         return "th";
       case "readonly_block":
         return "pre";
+      case "thematicBreak":
+      case "thematic_break":
+        return "hr";
       default:
         return nodeType;
     }
