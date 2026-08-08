@@ -74,4 +74,11 @@ describe("paged PDF DOM preparation", () => {
     expect(css).not.toContain("@page");
     expect(exportShellCss()).toContain("920px");
   });
+
+  it("uses pure-black body text and export-appropriate font sizes", () => {
+    expect(exportShellCss()).toContain("color: #000000");
+    expect(exportShellCss()).toContain("font-size: 14px");
+    expect(exportPagedPdfCss()).toContain("color: #000000");
+    expect(exportPagedPdfCss()).toContain("font-size: 11pt");
+  });
 });
