@@ -1,12 +1,35 @@
-import { describe, expect, it } from "vitest";
-import { exportPagedPdfCss, exportShellCss } from "@/export/buildExportHtml";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  exportLongPdfCss,
+  exportPagedPdfCss,
+  exportShellCss,
+} from "@/export/buildExportHtml";
 import {
   preparePagedExportDom,
   replaceTaskListCheckboxes,
   PDF_PAGED_CONTENT_HEIGHT_PX,
 } from "@/export/runExport";
 
+function mountExportArticle(css: string, className: string): HTMLElement {
+  const host = document.createElement("div");
+  host.innerHTML = `<style>${css}</style><article class="${className}"><p>正文</p></article>`;
+  document.body.appendChild(host);
+  const article = host.querySelector("article");
+  if (!article) {
+    throw new Error("failed to mount export article");
+  }
+  return article as HTMLElement;
+}
+
 describe("paged PDF DOM preparation", () => {
+  const mountedHosts: HTMLElement[] = [];
+
+  afterEach(() => {
+    for (const host of mountedHosts.splice(0)) {
+      host.remove();
+    }
+  });
+
   it("replaces task-list checkboxes with unicode markers before PDF paint", () => {
     const root = document.createElement("article");
     root.innerHTML = `
@@ -75,10 +98,54 @@ describe("paged PDF DOM preparation", () => {
     expect(exportShellCss()).toContain("920px");
   });
 
-  it("uses pure-black body text and export-appropriate font sizes", () => {
+  it("keeps HTML/PNG shell at 14px while PDF shells use larger readable sizes", () => {
     expect(exportShellCss()).toContain("color: #000000");
     expect(exportShellCss()).toContain("font-size: 14px");
+    expect(exportShellCss()).toContain("font-weight: 400");
+    expect(exportShellCss()).toContain(".markdown-body.export-root");
+
+    expect(exportLongPdfCss()).toContain("color: #000000");
+    expect(exportLongPdfCss()).toContain("font-size: 16px");
+    expect(exportLongPdfCss()).toContain("font-weight: 400");
+    expect(exportLongPdfCss()).toContain(".markdown-body.export-root");
+
     expect(exportPagedPdfCss()).toContain("color: #000000");
-    expect(exportPagedPdfCss()).toContain("font-size: 11pt");
+    expect(exportPagedPdfCss()).toContain("font-size: 12pt");
+    expect(exportPagedPdfCss()).toContain("font-weight: 400");
+    expect(exportPagedPdfCss()).toContain(
+      ".markdown-body.export-root.export-root-paged",
+    );
+  });
+
+  it("applies export CSS over markdown-body so computed color and size win", () => {
+    const longArticle = mountExportArticle(
+      exportLongPdfCss(),
+      "markdown-body export-root",
+    );
+    mountedHosts.push(longArticle.parentElement as HTMLElement);
+    const longStyle = getComputedStyle(longArticle);
+    expect(longStyle.color).toBe("rgb(0, 0, 0)");
+    expect(longStyle.fontSize).toBe("16px");
+    expect(longStyle.fontWeight).toBe("400");
+
+    const pagedArticle = mountExportArticle(
+      exportPagedPdfCss(),
+      "markdown-body export-root export-root-paged",
+    );
+    mountedHosts.push(pagedArticle.parentElement as HTMLElement);
+    const pagedStyle = getComputedStyle(pagedArticle);
+    expect(pagedStyle.color).toBe("rgb(0, 0, 0)");
+    expect(pagedStyle.fontSize).toBe("16px"); // 12pt → 16px at 96dpi in jsdom/browser
+    expect(pagedStyle.fontWeight).toBe("400");
+
+    const shellArticle = mountExportArticle(
+      exportShellCss(),
+      "markdown-body export-root",
+    );
+    mountedHosts.push(shellArticle.parentElement as HTMLElement);
+    const shellStyle = getComputedStyle(shellArticle);
+    expect(shellStyle.color).toBe("rgb(0, 0, 0)");
+    expect(shellStyle.fontSize).toBe("14px");
+    expect(shellStyle.fontWeight).toBe("400");
   });
 });

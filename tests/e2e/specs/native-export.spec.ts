@@ -198,4 +198,51 @@ describe("native export (Tauri WebView)", () => {
       0x25, 0x50, 0x44, 0x46,
     ]);
   });
+
+  it("exports both long and paged PDF with readable Chinese body text", async () => {
+    const unique = `${process.pid}-${Date.now()}`;
+    const markdown = [
+      "# PDF 清晰度",
+      "",
+      "正文应可选择搜索，字色纯黑。",
+      "",
+      "> 引用块",
+      "",
+      "| 列 | 值 |",
+      "| --- | --- |",
+      "| 中文 | 可读 |",
+      "",
+      "```ts",
+      "const ok = true;",
+      "```",
+    ].join("\n");
+
+    for (const format of ["pdf", "pdf-paged"] as const) {
+      const outputPath = path.join(
+        tmpdir(),
+        `tomark-export-${unique}-${format}.pdf`,
+      );
+      cleanupPaths.push(outputPath);
+
+      const result = await runExportToPath({
+        format,
+        path: outputPath,
+        markdown,
+        fileName: "pdf-clarity.md",
+      });
+
+      expect(result).toEqual({
+        ok: true,
+        fileName: path.basename(outputPath),
+      });
+      const bytes = readFileSync(outputPath);
+      expect(Array.from(bytes.subarray(0, 4))).toEqual([
+        0x25, 0x50, 0x44, 0x46,
+      ]);
+      expect(bytes.length).toBeGreaterThan(1_000);
+      // Vector text remains searchable in the PDF content stream.
+      const ascii = bytes.toString("latin1");
+      expect(ascii).toMatch(/\/Font|BT[\s\S]*?ET/);
+    }
+  });
 });

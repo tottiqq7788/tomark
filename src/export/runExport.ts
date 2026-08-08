@@ -2,6 +2,7 @@ import {
   buildExportDocument,
   buildHtmlAssetsBundle,
   defaultExportBaseName,
+  exportLongPdfCss,
   exportPagedPdfCss,
   exportShellCss,
   wrapExportHtml,
@@ -302,7 +303,7 @@ async function exportPdf(
     embedImages: true,
   });
 
-  const css = layout === "paged" ? exportPagedPdfCss() : exportDoc.css;
+  const css = layout === "paged" ? exportPagedPdfCss() : exportLongPdfCss();
   const rootClass =
     layout === "paged"
       ? "markdown-body export-root export-root-paged"

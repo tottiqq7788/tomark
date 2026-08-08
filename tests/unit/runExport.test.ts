@@ -210,6 +210,12 @@ describe("runExport generators", () => {
     const page = renderMock.mock.calls[0][1].page;
     expect(page.format[0]).toBeGreaterThan(0);
     expect(page.format[1]).toBeGreaterThan(0);
+    const longArticle = renderMock.mock.calls[0][0] as HTMLElement;
+    const longCss =
+      longArticle.parentElement?.querySelector("style")?.textContent ?? "";
+    expect(longCss).toContain("font-size: 16px");
+    expect(longCss).toContain("color: #000000");
+    expect(longCss).toContain("font-weight: 400");
     expect(disposePdf).toHaveBeenCalled();
     expect(disposeRenderer).toHaveBeenCalled();
   });
@@ -258,6 +264,11 @@ describe("runExport generators", () => {
     );
     const article = renderMock.mock.calls[0][0] as HTMLElement;
     expect(article.classList.contains("export-root-paged")).toBe(true);
+    const pagedCss =
+      article.parentElement?.querySelector("style")?.textContent ?? "";
+    expect(pagedCss).toContain("font-size: 12pt");
+    expect(pagedCss).toContain("color: #000000");
+    expect(pagedCss).toContain("font-weight: 400");
     expect(pickExportPath).toHaveBeenCalledWith(
       expect.objectContaining({
         defaultPath: "note-分页.pdf",

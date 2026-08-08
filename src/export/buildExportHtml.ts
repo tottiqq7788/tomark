@@ -33,10 +33,20 @@ const EXPORT_BODY_FONT_STACK =
 const EXPORT_CODE_FONT_STACK =
   '"Source Code Pro", "Source Han Sans SC", "Noto Sans Symbols 2", "Noto Emoji", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 
+/** Shared shell for HTML / PNG / DOCX intermediate HTML (not PDF-specific sizing). */
 export function exportShellCss(): string {
+  return buildWideExportCss("14px");
+}
+
+/** Long single-page PDF shell: larger body size for print readability. */
+export function exportLongPdfCss(): string {
+  return buildWideExportCss("16px");
+}
+
+function buildWideExportCss(fontSize: string): string {
   return `${markdownBodyCss}
 
-.export-root {
+.markdown-body.export-root {
   box-sizing: border-box;
   width: ${EXPORT_CONTENT_WIDTH_PX}px;
   max-width: ${EXPORT_CONTENT_WIDTH_PX}px;
@@ -45,7 +55,8 @@ export function exportShellCss(): string {
   background: #fff;
   color: #000000;
   font-family: ${EXPORT_BODY_FONT_STACK};
-  font-size: 14px;
+  font-size: ${fontSize};
+  font-weight: 400;
 }
 
 .export-root code,
@@ -53,6 +64,7 @@ export function exportShellCss(): string {
 .export-root kbd,
 .export-root samp {
   font-family: ${EXPORT_CODE_FONT_STACK};
+  font-weight: 400;
 }
 
 .export-root img {
@@ -75,7 +87,7 @@ export function exportShellCss(): string {
 export function exportPagedPdfCss(): string {
   return `${markdownBodyCss}
 
-.export-root.export-root-paged {
+.markdown-body.export-root.export-root-paged {
   box-sizing: border-box;
   width: 100%;
   max-width: ${PDF_PAGED_CONTENT_WIDTH_MM}mm;
@@ -84,7 +96,8 @@ export function exportPagedPdfCss(): string {
   background: #fff;
   color: #000000;
   font-family: ${EXPORT_BODY_FONT_STACK};
-  font-size: 11pt;
+  font-size: 12pt;
+  font-weight: 400;
   line-height: 1.55;
 }
 
@@ -93,6 +106,7 @@ export function exportPagedPdfCss(): string {
 .export-root.export-root-paged kbd,
 .export-root.export-root-paged samp {
   font-family: ${EXPORT_CODE_FONT_STACK};
+  font-weight: 400;
 }
 
 .export-root.export-root-paged img,
