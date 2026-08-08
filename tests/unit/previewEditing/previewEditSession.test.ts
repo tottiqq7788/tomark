@@ -644,4 +644,212 @@ describe("createPreviewEditSession", () => {
     expect(located).toEqual([breakBlock.sourceLine]);
     session.destroy();
   });
+
+  function pressBackspace(session: PreviewEditSession) {
+    const event = new KeyboardEvent("keydown", {
+      key: "Backspace",
+      code: "Backspace",
+      bubbles: true,
+      cancelable: true,
+    });
+    session.view.someProp("handleKeyDown", (f) => f(session.view, event));
+  }
+
+  function placeDomCaretInText(
+    root: HTMLElement,
+    needle: string,
+    offsetInNeedle: number,
+  ) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = node.textContent ?? "";
+      const index = text.indexOf(needle);
+      if (index >= 0) {
+        const range = document.createRange();
+        range.setStart(node, index + offsetInNeedle);
+        range.collapse(true);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+      node = walker.nextNode();
+    }
+    throw new Error(`missing text ${needle}`);
+  }
+
+  it("syncs stale PM selection to mid-block caret before Backspace deletes", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    let source =
+      "1. first\n2. 打开文档时沿第一条标题链展开到正文，其余标题折叠\n";
+    let revision = 0;
+    const origins: string[] = [];
+    const session = createPreviewEditSession(
+      host,
+      buildEditableProjection(source),
+      {
+        getRevision: () => revision,
+        applySourceTransaction: (transaction) => {
+          origins.push(transaction.origin);
+          source = applySourcePatches(source, transaction.patches);
+          revision += 1;
+          return { ok: true, revision, value: source };
+        },
+      },
+    );
+
+    const needle = "打开文档时沿第一条标题链展开到正文，其余标题折叠";
+    const caretOffset = 8;
+    const projection = buildEditableProjection(source);
+    const segment = projection.sourceMap.segments.find(
+      (item) => item.text === needle,
+    )!;
+    // Stale PM selection covers the whole list item while the DOM caret is mid-text.
+    session.view.dispatch(
+      session.view.state.tr.setSelection(
+        TextSelection.create(
+          session.view.state.doc,
+          segment.pmFrom,
+          segment.pmTo,
+        ),
+      ),
+    );
+    placeDomCaretInText(session.view.dom, needle, caretOffset);
+
+    // Stale whole-segment PM selection must sync to the mid caret, then delete
+    // exactly one character (no structure join / whole-block wipe).
+    pressBackspace(session);
+    expect(origins.at(-1)).toBe("typing");
+    const afterFirst =
+      needle.slice(0, caretOffset - 1) + needle.slice(caretOffset);
+    expect(source).toContain(afterFirst);
+    expect(source.includes(needle)).toBe(false);
+    expect(session.view.state.selection.empty).toBe(true);
+    expect(session.view.state.selection.head).toBeGreaterThan(segment.pmFrom);
+
+    placeDomCaretInText(session.view.dom, afterFirst, caretOffset - 1);
+    const beforeSecond = source;
+    pressBackspace(session);
+    expect(origins.at(-1)).toBe("typing");
+    expect(source.length).toBe(beforeSecond.length - 1);
+    expect(origins.includes("structure")).toBe(false);
+    session.destroy();
+  });
+
+  it("does not write source when Backspace cannot confirm a native caret", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    let source = "Hello world\n";
+    let revision = 0;
+    const origins: string[] = [];
+    const onStatus = vi.fn();
+    const session = createPreviewEditSession(
+      host,
+      buildEditableProjection(source),
+      {
+        getRevision: () => revision,
+        applySourceTransaction: (transaction) => {
+          origins.push(transaction.origin);
+          source = applySourcePatches(source, transaction.patches);
+          revision += 1;
+          return { ok: true, revision, value: source };
+        },
+        onStatus,
+      },
+    );
+
+    const segment = buildEditableProjection(source).sourceMap.segments[0]!;
+    session.view.dispatch(
+      session.view.state.tr.setSelection(
+        TextSelection.create(
+          session.view.state.doc,
+          segment.pmFrom,
+          segment.pmTo,
+        ),
+      ),
+    );
+
+    // Point the native selection at the preview element itself (not a text node)
+    // so posAtDOM cannot produce an editable caret.
+    const selection = window.getSelection();
+    const chromeRange = document.createRange();
+    chromeRange.setStart(session.view.dom, 0);
+    chromeRange.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(chromeRange);
+
+    const before = source;
+    pressBackspace(session);
+    expect(source).toBe(before);
+    expect(origins).toEqual([]);
+    expect(onStatus).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "rejected" }),
+    );
+    session.destroy();
+  });
+
+  it("joins adjacent paragraphs only from a real block-start caret", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    let source = "one\n\ntwo\n";
+    let revision = 0;
+    const origins: string[] = [];
+    const session = createPreviewEditSession(
+      host,
+      buildEditableProjection(source),
+      {
+        getRevision: () => revision,
+        applySourceTransaction: (transaction) => {
+          origins.push(transaction.origin);
+          source = applySourcePatches(source, transaction.patches);
+          revision += 1;
+          return { ok: true, revision, value: source };
+        },
+      },
+    );
+
+    const two = buildEditableProjection("one\n\ntwo\n").sourceMap.segments.find(
+      (item) => item.text === "two",
+    )!;
+    session.view.dispatch(
+      session.view.state.tr.setSelection(
+        TextSelection.create(session.view.state.doc, two.pmFrom),
+      ),
+    );
+    placeDomCaretInText(session.view.dom, "two", 0);
+    pressBackspace(session);
+    expect(origins.at(-1)).toBe("structure");
+    expect(source).toBe("onetwo\n");
+    session.destroy();
+  });
+
+  it("keeps relative caret after rebuild without snapping to block start", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const source = "Hello world today\n";
+    const projection = buildEditableProjection(source);
+    const session = createPreviewEditSession(host, projection, {
+      getRevision: () => 0,
+      applySourceTransaction: () => ({
+        ok: false,
+        reason: "stale-revision",
+        revision: 0,
+      }),
+    });
+    const segment = projection.sourceMap.segments[0]!;
+    const mid = segment.pmFrom + "Hello wor".length;
+    session.view.dispatch(
+      session.view.state.tr.setSelection(
+        TextSelection.create(session.view.state.doc, mid),
+      ),
+    );
+    session.rebuild(buildEditableProjection(source));
+    expect(session.view.state.selection.head).toBe(mid);
+    expect(session.view.state.selection.head).not.toBe(
+      projection.sourceMap.blocks[0]!.contentPmFrom,
+    );
+    session.destroy();
+  });
 });

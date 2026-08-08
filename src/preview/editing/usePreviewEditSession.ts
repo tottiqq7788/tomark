@@ -29,10 +29,44 @@ import {
   waitForEditableMermaidReady,
 } from "./mermaidNodeView";
 import {
+  mapNativeSelectionToPmExact,
   resolveEditableFormatSelection,
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
 import { resolvePointerCaret } from "./resolvePointerCaret";
+
+function isHighSurrogate(code: number): boolean {
+  return code >= 0xd800 && code <= 0xdbff;
+}
+
+/** Inclusive start of the UTF-16 code point immediately before `pos`. */
+function codePointStartBefore(doc: ProseMirrorNode, pos: number): number {
+  if (pos <= 0) {
+    return 0;
+  }
+  if (pos >= 2) {
+    const pair = doc.textBetween(pos - 2, pos);
+    if (pair.length === 2 && isHighSurrogate(pair.charCodeAt(0))) {
+      return pos - 2;
+    }
+  }
+  return pos - 1;
+}
+
+/** Exclusive end of the UTF-16 code point immediately after `pos`. */
+function codePointEndAfter(doc: ProseMirrorNode, pos: number): number {
+  const size = doc.content.size;
+  if (pos >= size) {
+    return size;
+  }
+  if (pos + 2 <= size) {
+    const pair = doc.textBetween(pos, pos + 2);
+    if (pair.length === 2 && isHighSurrogate(pair.charCodeAt(0))) {
+      return pos + 2;
+    }
+  }
+  return pos + 1;
+}
 
 export type PreviewEditStatusKind =
   | "editing"
@@ -183,20 +217,45 @@ function selectionNearBlock(
   projection: EditableProjection,
   preferredBlockId: string | null,
   fallbackSourceLine: number | null,
+  relativeContentOffset: number | null = null,
 ): Selection {
+  const placeInBlock = (block: {
+    contentPmFrom: number;
+    contentPmTo: number;
+  }): Selection | null => {
+    try {
+      const span = Math.max(0, block.contentPmTo - block.contentPmFrom);
+      const offset =
+        relativeContentOffset == null
+          ? span
+          : Math.max(0, Math.min(span, relativeContentOffset));
+      const pos = block.contentPmFrom + offset;
+      return TextSelection.create(projection.doc, pos, pos);
+    } catch {
+      return null;
+    }
+  };
+
   if (preferredBlockId) {
     const held = projection.sourceMap.blocks.find(
       (block) => block.id === preferredBlockId,
     );
     if (held) {
-      try {
-        return TextSelection.create(
-          projection.doc,
-          held.contentPmFrom,
-          held.contentPmFrom,
-        );
-      } catch {
-        // fall through
+      // Empty held blocks must keep the caret at the empty content start.
+      if (held.contentPmFrom === held.contentPmTo) {
+        try {
+          return TextSelection.create(
+            projection.doc,
+            held.contentPmFrom,
+            held.contentPmFrom,
+          );
+        } catch {
+          // fall through
+        }
+      }
+      const placed = placeInBlock(held);
+      if (placed) {
+        return placed;
       }
     }
   }
@@ -209,18 +268,20 @@ function selectionNearBlock(
       )
       .sort((a, b) => b.sourceLine - a.sourceLine)[0];
     if (byLine) {
-      try {
-        return TextSelection.create(
-          projection.doc,
-          byLine.contentPmFrom,
-          byLine.contentPmFrom,
-        );
-      } catch {
-        // fall through
+      const placed = placeInBlock(byLine);
+      if (placed) {
+        return placed;
       }
     }
   }
-  return TextSelection.near(projection.doc.resolve(0)) as Selection;
+  const size = projection.doc.content.size;
+  try {
+    return TextSelection.near(
+      projection.doc.resolve(Math.max(0, Math.min(size, size))),
+    ) as Selection;
+  } catch {
+    return TextSelection.near(projection.doc.resolve(0)) as Selection;
+  }
 }
 
 /**
@@ -358,21 +419,35 @@ export function createPreviewEditSession(
       view.state.doc.content.size,
     );
     const previousBlock = projection.sourceMap.blockAt(previousHead);
+    const relativeContentOffset = previousBlock
+      ? Math.max(0, previousHead - previousBlock.contentPmFrom)
+      : null;
     projection = next;
     let nextSelection: Selection | undefined;
     if (selection) {
       nextSelection =
         selectionFromSourceOffsets(next, selection.anchor, selection.head) ??
         undefined;
+      if (!nextSelection) {
+        // Explicit recovery pointed at an unmappable source offset (delimiter).
+        // Prefer the block start over fuzzy nearby text.
+        nextSelection = selectionNearBlock(
+          next,
+          previousBlock?.id ?? null,
+          previousBlock?.sourceLine ?? null,
+          0,
+        );
+      }
     }
     if (!nextSelection && heldEmptyBlockId) {
-      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null);
+      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null, 0);
     }
     if (!nextSelection) {
       nextSelection = selectionNearBlock(
         next,
         previousBlock?.id ?? null,
         previousBlock?.sourceLine ?? null,
+        relativeContentOffset,
       );
     }
     applyingExternal = true;
@@ -400,8 +475,8 @@ export function createPreviewEditSession(
     try {
       const next = buildEditableProjection(result.value);
       // Typing/composition/paste already applied an optimistic PM doc. When the
-      // rebuilt tree matches, keep that document node and only correct the caret
-      // from the source selection — remapping via block-start would snap away.
+      // rebuilt tree matches, keep that document node and the verified caret —
+      // remapping via source offsets can snap away from the live deletion point.
       const keepOptimisticDoc =
         heldEmptyBlockId == null &&
         view.state.doc.eq(next.doc) &&
@@ -410,22 +485,6 @@ export function createPreviewEditSession(
           transaction.origin === "paste");
       if (keepOptimisticDoc) {
         projection = next;
-        if (transaction.selection) {
-          const mapped = selectionFromSourceOffsets(
-            next,
-            transaction.selection.anchor,
-            transaction.selection.head,
-          );
-          if (
-            mapped &&
-            (mapped.anchor !== view.state.selection.anchor ||
-              mapped.head !== view.state.selection.head)
-          ) {
-            applyingExternal = true;
-            view.updateState(view.state.apply(view.state.tr.setSelection(mapped)));
-            applyingExternal = false;
-          }
-        }
       } else {
         acceptProjection(next, transaction.selection ?? null);
       }
@@ -447,6 +506,7 @@ export function createPreviewEditSession(
       projection.doc.content.size,
     );
     const block = projection.sourceMap.blockAt(head);
+    const relative = block ? Math.max(0, head - block.contentPmFrom) : null;
     view.updateState(
       EditorState.create({
         schema: editablePreviewSchema,
@@ -456,6 +516,7 @@ export function createPreviewEditSession(
           projection,
           block?.id ?? null,
           block?.sourceLine ?? null,
+          relative,
         ),
       }),
     );
@@ -480,6 +541,56 @@ export function createPreviewEditSession(
       return true;
     }
     return commitSourceTransaction(translated.sourceTransaction);
+  };
+
+  /**
+   * Align PM selection with the live browser caret before structural delete
+   * decisions. Fail closed when a native caret exists but cannot be mapped.
+   */
+  const syncSelectionFromNativeBeforeDelete = (): boolean => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+    const domSelection = window.getSelection();
+    if (!domSelection || domSelection.rangeCount === 0) {
+      // Programmatic / unit-test path with only a PM selection.
+      return true;
+    }
+    const range = domSelection.getRangeAt(0);
+    if (!view.dom.contains(range.commonAncestorContainer)) {
+      return true;
+    }
+    const native = mapNativeSelectionToPmExact(view, projection);
+    if (!native) {
+      handlers.onStatus?.({
+        kind: "rejected",
+        message: "无法确认删除位置，请重新放置光标后再试",
+      });
+      return false;
+    }
+    const { from, to } = view.state.selection;
+    if (native.from === from && native.to === to) {
+      return true;
+    }
+    try {
+      applyingExternal = true;
+      view.updateState(
+        view.state.apply(
+          view.state.tr.setSelection(
+            TextSelection.create(view.state.doc, native.from, native.to),
+          ),
+        ),
+      );
+      applyingExternal = false;
+      return true;
+    } catch {
+      applyingExternal = false;
+      handlers.onStatus?.({
+        kind: "rejected",
+        message: "无法确认删除位置，请重新放置光标后再试",
+      });
+      return false;
+    }
   };
 
   const translateAndCommit = (
@@ -557,23 +668,48 @@ export function createPreviewEditSession(
     keymap({
       Enter: () => commitStructure("split-block"),
       "Shift-Enter": exitCode,
-      Backspace: chainCommands((state, dispatch) => {
-        const { $from, empty } = state.selection;
-        if (!empty || $from.parentOffset > 0) {
+      Backspace: chainCommands((_state, dispatch) => {
+        if (!syncSelectionFromNativeBeforeDelete()) {
+          return true;
+        }
+        const { $from, empty, from } = view.state.selection;
+        if (!empty) {
+          // Non-empty ranges fall through to baseKeymap deleteSelection.
           return false;
         }
+        if ($from.parentOffset === 0) {
+          if (dispatch) {
+            commitStructure("join-backward");
+          }
+          return true;
+        }
+        // Delete explicitly after sync. Relying on the browser default fails when
+        // a projection rebuild leaves the DOM caret detached while PM is correct.
         if (dispatch) {
-          commitStructure("join-backward");
+          view.dispatch(
+            view.state.tr.delete(codePointStartBefore(view.state.doc, from), from),
+          );
         }
         return true;
       }),
-      Delete: chainCommands((state, dispatch) => {
-        const { $from, empty } = state.selection;
-        if (!empty || $from.parentOffset < $from.parent.content.size) {
+      Delete: chainCommands((_state, dispatch) => {
+        if (!syncSelectionFromNativeBeforeDelete()) {
+          return true;
+        }
+        const { $from, empty, from } = view.state.selection;
+        if (!empty) {
           return false;
         }
+        if ($from.parentOffset >= $from.parent.content.size) {
+          if (dispatch) {
+            commitStructure("join-forward");
+          }
+          return true;
+        }
         if (dispatch) {
-          commitStructure("join-forward");
+          view.dispatch(
+            view.state.tr.delete(from, codePointEndAfter(view.state.doc, from)),
+          );
         }
         return true;
       }),
@@ -866,9 +1002,14 @@ export function createPreviewEditSession(
         message: "映射已过期，已重新同步",
       });
     }
-    const previousBlock = projection.sourceMap.blockAt(
-      Math.min(view.state.selection.head, view.state.doc.content.size),
+    const previousHead = Math.min(
+      view.state.selection.head,
+      view.state.doc.content.size,
     );
+    const previousBlock = projection.sourceMap.blockAt(previousHead);
+    const relativeContentOffset = previousBlock
+      ? Math.max(0, previousHead - previousBlock.contentPmFrom)
+      : null;
     projection = next;
     let nextSelection: Selection | undefined;
     if (options?.selection != null) {
@@ -878,15 +1019,24 @@ export function createPreviewEditSession(
           options.selection.anchor,
           options.selection.head,
         ) ?? undefined;
+      if (!nextSelection) {
+        nextSelection = selectionNearBlock(
+          next,
+          previousBlock?.id ?? null,
+          previousBlock?.sourceLine ?? null,
+          0,
+        );
+      }
     }
     if (!nextSelection && heldEmptyBlockId) {
-      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null);
+      nextSelection = selectionNearBlock(next, heldEmptyBlockId, null, 0);
     }
     if (!nextSelection) {
       nextSelection = selectionNearBlock(
         next,
         previousBlock?.id ?? null,
         previousBlock?.sourceLine ?? null,
+        relativeContentOffset,
       );
     }
     applyingExternal = true;

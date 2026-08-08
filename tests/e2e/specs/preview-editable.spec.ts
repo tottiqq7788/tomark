@@ -1,8 +1,11 @@
 import {
+  backspaceTimes,
   clickTrailingBlankAfter,
   dragFromTrailingBlankInto,
   dragSelectPreviewText,
   exerciseBlankCaretRegressionScenarios,
+  placeCollapsedCaretInPreviewText,
+  readPreviewContent,
   readSelectionConsistency,
 } from "../helpers/previewSelection";
 
@@ -442,5 +445,43 @@ describe("editable preview typing", () => {
     expect(state?.hasHr).toBe(true);
     expect(state?.text).not.toContain("分隔线");
     expect(state?.readonly).toContain("thematicBreak");
+  });
+
+  it("deletes ordered-list text one character at a time with Backspace", async () => {
+    const needle =
+      "打开文档时沿第一条标题链展开到正文，其余标题折叠；展开另一标题时会收起无关分支，始终只保留一条展开链";
+    await browser.execute((text: string) => {
+      (
+        window as unknown as {
+          __tomarkE2e: { replaceContent: (value: string) => void };
+        }
+      ).__tomarkE2e.replaceContent(
+        `1. 在左侧改写任意段落\n2. ${text}\n3. 打开文档时沿第一条标题链\n`,
+      );
+    }, needle);
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          (text: string) =>
+            Boolean(
+              document
+                .querySelector(".tm-editable-preview")
+                ?.textContent?.includes(text),
+            ),
+          needle,
+        ),
+      { timeout: 10_000 },
+    );
+
+    await placeCollapsedCaretInPreviewText(needle, 12);
+    const before = await readPreviewContent();
+    await backspaceTimes(3);
+    const after = await readPreviewContent();
+
+    expect(after.includes(needle)).toBe(false);
+    expect(before.length - after.length).toBe(3);
+    expect(after).toContain("1. 在左侧改写任意段落");
+    expect(after).toContain("3. 打开文档时沿第一条标题链");
   });
 });

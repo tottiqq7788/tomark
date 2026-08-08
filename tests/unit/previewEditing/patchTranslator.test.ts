@@ -387,6 +387,50 @@ describe("explicit Markdown structure commands", () => {
       command: { type: "join-backward", pmPosition: two.pmFrom },
     });
     expect(output(projection, joined)).toBe("onetwo");
+    if (joined.ok) {
+      expect(joined.sourceTransaction.selection).toEqual({
+        anchor: "one".length,
+        head: "one".length,
+      });
+    }
+
+    const bullet = buildEditableProjection("- alpha\n- beta\n");
+    const beta = segment(bullet, "beta");
+    const bulletJoin = structureCommandToSourcePatches({
+      projection: bullet,
+      revision: 0,
+      command: { type: "join-backward", pmPosition: beta.pmFrom },
+    });
+    expect(output(bullet, bulletJoin)).toBe("- alphabeta\n");
+    if (bulletJoin.ok) {
+      expect(bulletJoin.sourceTransaction.selection).toEqual({
+        anchor: "- alpha".length,
+        head: "- alpha".length,
+      });
+    }
+
+    const ordered = buildEditableProjection("1. alpha\n2. beta\n");
+    const orderedBeta = segment(ordered, "beta");
+    const orderedJoin = structureCommandToSourcePatches({
+      projection: ordered,
+      revision: 0,
+      command: { type: "join-backward", pmPosition: orderedBeta.pmFrom },
+    });
+    expect(output(ordered, orderedJoin)).toBe("1. alphabeta\n");
+
+    const emptyItem = buildEditableProjection("- alpha\n- \n");
+    const emptyBlock = emptyItem.sourceMap.blocks
+      .filter((block) => block.context.listItem)
+      .sort((a, b) => b.pmFrom - a.pmFrom)[0]!;
+    const emptyJoin = structureCommandToSourcePatches({
+      projection: emptyItem,
+      revision: 0,
+      command: {
+        type: "join-backward",
+        pmPosition: emptyBlock.contentPmFrom,
+      },
+    });
+    expect(output(emptyItem, emptyJoin)).toBe("- alpha\n");
 
     const mixed = buildEditableProjection("# one\n\ntwo");
     const mixedTwo = segment(mixed, "two");
@@ -395,6 +439,16 @@ describe("explicit Markdown structure commands", () => {
         projection: mixed,
         revision: 0,
         command: { type: "join-backward", pmPosition: mixedTwo.pmFrom },
+      }),
+    ).toMatchObject({ ok: false, reason: "incompatible-blocks" });
+
+    const listThenPara = buildEditableProjection("- alpha\n\nbeta\n");
+    const para = segment(listThenPara, "beta");
+    expect(
+      structureCommandToSourcePatches({
+        projection: listThenPara,
+        revision: 0,
+        command: { type: "join-backward", pmPosition: para.pmFrom },
       }),
     ).toMatchObject({ ok: false, reason: "incompatible-blocks" });
   });

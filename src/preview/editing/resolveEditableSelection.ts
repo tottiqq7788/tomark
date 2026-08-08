@@ -59,6 +59,113 @@ function readNativeSelection(view: EditorView): {
   return { text, range };
 }
 
+function clampPmPos(view: EditorView, pos: number): number {
+  return Math.max(0, Math.min(pos, view.state.doc.content.size));
+}
+
+function touchesReadonlyAtom(
+  view: EditorView,
+  from: number,
+  to: number,
+): boolean {
+  if (to <= from) {
+    return false;
+  }
+  let touches = false;
+  view.state.doc.nodesBetween(from, to, (node) => {
+    if (
+      node.type.name === "readonly_inline" ||
+      node.type.name === "readonly_block" ||
+      node.type.name === "hard_break" ||
+      node.type.name === "thematic_break"
+    ) {
+      touches = true;
+      return false;
+    }
+    return !touches;
+  });
+  return touches;
+}
+
+function isEditableCaretPosition(
+  projection: EditableProjection,
+  position: number,
+): boolean {
+  const mapped = projection.sourceMap.mapPmPosition(position, 1);
+  if (mapped) {
+    return mapped.segment.policy === "editable";
+  }
+  const block = projection.sourceMap.blockAt(position);
+  return !!(
+    block &&
+    block.policy === "editable" &&
+    block.contentPmFrom === block.contentPmTo &&
+    position === block.contentPmFrom
+  );
+}
+
+/**
+ * Map the live browser Selection (collapsed or ranged) to ProseMirror positions.
+ * Fail-closed: rejects readonly atoms, cross-block ranges, and structural gaps.
+ */
+export function mapNativeSelectionToPmExact(
+  view: EditorView,
+  projection: EditableProjection | null = null,
+): { from: number; to: number; collapsed: boolean } | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const domSelection = window.getSelection();
+  if (!domSelection || domSelection.rangeCount === 0) {
+    return null;
+  }
+  const range = domSelection.getRangeAt(0);
+  if (!view.dom.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+  if (
+    range.commonAncestorContainer instanceof Element &&
+    range.commonAncestorContainer.closest("[data-tm-readonly]")
+  ) {
+    return null;
+  }
+
+  let from: number;
+  let to: number;
+  try {
+    from = clampPmPos(
+      view,
+      view.posAtDOM(range.startContainer, range.startOffset),
+    );
+    to = clampPmPos(view, view.posAtDOM(range.endContainer, range.endOffset));
+  } catch {
+    return null;
+  }
+  if (from > to) {
+    const swap = from;
+    from = to;
+    to = swap;
+  }
+  if (touchesReadonlyAtom(view, from, to)) {
+    return null;
+  }
+
+  if (projection) {
+    if (from === to) {
+      if (!isEditableCaretPosition(projection, from)) {
+        return null;
+      }
+    } else {
+      const resolved = projection.sourceMap.resolveEditableRange(from, to);
+      if (!resolved.ok || resolved.blockIds.length !== 1) {
+        return null;
+      }
+    }
+  }
+
+  return { from, to, collapsed: from === to };
+}
+
 /**
  * Exact DOM-structure mapping used only as a controlled consistency fallback.
  * Walks text nodes inside the current textblock and applies Range offsets —
@@ -67,76 +174,16 @@ function readNativeSelection(view: EditorView): {
 export function mapNativeRangeToPmExact(
   view: EditorView,
 ): { from: number; to: number; text: string } | null {
+  const mapped = mapNativeSelectionToPmExact(view);
+  if (!mapped || mapped.collapsed) {
+    return null;
+  }
+  const text = view.state.doc.textBetween(mapped.from, mapped.to);
   const native = readNativeSelection(view);
-  if (!native) {
+  if (!native || native.text !== text) {
     return null;
   }
-  const { range, text } = native;
-  if (range.startContainer !== range.endContainer) {
-    return null;
-  }
-  if (range.startContainer.nodeType !== Node.TEXT_NODE) {
-    return null;
-  }
-  const textNode = range.startContainer as Text;
-
-  try {
-    const anchorPos = view.state.selection.empty
-      ? view.state.selection.head
-      : view.state.selection.from;
-    const safePos = Math.min(
-      Math.max(anchorPos, 1),
-      Math.max(1, view.state.doc.content.size - 1),
-    );
-    const $pos = view.state.doc.resolve(safePos);
-    let depth = $pos.depth;
-    while (depth > 0 && !$pos.node(depth).isTextblock) {
-      depth -= 1;
-    }
-    if (depth === 0) {
-      return null;
-    }
-    const blockFrom = $pos.start(depth);
-    const blockTo = $pos.end(depth);
-
-    const blockDom = view.domAtPos(blockFrom).node;
-    const blockEl =
-      blockDom.nodeType === Node.TEXT_NODE
-        ? blockDom.parentElement
-        : blockDom instanceof Element
-          ? blockDom
-          : null;
-    if (!blockEl || !view.dom.contains(blockEl)) {
-      return null;
-    }
-
-    let base = blockFrom;
-    const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
-    let current: Node | null = walker.nextNode();
-    while (current) {
-      const length = current.textContent?.length ?? 0;
-      if (current === textNode) {
-        const from = base + range.startOffset;
-        const to = base + range.endOffset;
-        if (from < blockFrom || to > blockTo || to <= from) {
-          return null;
-        }
-        const slice = view.state.doc.textBetween(from, to);
-        if (slice !== text) {
-          return null;
-        }
-        return { from, to, text: slice };
-      }
-      base += length;
-      if (base > blockTo) {
-        return null;
-      }
-      current = walker.nextNode();
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  return { from: mapped.from, to: mapped.to, text };
 }
 
 export interface ResolveEditableSelectionOptions {

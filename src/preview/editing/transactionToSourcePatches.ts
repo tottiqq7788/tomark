@@ -718,6 +718,11 @@ function joinBlocks(
     "structure",
     [patch],
     patch,
+    {
+      // After deleting the gap, the join point is the former left content end.
+      anchor: left.contentSourceTo,
+      head: left.contentSourceTo,
+    },
   );
 }
 

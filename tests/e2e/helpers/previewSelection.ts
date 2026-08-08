@@ -547,3 +547,77 @@ export async function exerciseBlankCaretRegressionScenarios(): Promise<void> {
     "jittered task-list trailing blank",
   );
 }
+
+/** Place a collapsed caret inside `needle` at `offsetInNeedle`. */
+export async function placeCollapsedCaretInPreviewText(
+  needle: string,
+  offsetInNeedle: number,
+): Promise<void> {
+  const ok = await browser.execute(
+    (text: string, offset: number) => {
+      const root = document.querySelector(".tm-editable-preview");
+      if (!(root instanceof HTMLElement)) {
+        return false;
+      }
+      root.focus();
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        const content = node.textContent ?? "";
+        const index = content.indexOf(text);
+        if (index >= 0) {
+          const range = document.createRange();
+          range.setStart(node, index + offset);
+          range.collapse(true);
+          const selection = window.getSelection();
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+          root.dispatchEvent(
+            new MouseEvent("mouseup", {
+              bubbles: true,
+              cancelable: true,
+              button: 0,
+            }),
+          );
+          return selection?.isCollapsed === true;
+        }
+        node = walker.nextNode();
+      }
+      return false;
+    },
+    needle,
+    offsetInNeedle,
+  );
+  if (!ok) {
+    throw new Error(`failed to place caret in "${needle}" at ${offsetInNeedle}`);
+  }
+  await browser.pause(50);
+}
+
+export async function backspaceTimes(count: number): Promise<void> {
+  for (let index = 0; index < count; index += 1) {
+    const before = await readPreviewContent();
+    await browser.execute(() => {
+      const root = document.querySelector(".tm-editable-preview");
+      if (root instanceof HTMLElement) {
+        root.focus();
+      }
+    });
+    await browser.keys(["Backspace"]);
+    await browser.waitUntil(
+      async () => (await readPreviewContent()).length === before.length - 1,
+      {
+        timeout: 5_000,
+        timeoutMsg: `Backspace #${index + 1} did not remove one character`,
+      },
+    );
+  }
+}
+
+export async function readPreviewContent(): Promise<string> {
+  return browser.execute(() => {
+    return (
+      window as unknown as { __tomarkE2e: { getContent: () => string } }
+    ).__tomarkE2e.getContent();
+  });
+}
