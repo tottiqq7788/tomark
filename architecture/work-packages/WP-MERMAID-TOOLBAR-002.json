@@ -3,8 +3,9 @@
   "work_package_id": "WP-MERMAID-TOOLBAR-002",
   "project_id": "tomark",
   "name": "Mermaid 工具栏：复制源码、导出 SVG、定位源码",
-  "status": "admitted",
+  "status": "closed",
   "baseline_commit": "f4886be7af96857eb09eed21a19f4eedaab1a74b",
+  "implementation_commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-001 与扩展后 L0-TMK-018 的治理提交。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-001.json",
@@ -61,6 +62,13 @@
     "integration",
     "runtime_e2e"
   ],
+  "evidence_ids": [
+    "EV-MERMAID-TOOLBAR-002-static",
+    "EV-MERMAID-TOOLBAR-002-unit",
+    "EV-MERMAID-TOOLBAR-002-integration",
+    "EV-MERMAID-TOOLBAR-002-runtime-e2e-browser",
+    "EV-MERMAID-TOOLBAR-002-runtime-e2e-native"
+  ],
   "stop_conditions": [
     "实际影响超出 allowed_scope。",
     "治理基线尚未进入不可变 commit。",
@@ -68,7 +76,12 @@
   ],
   "task_envelope_id": "TASK-MERMAID-TOOLBAR-002",
   "closeout": {
-    "decision": "open",
-    "reason": "等待治理基线提交后实现与证据绑定。"
+    "decision": "closed",
+    "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+    "reason": "实现 commit 58ecf9c 上验证 static/unit/integration/Chromium runtime_e2e/Tauri WebKit runtime_e2e 均通过；未新增 Tauri clipboard capability；复制/导出/定位保持只读且不写回围栏。Evidence 见 architecture/evidence/EV-MERMAID-TOOLBAR-002-*.json。",
+    "residual_risks": [
+      "原生 lane 未断言系统剪贴板内容，复制依赖 Web Clipboard API。",
+      "SVG E2E 使用强制目标路径钩子，不覆盖取消对话框交互。"
+    ]
   }
 }

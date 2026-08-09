@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-TOOLBAR-002-runtime-e2e-native",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e:native",
+  "result_summary": "Tauri WebKit WDIO：3 spec files / 10 tests passed。native-export 含单图 Mermaid SVG 落盘（含 <svg>、无 fence 标记）及既有 PNG 路径回归。",
+  "limitations": [
+    "SVG E2E 通过强制目标路径钩子写入，不覆盖用户取消对话框交互。",
+    "未在原生 lane 断言系统剪贴板内容。"
+  ]
+}

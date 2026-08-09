@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-TOOLBAR-002-static",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+  "type": "static",
+  "status": "passed",
+  "command_or_source": "python3 architecture/tools/audit_project.py --target . ; npm --prefix deps run build ; git diff --check",
+  "result_summary": "治理结构/引用审计通过；vue-tsc + vite production build 成功；工作树干净。",
+  "limitations": [
+    "audit_project.py 仅 structure_and_references_only，不评估 runtime_evidence。"
+  ]
+}

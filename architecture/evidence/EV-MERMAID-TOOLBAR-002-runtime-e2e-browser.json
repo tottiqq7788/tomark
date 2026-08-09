@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-TOOLBAR-002-runtime-e2e-browser",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e",
+  "result_summary": "Chromium WDIO：7 spec files passed。preview-mermaid 覆盖五按钮工具栏、复制源码成功反馈、工具栏定位源码、全屏 viewport。",
+  "limitations": [
+    "浏览器 lane 使用剪贴板 mock / 状态栏成功文案，不证明系统级剪贴板权限 UI。",
+    "不能代替 Tauri WebKit SVG 原子写入证明。"
+  ]
+}

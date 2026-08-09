@@ -50,5 +50,5 @@
     "实际影响超出 allowed_scope。",
     "治理基线尚未进入不可变 commit。"
   ],
-  "notes": "治理提交完成后，将 baseline_commit 更新为该 commit；此前不得以 PENDING 值作为 closeout 证据绑定。"
+  "notes": "治理基线 f4886be7af96857eb09eed21a19f4eedaab1a74b；实现 commit 58ecf9cb25f1f5dbd4419e2d2af65a40a584d929；Evidence EV-MERMAID-TOOLBAR-002-* 已绑定；WP closeout.decision=closed。"
 }

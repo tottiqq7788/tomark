@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-TOOLBAR-002-integration",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- --run tests/unit/PreviewLocate.test.ts tests/unit/exportMermaidDiagramSvg.test.ts tests/unit/exportMermaidDiagramPng.test.ts",
+  "result_summary": "组件/导出集成用例通过：五按钮工具栏、复制围栏正文、定位源码 emit、SVG 强制路径与取消分支。",
+  "limitations": [
+    "不替代 Chromium/WebKit 全链路 E2E。"
+  ]
+}

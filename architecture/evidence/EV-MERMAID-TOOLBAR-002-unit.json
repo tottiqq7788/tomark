@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-TOOLBAR-002-unit",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "commit": "58ecf9cb25f1f5dbd4419e2d2af65a40a584d929",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test ; cargo test --manifest-path src-tauri/Cargo.toml",
+  "result_summary": "Vitest 48 files / 254 tests passed；Rust 34 lib tests passed。含 exportMermaidDiagramSvg、PreviewLocate 复制/定位按钮与剪贴板断言。",
+  "limitations": [
+    "剪贴板在 jsdom 中通过 mock navigator.clipboard 验证。"
+  ]
+}
