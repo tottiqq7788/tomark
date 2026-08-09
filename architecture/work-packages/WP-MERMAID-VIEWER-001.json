@@ -3,8 +3,9 @@
   "work_package_id": "WP-MERMAID-VIEWER-001",
   "project_id": "tomark",
   "name": "Mermaid 图表工具栏、全屏查看与单图 PNG",
-  "status": "implemented_pending_closeout",
+  "status": "closed",
   "baseline_commit": "8943da47339bcc9f85ddc7542ce54b55da941ef1",
+  "implementation_commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260809-002 与 L0-TMK-018 的治理提交。实现提交后需将证据绑定到该实现 commit 再关闭。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260809-002.json",
@@ -69,6 +70,13 @@
     "integration",
     "runtime_e2e"
   ],
+  "evidence_ids": [
+    "EV-MERMAID-VIEWER-001-static",
+    "EV-MERMAID-VIEWER-001-unit",
+    "EV-MERMAID-VIEWER-001-integration",
+    "EV-MERMAID-VIEWER-001-runtime-e2e-browser",
+    "EV-MERMAID-VIEWER-001-runtime-e2e-native"
+  ],
   "stop_conditions": [
     "实现触及 allowed_scope 之外的持久化、权限或文档级导出边界。",
     "无法保持 CodeMirror/Markdown 为唯一权威。",
@@ -76,7 +84,12 @@
   ],
   "task_envelope_id": "TASK-MERMAID-VIEWER-001",
   "closeout": {
-    "decision": "open",
-    "reason": "实现与本地验证已完成（unit/browser e2e/native e2e/build/cargo/audit）；独立审查 PASS_WITH_NOTES 后已修复全屏导出源码快照与画布上限负向单测。等待用户授权实现提交后绑定不可变 commit 再关闭 Evidence。"
+    "decision": "closed",
+    "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+    "reason": "实现 commit 64c4974 上复跑并通过 static、unit、integration、Chromium runtime_e2e 与 Tauri WebKit runtime_e2e；独立审查 PASS_WITH_NOTES 项已在实现中修复。未改文档级三种导出，未新增 Rust/capability。Evidence 见 architecture/evidence/EV-MERMAID-VIEWER-001-*.json。",
+    "residual_risks": [
+      "单图 PNG 原生 E2E 未做白底像素采样；白底由单元参数断言覆盖。",
+      "导出权威为最近一次成功渲染的围栏源码快照，而非导出瞬间编辑器实时文本。"
+    ]
   }
 }

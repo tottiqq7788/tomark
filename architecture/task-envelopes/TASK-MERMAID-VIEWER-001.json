@@ -55,5 +55,5 @@
     "治理基线尚未进入不可变 commit。",
     "无法在 Tauri WebKit 复现单图 PNG 证据。"
   ],
-  "notes": "治理基线已为 8943da47339bcc9f85ddc7542ce54b55da941ef1。实现已落地并通过本地验证；Evidence closeout 须在用户授权的实现提交后绑定该实现 commit。"
+  "notes": "实现 commit 64c4974b01bd1274db414185cfbf6c276b727fbd；Evidence EV-MERMAID-VIEWER-001-* 已绑定；WP-MERMAID-VIEWER-001 closeout.decision=closed。"
 }

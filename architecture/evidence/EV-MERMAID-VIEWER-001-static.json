@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-VIEWER-001-static",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+  "type": "static",
+  "status": "passed",
+  "command_or_source": "python3 architecture/tools/audit_project.py --target . ; python3 .ai/onto/scripts/validate_package.py ; git diff --check ; npm --prefix deps run build",
+  "result_summary": "治理结构/引用审计与 onto 包校验通过；工作树干净且无 diff --check 问题；vue-tsc + vite production build 成功。",
+  "limitations": [
+    "audit_project.py 仅评估 structure_and_references_only，不评估 runtime_evidence。",
+    "静态审计不能代替 Chromium/WebKit 运行态行为证明。"
+  ]
+}

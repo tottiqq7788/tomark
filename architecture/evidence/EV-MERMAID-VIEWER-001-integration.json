@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-VIEWER-001-integration",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- --run tests/unit/PreviewLocate.test.ts tests/unit/MermaidFullscreenViewer.test.ts tests/unit/mermaidDiagramRegistry.test.ts tests/unit/exportMermaidDiagramPng.test.ts tests/unit/useMermaidViewport.test.ts",
+  "result_summary": "5 files / 29 tests passed。覆盖 editable+fallback 双路径 registry 注册、PreviewPane 点击显隐/Esc/重建、错误块无工具栏、全屏 focus trap、导出白底 2× 与取消/超限失败。",
+  "limitations": [
+    "组件/模块集成测试运行在 Vitest/jsdom，不替代浏览器或 Tauri WebKit 全链路。",
+    "未把浏览器 mock E2E 记为本条集成证据。"
+  ]
+}

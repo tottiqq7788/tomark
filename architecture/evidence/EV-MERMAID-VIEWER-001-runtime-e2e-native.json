@@ -1,0 +1,15 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-VIEWER-001-runtime-e2e-native",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e:native",
+  "result_summary": "Tauri WebKit WDIO：3 spec files / 9 tests passed。native-export 含真实单图 Mermaid PNG（PNG magic + IHDR 偶数尺寸，对应固定 2×），并修复资源目录 cleanup；文档级 HTML/PNG 导出回归通过。",
+  "limitations": [
+    "单图 PNG E2E 通过强制目标路径钩子写入，不覆盖用户取消保存对话框的人工交互。",
+    "未对导出 PNG 像素做白底采样断言；白底参数由单元测试覆盖。",
+    "afterSession mock restore 有无害 WARN，不影响用例 PASSED。"
+  ]
+}

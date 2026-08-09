@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-VIEWER-001-unit",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test ; cargo test --manifest-path src-tauri/Cargo.toml",
+  "result_summary": "Vitest 47 files / 251 tests passed；Rust 34 lib tests passed。覆盖 registry、viewport、单图 PNG（含画布上限失败）、全屏 focus/Esc、PreviewLocate 工具栏路由等。",
+  "limitations": [
+    "jsdom 下 getBoundingClientRect 需测试内 mock，不能单独证明真实布局像素。",
+    "html2canvas / Mermaid 真实栅格化由 runtime_e2e 车道证明。"
+  ]
+}

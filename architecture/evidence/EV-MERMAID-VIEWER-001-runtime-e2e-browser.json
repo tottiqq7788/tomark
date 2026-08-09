@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-MERMAID-VIEWER-001-runtime-e2e-browser",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "commit": "64c4974b01bd1274db414185cfbf6c276b727fbd",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e",
+  "result_summary": "Chromium WDIO：7 spec files passed。preview-mermaid 覆盖稳定渲染、Cmd/Ctrl 定位不留工具栏、普通点击两按钮工具栏、全屏缩放/重置/拖拽/关闭、重建后旧工具栏失效。",
+  "limitations": [
+    "本车道为 Chromium，不能代替 Tauri WebKit 单图 PNG 原子写入证明。",
+    "浏览器 lane 使用 mockAppIpc，不证明原生保存对话框 IPC。"
+  ]
+}
