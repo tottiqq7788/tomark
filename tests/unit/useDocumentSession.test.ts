@@ -44,6 +44,13 @@ describe("useDocumentSession", () => {
     vi.useRealTimers();
   });
 
+  it("includes the bundled sample image in the welcome markdown", () => {
+    const session = useDocumentSession();
+    expect(session.content.value).toContain("### 图片");
+    expect(session.content.value).toContain("![示例图片](");
+    session.dispose();
+  });
+
   it("marks pristine untitled content as not persisted", () => {
     const session = useDocumentSession();
 

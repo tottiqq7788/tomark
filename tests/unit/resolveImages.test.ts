@@ -17,6 +17,25 @@ describe("resolveImagesInHtml", () => {
     vi.restoreAllMocks();
   });
 
+  it("fetches same-origin bundled asset URLs instead of rejecting absolute paths", async () => {
+    const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => "image/png" },
+        arrayBuffer: async () => bytes.buffer,
+      }),
+    );
+    const { resolveOneImage } = await import("@/export/resolveImages");
+    const resolved = await resolveOneImage("/assets/sample.png", null);
+    expect(fetch).toHaveBeenCalled();
+    expect(resolved.extension).toBe("png");
+    expect(resolved.dataUrl.startsWith("data:image/png;base64,")).toBe(true);
+    expect(invokeTauri).not.toHaveBeenCalled();
+  });
+
   it("decodes compact base64 image payloads returned by native IPC", async () => {
     invokeTauri.mockResolvedValue({
       contentsBase64: "iVBORw==",

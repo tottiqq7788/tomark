@@ -115,6 +115,17 @@ export async function resolveOneImage(
     return fetchRemoteImage(src);
   }
 
+  // Bundled Vite/Tauri frontend assets (e.g. /assets/sample-xxx.png).
+  if (
+    typeof window !== "undefined" &&
+    (src.startsWith("/") || src.startsWith(`${window.location.origin}/`))
+  ) {
+    const href = src.startsWith("/")
+      ? new URL(src, window.location.origin).href
+      : src;
+    return fetchRemoteImage(href);
+  }
+
   if (/^(file:|\/|[a-zA-Z]:[\\/]|\\\\)/.test(src)) {
     throw new Error("不支持绝对路径图片");
   }

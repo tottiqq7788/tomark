@@ -7,6 +7,7 @@ import {
 } from "@/shared/types";
 import { debounce } from "@/shared/debounce";
 import { isUnmappableCharacterError } from "@/shared/encodingErrors";
+import sampleImageUrl from "@/assets/sample/示例图片.png";
 
 const SAMPLE = `# tomark
 
@@ -58,6 +59,12 @@ const SAMPLE = `# tomark
 
 也可以放链接：[tomark 仓库](https://github.com/tottiqq7788/tomark) 与自动链接 https://example.com 。
 
+### 图片
+
+本地或网络图片会在右侧只读渲染。点击图片可全屏查看、复制图片或导出 PNG（Cmd/Ctrl+点击仍定位源码）。
+
+![示例图片](${sampleImageUrl})
+
 ### 列表
 
 无序列表：
@@ -74,6 +81,7 @@ const SAMPLE = `# tomark
 - [x] 标题折叠
 - [x] 行级预览定位
 - [x] Mermaid 图表预览
+- [x] 图片预览与工具栏
 - [ ] 更多主题与字体设置（示例待办）
 
 ### 引用
