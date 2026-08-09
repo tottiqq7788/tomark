@@ -1,0 +1,50 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-004",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "61b365a15c02229bf509c55e31a3bc5c9ed30bce",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：editable 预览真实渲染 Markdown 图片；预览解析本地相对路径；成功显示的图片支持只读工具栏（全屏、复制图片、导出 PNG）；不提供复制源码/SVG；Cmd/Ctrl+点击仍定位；不得写回 Markdown。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-IMAGE-VIEWER",
+      "decision": "批准 L0-TMK-019：Markdown 图片在预览侧只读渲染并可查看；工具栏顺序为 fullscreen、copy_image、export_png。PNG 按自然尺寸，透明叠白底；本地相对图复用 read_export_image，不新增 Tauri capability。",
+      "approved_rule_ids": ["L0-TMK-019"],
+      "modified_rule_ids": ["L0-TMK-004"],
+      "scope": {
+        "toolbar": ["fullscreen", "copy_image", "export_png"],
+        "render": {
+          "editable": "real_img_nodeview",
+          "fallback": "resolved_img",
+          "local_relative": "read_export_image_with_document_path"
+        },
+        "png": {
+          "scale": "natural_1x",
+          "alpha": "flatten_on_white",
+          "authority": "resolved_image_bytes"
+        },
+        "out_of_scope_first_cut": [
+          "imageReference without concrete URL",
+          "copy_source",
+          "export_svg",
+          "toolbar_locate_button"
+        ]
+      },
+      "invariants": [
+        "Markdown 唯一权威；工具栏不得改写 ![…]()。",
+        "加载失败无成功复制/导出路径。",
+        "Cmd/Ctrl+点击定位语义不变。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "新增并批准 L0-TMK-019；修订 L0-TMK-004。",
+    "签发 WP-IMAGE-VIEWER-001；实现前/同批将本决策与语义修订提交为不可变基线。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

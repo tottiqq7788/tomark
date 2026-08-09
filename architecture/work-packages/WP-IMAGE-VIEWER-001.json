@@ -1,0 +1,54 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-IMAGE-VIEWER-001",
+  "project_id": "tomark",
+  "name": "Markdown 图片只读查看与工具栏",
+  "status": "in_progress",
+  "baseline_commit": "61b365a15c02229bf509c55e31a3bc5c9ed30bce",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-004 与 L0-TMK-019 的治理提交；可与实现同批提交。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-004.json",
+  "l0_impact": {
+    "classification": "add_new",
+    "also_modifies": ["L0-TMK-004"],
+    "rule_ids": ["L0-TMK-019", "L0-TMK-004", "L0-TMK-002", "L0-TMK-008"],
+    "reason": "新增图片只读查看/导出语义；图片仍不得预览编辑。"
+  },
+  "goal": "editable/fallback 真实渲染图片（含本地相对路径）；成功图支持全屏、复制图片、导出 PNG 工具栏；Cmd/Ctrl+点击定位；不写回源码。",
+  "allowed_scope": [
+    "src/preview/**",
+    "src/markdown/buildEditableProjection.ts",
+    "src/export/resolveImages.ts",
+    "src/export/exportPreviewImagePng.ts",
+    "src/app/AppShell.vue",
+    "src-tauri/permissions/export-io.toml",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "预览编辑图片 URL/alt 或写回 Markdown",
+    "工具栏复制源码 / 导出 SVG / 定位按钮",
+    "imageReference 无稳定 URL 的完整支持",
+    "文档级 ExportSettingsPanel 三种导出格式变更",
+    "新增 Tauri clipboard 或新读盘命令"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "图片与其它只读节点仍不可键入修改。",
+    "Cmd/Ctrl+点击定位仍可用。",
+    "取消导出不产生文件。"
+  ],
+  "must_reject": [
+    "把查看/复制/导出解释为批准预览编辑图片。",
+    "加载失败仍走成功复制/导出。",
+    "从预览 DOM 截屏作为唯一权威而不经解析字节。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "task_envelope_id": "TASK-IMAGE-VIEWER-001"
+}

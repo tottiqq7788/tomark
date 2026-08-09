@@ -50,7 +50,8 @@
         "L0-TMK-008",
         "L0-TMK-014",
         "L0-TMK-015A",
-        "L0-TMK-018"
+        "L0-TMK-018",
+        "L0-TMK-019"
       ],
       "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-NAVIGATION"],
       "selectors": [
@@ -64,27 +65,29 @@
         "标题、段落、列表项、引用、表格单元格及其它已批准可映射普通文字允许直接键入，并以显式源码事务写回唯一 Markdown 源码。",
         "Mermaid 围栏作为正式能力渲染，在预览侧保持只读，并遵循与导出一致的图表语义。",
         "成功渲染的 Mermaid 图普通点击显示浮动工具栏；顺序为全屏 icon、复制源码 icon、复制图片 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
-        "全屏查看器不改变文档会话、脏状态或撤销历史；打开时持有 SVG 快照，不绑定可能被重建的 live DOM。",
-        "复制源码与导出不得写回围栏；复制不等于批准预览编辑。",
+        "成功显示的 Markdown 图片普通点击显示浮动工具栏；顺序为全屏 icon、复制图片 icon、英文 PNG；预览须解析本地相对图；Cmd/Ctrl+点击保留源码定位。",
+        "全屏查看器不改变文档会话、脏状态或撤销历史；打开时持有内容快照，不绑定可能被重建的 live DOM。",
+        "复制源码与导出不得写回围栏或图片语法；复制不等于批准预览编辑。",
         "定位和格式化使用源码范围或精确映射，不按显示文本或像素猜测。",
         "只读节点、陈旧 revision 和不可可靠映射的操作必须被拒绝并给出可理解反馈。"
       ],
       "must_not": [
         "不得用不可键入的选择投影冒充已批准的直接键入能力。",
         "不得允许键入操作修改代码、图片、任务复选框、脚注生成内容、自动链接、Mermaid 或无法可靠映射的节点。",
-        "不得通过查看器或单图导出写回 Markdown 或修改 Mermaid 围栏。",
+        "不得通过查看器或单图导出写回 Markdown 或修改 Mermaid 围栏或图片语法。",
         "不得让 ProseMirror 建立独立于 Markdown 源码的持久化历史或第二数据源。",
         "不得在 fallback 渲染中绕过链接协议、只读边界或源码定位约束。"
       ],
       "required_evidence": [
-        "static: sanitize、源码映射、直接键入入口、Mermaid 点击路由和链接协议边界",
+        "static: sanitize、源码映射、直接键入入口、Mermaid/图片点击路由和链接协议边界",
         "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥",
-        "integration: CodeMirror 与预览键入/格式投影共用源码与撤销历史；Mermaid 工具栏与格式工具栏互斥",
-        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid 工具栏与全屏查看"
+        "integration: CodeMirror 与预览键入/格式投影共用源码与撤销历史；Mermaid/图片工具栏与格式工具栏互斥",
+        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid/图片工具栏与全屏查看"
       ],
       "implementation_gaps": [
         "冻结基线 usePreviewEditSession.ts 设置 editable() 为 false 并忽略文档变更，尚未实现直接键入。",
-        "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展（复制源码/SVG）由 WP-MERMAID-TOOLBAR-002 覆盖；工具栏去定位按钮与顺序修订由 WP-MERMAID-TOOLBAR-003 覆盖；复制图片由 WP-MERMAID-TOOLBAR-004 覆盖。",
+        "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展由 WP-MERMAID-TOOLBAR-002/003/004 覆盖。",
+        "Markdown 图片只读查看由 WP-IMAGE-VIEWER-001 覆盖。",
         "L1/L2 责任映射与本合同仍为 candidate，需在实现准入和独立审查中确认。"
       ]
     },

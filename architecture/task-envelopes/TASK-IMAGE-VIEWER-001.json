@@ -1,0 +1,36 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-IMAGE-VIEWER-001",
+  "role": "implementation_owner",
+  "baseline_commit": "61b365a15c02229bf509c55e31a3bc5c9ed30bce",
+  "work_package_id": "WP-IMAGE-VIEWER-001",
+  "allowed_scope": [
+    "src/preview/**",
+    "src/markdown/buildEditableProjection.ts",
+    "src/export/resolveImages.ts",
+    "src/export/exportPreviewImagePng.ts",
+    "src/app/AppShell.vue",
+    "src-tauri/permissions/export-io.toml",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "add_new",
+  "l0_rule_ids": ["L0-TMK-019", "L0-TMK-004", "L0-TMK-002", "L0-TMK-008"],
+  "must_preserve": [
+    "Markdown 源码唯一权威与图片预览只读。",
+    "Cmd/Ctrl+点击定位与现有回归。",
+    "取消导出不产生文件。"
+  ],
+  "must_reject": [
+    "修改图片 Markdown 或建立第二文档权威。",
+    "失败图复制/导出成功路径。",
+    "默认引入新的 Tauri clipboard capability。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "notes": "用户确认 editable 真实渲染图片，并解析本地相对路径。"
+}

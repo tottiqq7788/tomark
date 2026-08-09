@@ -50,11 +50,12 @@
       "id": "L0-TMK-004",
       "name": "预览只读边界",
       "status": "candidate",
-      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧只读；无法可靠映射的内容必须拒绝修改并引导到源码区。",
+      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧只读（不可键入或 WYSIWYG 修改其源码映射内容）；无法可靠映射的内容必须拒绝修改并引导到源码区。图片与 Mermaid 允许已批准的只读查看交互（工具栏/全屏/单图导出/复制），且不得写回源码。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
-        "src/app/settings/HelpSettingsPanel.vue"
+        "src/app/settings/HelpSettingsPanel.vue",
+        "architecture/decisions/DEC-TMK-20260810-004.json#DEC-TMK-IMAGE-VIEWER"
       ]
     },
     {
@@ -227,6 +228,17 @@
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]
+    },
+    {
+      "id": "L0-TMK-019",
+      "name": "Markdown 图片只读查看与单图导出",
+      "status": "approved",
+      "statement": "预览中成功显示的 Markdown 图片（含 http(s)、data URL，以及相对已保存文档的本地相对路径）支持只读查看交互：普通点击显示浮动工具栏，顺序为全屏（icon）、复制图片（icon，PNG 写入剪贴板）、导出 PNG（英文标签 PNG，自然尺寸；透明通道叠白底）。工具栏不提供复制源码、导出 SVG 或定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。本地相对图经既有 read_export_image 解析；未保存文档的相对路径须明确失败。上述交互不得修改 Markdown 图片语法；复制或导出不等于批准编辑；加载失败的图片不提供工具栏成功复制/导出路径。",
+      "source_refs": [
+        "architecture/decisions/DEC-TMK-20260810-004.json#DEC-TMK-IMAGE-VIEWER",
+        "readme.md#核心能力",
+        "agent.md#产品要点"
+      ]
     }
   ],
   "l1_responsibilities": [
@@ -275,7 +287,8 @@
         "L0-TMK-005",
         "L0-TMK-014",
         "L0-TMK-015A",
-        "L0-TMK-018"
+        "L0-TMK-018",
+        "L0-TMK-019"
       ],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]

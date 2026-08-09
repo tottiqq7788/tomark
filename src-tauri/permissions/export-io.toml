@@ -5,7 +5,7 @@ commands.allow = ["atomic_write_bytes_file"]
 
 [[permission]]
 identifier = "allow-read-export-image"
-description = "Allows reading local images relative to an already opened Markdown document for export."
+description = "Allows reading local images relative to an already opened Markdown document for export and preview."
 commands.allow = ["read_export_image"]
 
 [[permission]]
