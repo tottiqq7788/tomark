@@ -31,7 +31,7 @@ import {
   revealSourceLineEffect,
 } from "./headingFoldExtension";
 import { isLocateModifier } from "@/shared/locateModifier";
-import { extractClipboardImageFile } from "@/editor/pasteImageMarkdown";
+import { shouldAttemptImagePasteFallbacks } from "@/editor/pasteImageMarkdown";
 import type { FormatRangeChange } from "@/shared/previewFormatting";
 import {
   validateSourcePatchTransaction,
@@ -47,7 +47,10 @@ export type {
 } from "@/shared/previewEditing";
 
 export type LocateHandler = (sourceLine: number) => void;
-export type PasteImageHandler = (file: File, view: EditorView) => void | Promise<void>;
+export type PasteImageHandler = (
+  clipboardData: DataTransfer | null | undefined,
+  view: EditorView,
+) => boolean | Promise<boolean>;
 
 export interface CreateEditorOptions {
   parent: HTMLElement;
@@ -141,12 +144,12 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         "clipboardData" in event
           ? ((event as ClipboardEvent).clipboardData ?? null)
           : null;
-      const file = extractClipboardImageFile(clipboard);
-      if (!file) {
+      if (!shouldAttemptImagePasteFallbacks(clipboard)) {
         return false;
       }
+      // Prevent CodeMirror's empty text paste while async/native image resolve runs.
       event.preventDefault();
-      void options.onPasteImage(file, view);
+      void options.onPasteImage(clipboard, view);
       return true;
     },
   });

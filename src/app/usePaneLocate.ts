@@ -18,6 +18,7 @@ export type EditorPaneExpose = {
   undo?: () => boolean;
   redo?: () => boolean;
   pasteImageFile?: (file: File) => Promise<boolean>;
+  pasteScreenshotLikeClipboard?: () => Promise<boolean>;
 };
 
 export type PreviewLocateApi = {

@@ -1,0 +1,51 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-EDITOR-PASTE-IMAGE-002",
+  "role": "implementation_owner",
+  "baseline_commit": "71978eb0dfd6bd2037cd23ef189c32443b4310b0",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "allowed_scope": [
+    "src/editor/**",
+    "src/app/AppShell.vue",
+    "src/app/useEditorPasteImage.ts",
+    "src/app/usePaneLocate.ts",
+    "src/app/settings/HelpSettingsPanel.vue",
+    "src/native/documentAssetService.ts",
+    "src/native/clipboardImageService.ts",
+    "src-tauri/src/export_io.rs",
+    "src-tauri/src/lib.rs",
+    "src-tauri/Cargo.toml",
+    "src-tauri/Cargo.lock",
+    "src-tauri/permissions/**",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.conf.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "deps/package.json",
+    "deps/package-lock.json",
+    "tests/unit/**",
+    "tests/e2e/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "modify_existing",
+  "l0_rule_ids": ["L0-TMK-021", "L0-TMK-002", "L0-TMK-005", "L0-TMK-012", "L0-TMK-019"],
+  "must_preserve": [
+    "Markdown 源码唯一权威与预览图片只读。",
+    "Cmd/Ctrl+点击定位与纯文本粘贴默认行为。",
+    "取消另存为不产生文件副作用。"
+  ],
+  "must_reject": [
+    "静默丢弃 macOS 截图粘贴。",
+    "写盘失败仍插入 Markdown。",
+    "纯文本粘贴触发原生剪贴板读取。",
+    "授予 clipboard 默认、读文本或写权限。"
+  ],
+  "required_evidence": ["unit", "integration", "fault_injection", "runtime_e2e"],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "原生回退需要读文本/写剪贴板权限。"
+  ],
+  "notes": "缺陷来源：v5.12.2 / commit 71978eb 上 macOS 截图粘贴无反应；DEC-TMK-20260810-008 修订 L0-TMK-021。"
+}

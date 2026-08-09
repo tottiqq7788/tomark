@@ -1,0 +1,60 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-008",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "71978eb0dfd6bd2037cd23ef189c32443b4310b0",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：v5.12.2 安装包中 macOS 截图粘贴无反应属已批准 L0-TMK-021 的实现缺口。修订读取顺序为同步 Web clipboardData、同手势内 Web Async Clipboard，最后仅在源码区显式粘贴且 Web 无法取得位图时允许官方 Tauri clipboard-manager 只读图片回退；不得默认授予读文本/写剪贴板/后台读取；不得因此批准预览编辑图片。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-EDITOR-PASTE-IMAGE-NATIVE-FALLBACK",
+      "decision": "修订 L0-TMK-021：源码区粘贴图片优先同步 Web 读取；WKWebView 截图型（图片 UTI 且无 File）可直接原生 read-image；其余空/歧义载荷先尝试带超时的 Async Clipboard，再允许 clipboard-manager:allow-read-image 只读回退并规范化为 PNG 后写入 assets/。",
+      "approved_rule_ids": ["L0-TMK-021"],
+      "modified_rule_ids": ["L0-TMK-021"],
+      "scope": {
+        "trigger": "source_editor_paste_only",
+        "clipboard": {
+          "primary": "web_clipboard_data_image",
+          "secondary": "web_async_clipboard_read_png",
+          "fallback": "tauri_clipboard_manager_read_image_only"
+        },
+        "storage": {
+          "directory": "assets/",
+          "markdown": "relative_image_syntax",
+          "unsaved": "save_as_then_write",
+          "native_fallback_format": "png"
+        },
+        "types": ["png", "jpeg", "gif", "webp"],
+        "max_bytes": 8388608,
+        "out_of_scope_first_cut": [
+          "drag_and_drop",
+          "data_url_fallback",
+          "preview_paste",
+          "clipboard_manager_read_text",
+          "clipboard_manager_write",
+          "background_clipboard_polling",
+          "custom_asset_directory_setting"
+        ]
+      },
+      "invariants": [
+        "Markdown 源码唯一权威；旁路图片仅为资源。",
+        "纯文本粘贴保持 CodeMirror 默认行为，不得触发原生剪贴板读取。",
+        "取消另存为、剪贴板读取失败或写盘失败不得插入 Markdown。",
+        "相对路径不得越出文档目录。",
+        "原生剪贴板权限仅限 read-image，且仅在源码区显式粘贴手势内使用。",
+        "不得因此批准预览编辑图片。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修订并重新批准 L0-TMK-021。",
+    "签发 WP-EDITOR-PASTE-IMAGE-002；不重开已关闭的 WP-EDITOR-PASTE-IMAGE-001。",
+    "CONTRACT-TMK-NATIVE-CAPABILITY 增加 allow-read-image 最小化约束。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

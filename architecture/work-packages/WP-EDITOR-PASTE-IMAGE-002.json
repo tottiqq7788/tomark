@@ -1,0 +1,79 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "project_id": "tomark",
+  "name": "修复 macOS 截图粘贴与原生只读回退",
+  "status": "in_progress",
+  "baseline_commit": "71978eb0dfd6bd2037cd23ef189c32443b4310b0",
+  "implementation_commit": null,
+  "baseline_requirement": "纠正基线为 WP-EDITOR-PASTE-IMAGE-001 closeout commit 71978eb；缺陷来源为 v5.12.2 安装包中 macOS 截图粘贴无反应、未创建 assets/。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-008.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-021", "L0-TMK-002", "L0-TMK-005", "L0-TMK-012", "L0-TMK-019"],
+    "reason": "修订已批准粘贴图片读取路径：Web 同步/异步优先，显式粘贴手势内允许 Tauri 只读图片回退；消减 WP-001 residual_risks。"
+  },
+  "goal": "macOS 截图粘贴在真实 Tauri WebKit 中可写 assets/ 并插入相对路径；纯文本不触发原生读取；失败有可见反馈且不半截写入。",
+  "allowed_scope": [
+    "src/editor/**",
+    "src/app/AppShell.vue",
+    "src/app/useEditorPasteImage.ts",
+    "src/app/usePaneLocate.ts",
+    "src/app/settings/HelpSettingsPanel.vue",
+    "src/native/documentAssetService.ts",
+    "src/native/clipboardImageService.ts",
+    "src-tauri/src/export_io.rs",
+    "src-tauri/src/lib.rs",
+    "src-tauri/Cargo.toml",
+    "src-tauri/Cargo.lock",
+    "src-tauri/permissions/**",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.conf.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "deps/package.json",
+    "deps/package-lock.json",
+    "tests/unit/**",
+    "tests/e2e/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "拖拽图片进编辑器",
+    "data URL 回退",
+    "预览区粘贴或编辑图片",
+    "clipboard-manager 读文本/写剪贴板/默认权限",
+    "后台轮询剪贴板",
+    "自定义资源目录设置",
+    "重开或改写 WP-EDITOR-PASTE-IMAGE-001 closeout 结论"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "L0-TMK-019 预览图片只读。",
+    "Cmd/Ctrl+点击定位仍可用。",
+    "纯文本粘贴仍走默认行为。"
+  ],
+  "must_reject": [
+    "静默丢弃可识别截图粘贴。",
+    "取消另存为或写盘失败仍插入 Markdown。",
+    "纯文本粘贴触发原生剪贴板读取。",
+    "授予 clipboard 默认、读文本或写权限。",
+    "相对路径越出文档目录。"
+  ],
+  "required_evidence": ["unit", "integration", "fault_injection", "runtime_e2e"],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "原生回退需要读文本/写剪贴板权限。"
+  ],
+  "task_envelope_id": "TASK-EDITOR-PASTE-IMAGE-002",
+  "closeout": {
+    "decision": null,
+    "commit": null,
+    "reason": null,
+    "residual_risks": []
+  }
+}

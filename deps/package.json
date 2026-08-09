@@ -1,7 +1,7 @@
 {
   "name": "tomark",
   "private": true,
-  "version": "4.2.0",
+  "version": "5.12.2",
   "type": "module",
   "scripts": {
     "dev": "vite --config ../src/vite.config.mts",
@@ -12,6 +12,8 @@
     "test:e2e": "cd .. && deps/node_modules/.bin/wdio run tests/e2e/wdio.browser.conf.ts",
     "test:e2e:native": "npm run tauri:e2e:build && npm run test:e2e:native:run",
     "test:e2e:native:run": "cd .. && deps/node_modules/.bin/wdio run tests/e2e/wdio.native.conf.ts",
+    "test:e2e:native:paste": "npm run tauri:e2e:build && npm run test:e2e:native:paste:run",
+    "test:e2e:native:paste:run": "cd .. && deps/node_modules/.bin/wdio run tests/e2e/wdio.native-paste.conf.ts",
     "test:all": "npm test && npm run test:e2e && npm run test:e2e:native",
     "sync:version": "node ./sync-version-from-git.mjs",
     "tauri": "cd .. && deps/node_modules/.bin/tauri",
@@ -26,6 +28,7 @@
     "@codemirror/state": "^6.7.1",
     "@codemirror/view": "^6.43.8",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-clipboard-manager": "^2.3.2",
     "@tauri-apps/plugin-dialog": "^2.7.2",
     "@tauri-apps/plugin-fs": "^2.5.1",
     "@tauri-apps/plugin-opener": "^2.5.4",

@@ -257,9 +257,10 @@
       "id": "L0-TMK-021",
       "name": "源码区粘贴图片相对路径落盘",
       "status": "approved",
-      "statement": "左侧 Markdown 源码编辑器粘贴剪贴板图片时：经 Web clipboardData 读取首个受支持图片（png/jpeg/gif/webp，≤8MB）；若文档尚未保存，必须先完成另存为，取消则不写盘不改源码；成功后将图片原子写入文档旁 assets/ 目录，并在当前选区插入相对路径语法 ![](assets/<file>)，变更进入 CodeMirror 同一撤销历史。旁路图片文件仅为资源，不是第二文档权威；相对路径不得越出文档目录；不得使用 data URL 回退、不得新增 Tauri clipboard capability、不得因此批准预览编辑图片。纯文本粘贴保持默认行为。",
+      "statement": "左侧 Markdown 源码编辑器粘贴剪贴板图片时：优先经同步 Web clipboardData 读取首个受支持图片（png/jpeg/gif/webp，≤8MB，允许空 MIME 并用文件头识别）；若同步无法取得 File：对 WKWebView 截图型载荷（image UTI / public.png|tiff 等图片信号且无 File item）可直接走官方 Tauri clipboard-manager 的 read-image 只读回退；对其余空/歧义载荷须先在同一粘贴手势内尝试 Web Async Clipboard（须超时保护）读取 PNG，仍失败才允许原生 read-image，并将位图规范化为 PNG。若文档尚未保存，必须先完成另存为，取消则不写盘不改源码；成功后将图片原子写入文档旁 assets/ 目录，并在粘贴选区插入相对路径语法 ![](assets/<file>)，变更进入 CodeMirror 同一撤销历史。旁路图片文件仅为资源，不是第二文档权威；相对路径不得越出文档目录；不得使用 data URL 回退；不得授予 clipboard 默认、读文本、写剪贴板或后台轮询；不得因此批准预览编辑图片。纯文本粘贴保持默认行为且不得触发原生剪贴板读取；可识别图片粘贴失败须给出可见错误而非静默丢弃。",
       "source_refs": [
         "architecture/decisions/DEC-TMK-20260810-007.json#DEC-TMK-EDITOR-PASTE-IMAGE",
+        "architecture/decisions/DEC-TMK-20260810-008.json#DEC-TMK-EDITOR-PASTE-IMAGE-NATIVE-FALLBACK",
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]
@@ -408,6 +409,7 @@
       "selectors": [
         "src/native/fileService.ts",
         "src/native/documentAssetService.ts",
+        "src/native/clipboardImageService.ts",
         "src/native/tauriRuntime.ts",
         "src/shared/types.ts",
         "src/shared/encodingErrors.ts"

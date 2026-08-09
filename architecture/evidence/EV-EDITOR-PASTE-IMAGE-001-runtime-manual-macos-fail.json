@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-001-runtime-manual-macos-fail",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "commit": "71978eb0dfd6bd2037cd23ef189c32443b4310b0",
+  "type": "runtime_e2e",
+  "status": "failed",
+  "command_or_source": "手工：安装 v5.12.2 aarch64 DMG → macOS 截图到剪贴板 → 源码区粘贴",
+  "result_summary": "项目负责人在新安装的 v5.12.2 中复现：源码区粘贴截图无反应，文档旁未创建 assets/。证实 WP-001 Chromium bridge E2E 不足以证明桌面真实粘贴。",
+  "limitations": [
+    "观察性缺陷记录，不绑定修复实现。",
+    "后续纠正见 WP-EDITOR-PASTE-IMAGE-002 / DEC-TMK-20260810-008。"
+  ]
+}

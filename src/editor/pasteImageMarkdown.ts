@@ -8,48 +8,253 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/webp": "webp",
 };
 
-export function extensionForImageMime(mime: string | undefined | null): string | null {
+export function normalizeImageMime(mime: string | undefined | null): string | null {
   if (!mime) {
     return null;
   }
   const normalized = mime.trim().toLowerCase().split(";")[0]?.trim() ?? "";
-  return MIME_TO_EXT[normalized] ?? null;
+  return MIME_TO_EXT[normalized] ? normalized : null;
 }
 
-export function isSupportedPasteImageFile(file: File): boolean {
-  return extensionForImageMime(file.type) != null;
+export function extensionForImageMime(mime: string | undefined | null): string | null {
+  const normalized = normalizeImageMime(mime);
+  return normalized ? MIME_TO_EXT[normalized] : null;
+}
+
+export function isSupportedPasteImageMime(mime: string | undefined | null): boolean {
+  return extensionForImageMime(mime) != null;
+}
+
+export function sniffImageMimeFromBytes(bytes: Uint8Array): string | null {
+  if (bytes.length >= 8
+    && bytes[0] === 0x89
+    && bytes[1] === 0x50
+    && bytes[2] === 0x4e
+    && bytes[3] === 0x47
+    && bytes[4] === 0x0d
+    && bytes[5] === 0x0a
+    && bytes[6] === 0x1a
+    && bytes[7] === 0x0a) {
+    return "image/png";
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 6
+    && bytes[0] === 0x47
+    && bytes[1] === 0x49
+    && bytes[2] === 0x46
+    && bytes[3] === 0x38
+    && (bytes[4] === 0x37 || bytes[4] === 0x39)
+    && bytes[5] === 0x61
+  ) {
+    return "image/gif";
+  }
+  if (
+    bytes.length >= 12
+    && bytes[0] === 0x52
+    && bytes[1] === 0x49
+    && bytes[2] === 0x46
+    && bytes[3] === 0x46
+    && bytes[8] === 0x57
+    && bytes[9] === 0x45
+    && bytes[10] === 0x42
+    && bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
+function clipboardTypes(clipboardData: DataTransfer): string[] {
+  try {
+    return Array.from(clipboardData.types ?? []);
+  } catch {
+    return [];
+  }
+}
+
+function hasPlainTextSignal(clipboardData: DataTransfer, types: string[]): boolean {
+  if (types.some((type) => type === "text/plain" || type === "text/html")) {
+    try {
+      const text = clipboardData.getData("text/plain");
+      if (typeof text === "string" && text.trim() !== "") {
+        return true;
+      }
+    } catch {
+      // Some WebViews throw when reading text while files are present.
+    }
+    return types.includes("text/plain") || types.includes("text/html");
+  }
+  return false;
+}
+
+function hasImageTypeSignal(types: string[]): boolean {
+  return types.some((type) => {
+    const lower = type.toLowerCase();
+    return (
+      lower.startsWith("image/")
+      || lower === "files"
+      || lower.includes("png")
+      || lower.includes("tiff")
+      || lower.includes("jpeg")
+      || lower.includes("jpg")
+      || lower.includes("gif")
+      || lower.includes("webp")
+      || lower.includes("public.png")
+      || lower.includes("public.tiff")
+    );
+  });
+}
+
+async function fileWithResolvedMime(
+  file: File,
+  preferredMime: string | null,
+): Promise<File | null> {
+  const direct = normalizeImageMime(file.type) ?? normalizeImageMime(preferredMime);
+  if (direct) {
+    if (normalizeImageMime(file.type) === direct) {
+      return file;
+    }
+    return new File([file], file.name || `pasted.${extensionForImageMime(direct)}`, {
+      type: direct,
+      lastModified: file.lastModified,
+    });
+  }
+
+  const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const sniffed = sniffImageMimeFromBytes(head);
+  if (!sniffed) {
+    return null;
+  }
+  return new File([file], file.name || `pasted.${extensionForImageMime(sniffed)}`, {
+    type: sniffed,
+    lastModified: file.lastModified,
+  });
 }
 
 /** First supported image from a paste clipboard, if any. */
-export function extractClipboardImageFile(
+export async function extractClipboardImageFile(
   clipboardData: DataTransfer | null | undefined,
-): File | null {
+): Promise<File | null> {
   if (!clipboardData) {
     return null;
   }
+
   const items = clipboardData.items;
   if (items) {
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i];
-      if (!item || item.kind !== "file" || !item.type.startsWith("image/")) {
+      if (!item || item.kind !== "file") {
         continue;
       }
-      const file = item.getAsFile();
-      if (file && isSupportedPasteImageFile(file)) {
+      const itemMime = normalizeImageMime(item.type);
+      if (item.type && !item.type.startsWith("image/") && !itemMime) {
+        continue;
+      }
+      const raw = item.getAsFile();
+      if (!raw) {
+        continue;
+      }
+      const file = await fileWithResolvedMime(raw, itemMime);
+      if (file) {
         return file;
       }
     }
   }
+
   const files = clipboardData.files;
   if (files) {
     for (let i = 0; i < files.length; i += 1) {
-      const file = files[i];
-      if (file && isSupportedPasteImageFile(file)) {
+      const raw = files[i];
+      if (!raw) {
+        continue;
+      }
+      const file = await fileWithResolvedMime(raw, null);
+      if (file) {
         return file;
       }
     }
   }
   return null;
+}
+
+export async function extractAsyncClipboardImageFile(
+  clipboard: Clipboard | null | undefined = navigator.clipboard,
+): Promise<File | null> {
+  if (!clipboard || typeof clipboard.read !== "function") {
+    return null;
+  }
+  const items = await clipboard.read();
+  for (const item of items) {
+    const types = item.types ?? [];
+    const pngType = types.find((type) => normalizeImageMime(type) === "image/png");
+    const supportedType =
+      pngType
+      ?? types.find((type) => isSupportedPasteImageMime(type));
+    if (!supportedType) {
+      continue;
+    }
+    const blob = await item.getType(supportedType);
+    const mime = normalizeImageMime(supportedType) ?? normalizeImageMime(blob.type);
+    if (!mime) {
+      continue;
+    }
+    return new File([blob], `clipboard.${extensionForImageMime(mime)}`, {
+      type: mime,
+    });
+  }
+  return null;
+}
+
+export function shouldAttemptImagePasteFallbacks(
+  clipboardData: DataTransfer | null | undefined,
+): boolean {
+  if (!clipboardData) {
+    return true;
+  }
+  const types = clipboardTypes(clipboardData);
+  const imageSignal = hasImageTypeSignal(types);
+  const textSignal = hasPlainTextSignal(clipboardData, types);
+  if (textSignal && !imageSignal) {
+    return false;
+  }
+  return imageSignal || !textSignal;
+}
+
+function hasClipboardFileItems(clipboardData: DataTransfer): boolean {
+  try {
+    const items = clipboardData.items;
+    if (items) {
+      for (let i = 0; i < items.length; i += 1) {
+        if (items[i]?.kind === "file") {
+          return true;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  try {
+    return Boolean(clipboardData.files && clipboardData.files.length > 0);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * WKWebView screenshot pasteboards expose image UTIs without File items.
+ * Async Clipboard often hangs on permission there — prefer native read-image.
+ */
+export function shouldSkipAsyncClipboardFallback(
+  clipboardData: DataTransfer | null | undefined,
+): boolean {
+  if (!clipboardData) {
+    return false;
+  }
+  const types = clipboardTypes(clipboardData);
+  return hasImageTypeSignal(types) && !hasClipboardFileItems(clipboardData);
 }
 
 function pad2(value: number): string {
@@ -98,4 +303,9 @@ export async function readFileBytesLimited(
     throw new Error("图片内容为空");
   }
   return new Uint8Array(buffer);
+}
+
+export function fileFromPngBytes(bytes: Uint8Array, fileName = "clipboard.png"): File {
+  const copy = Uint8Array.from(bytes);
+  return new File([copy], fileName, { type: "image/png" });
 }

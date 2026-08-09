@@ -14,6 +14,7 @@
     "allow-atomic-write-bytes-file",
     "allow-read-export-image",
     "allow-write-document-relative-image",
+    "clipboard-manager:allow-read-image",
     "allow-write-html-export-bundle",
     "allow-poll-force-export-job",
     "allow-write-force-export-result",

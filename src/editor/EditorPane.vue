@@ -109,8 +109,40 @@ async function pasteImageFile(file: File): Promise<boolean> {
   if (!editor || !props.pasteImage) {
     return false;
   }
-  await props.pasteImage(file, editor.view);
-  return true;
+  const data = {
+    items: [
+      {
+        kind: "file",
+        type: file.type,
+        getAsFile: () => file,
+      },
+    ],
+    files: {
+      length: 1,
+      0: file,
+      item: (index: number) => (index === 0 ? file : null),
+    },
+    types: ["Files", file.type],
+    getData: () => "",
+  } as unknown as DataTransfer;
+  return props.pasteImage(data, editor.view);
+}
+
+/** WKWebView screenshot-like paste: image UTI types, no File items. */
+async function pasteScreenshotLikeClipboard(): Promise<boolean> {
+  if (!editor || !props.pasteImage) {
+    return false;
+  }
+  const data = {
+    items: [],
+    files: {
+      length: 0,
+      item: () => null,
+    },
+    types: ["image/png", "public.tiff"],
+    getData: () => "",
+  } as unknown as DataTransfer;
+  return props.pasteImage(data, editor.view);
 }
 
 defineExpose({
@@ -124,6 +156,7 @@ defineExpose({
   undo,
   redo,
   pasteImageFile,
+  pasteScreenshotLikeClipboard,
 });
 </script>
 

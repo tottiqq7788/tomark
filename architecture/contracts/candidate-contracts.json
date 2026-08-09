@@ -143,7 +143,7 @@
       "id": "CONTRACT-TMK-NATIVE-CAPABILITY",
       "name": "原生能力最小化合同",
       "status": "candidate",
-      "l0_refs": ["L0-TMK-009", "L0-TMK-012", "L0-TMK-013"],
+      "l0_refs": ["L0-TMK-009", "L0-TMK-012", "L0-TMK-013", "L0-TMK-021"],
       "l1_refs": ["L1-TMK-NATIVE"],
       "selectors": [
         "src-tauri/capabilities/**",
@@ -157,12 +157,14 @@
         "外部打开文件只扩大到用户或操作系统明确投递的必要路径。",
         "WebView 导航保持在应用入口，安全外链通过系统 opener 打开。",
         "预览普通点击安全链接须走系统 opener，不得在 WebView 内导航。",
-        "debug 与 E2E 命令在生产构建中不可产生可利用副作用。"
+        "debug 与 E2E 命令在生产构建中不可产生可利用副作用。",
+        "源码区粘贴图片原生回退若启用 clipboard-manager，生产窗口仅可获得 clipboard-manager:allow-read-image，且只在用户于源码编辑器执行粘贴时调用。"
       ],
       "must_not": [
         "不得用通用 plugin-fs 权限绕过自定义文档与导出命令的额外校验。",
         "不得把 force-export 临时协议当作生产文件写入口。",
-        "不得在拒绝权限、无效协议或未确认退出时先执行副作用。"
+        "不得在拒绝权限、无效协议或未确认退出时先执行副作用。",
+        "不得默认授予 clipboard-manager 默认权限、读文本、写剪贴板或后台轮询。"
       ],
       "required_evidence": [
         "static: capability 到命令调用的双向映射",

@@ -412,6 +412,9 @@ if (import.meta.env.VITE_WDIO === "1") {
               bytes: number[],
               mime?: string,
             ) => Promise<boolean>;
+            pasteEditorScreenshotClipboard?: () => Promise<boolean>;
+            openDocumentAtPath?: (filePath: string) => Promise<boolean>;
+            getDocumentPath?: () => string | null;
           };
         }
       ).__tomarkE2e;
@@ -467,6 +470,15 @@ if (import.meta.env.VITE_WDIO === "1") {
         });
         return pane.pasteImageFile(file);
       };
+      e2e.pasteEditorScreenshotClipboard = async () => {
+        const pane = editorPaneRef.value;
+        if (!pane?.pasteScreenshotLikeClipboard) {
+          return false;
+        }
+        return pane.pasteScreenshotLikeClipboard();
+      };
+      e2e.openDocumentAtPath = (filePath) => openDocumentAtPath(filePath);
+      e2e.getDocumentPath = () => path.value;
     };
     install();
   });

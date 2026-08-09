@@ -82,7 +82,67 @@ describe("createEditor", () => {
     expect(dispatched).toBe(false);
     expect(event.defaultPrevented).toBe(true);
     expect(onPasteImage).toHaveBeenCalledTimes(1);
-    expect(onPasteImage.mock.calls[0]?.[0]).toBe(file);
+    expect(onPasteImage.mock.calls[0]?.[0]).toBe(clipboardData);
+  });
+
+  it("keeps default paste behavior for plain text clipboard", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const onPasteImage = vi.fn();
+    editor = createEditor({
+      parent: host,
+      doc: "hello\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+      onPasteImage,
+    });
+
+    const clipboardData = {
+      items: [],
+      files: [] as unknown as FileList,
+      getData: (type: string) => (type === "text/plain" ? "world" : ""),
+      types: ["text/plain"],
+    } as unknown as DataTransfer;
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, "clipboardData", {
+      value: clipboardData,
+    });
+    editor.view.contentDOM.dispatchEvent(event);
+    // CodeMirror may still preventDefault for its own text paste path.
+    expect(onPasteImage).not.toHaveBeenCalled();
+  });
+
+  it("blocks default paste for screenshot-like clipboard without files", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const onPasteImage = vi.fn(async () => true);
+    editor = createEditor({
+      parent: host,
+      doc: "hello\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+      onPasteImage,
+    });
+
+    const clipboardData = {
+      items: [],
+      files: [] as unknown as FileList,
+      getData: () => "",
+      types: ["image/png", "public.tiff"],
+    } as unknown as DataTransfer;
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, "clipboardData", {
+      value: clipboardData,
+    });
+    editor.view.contentDOM.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onPasteImage).toHaveBeenCalledTimes(1);
   });
 
   it("calls onLocate for Cmd/Ctrl+click on a source line", () => {
