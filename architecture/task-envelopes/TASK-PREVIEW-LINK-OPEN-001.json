@@ -2,7 +2,7 @@
   "schema_version": "task-envelope:v0.1",
   "task_id": "TASK-PREVIEW-LINK-OPEN-001",
   "role": "implementation_owner",
-  "baseline_commit": "d9d79dfa95fa5a188425f0e98a5a331bf9614be6",
+  "baseline_commit": "70a011e19482091f730b499f0562baf753124885",
   "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
   "allowed_scope": [
     "src/preview/editing/usePreviewEditSession.ts",
@@ -15,7 +15,10 @@
     "src/app/settings/HelpSettingsPanel.vue"
   ],
   "l0_impact": "modify_existing",
-  "l0_rule_ids": ["L0-TMK-009", "L0-TMK-008"],
+  "l0_rule_ids": [
+    "L0-TMK-009",
+    "L0-TMK-008"
+  ],
   "must_preserve": [
     "Cmd/Ctrl+点击定位。",
     "fallback 外开与协议边界。",
@@ -27,7 +30,13 @@
     "Cmd/Ctrl+点击误开链接。",
     "把外开当作链接文字编辑批准。"
   ],
-  "required_evidence": ["unit", "integration", "runtime_e2e"],
-  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "required_evidence": [
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。"
+  ],
   "notes": "治理基线将回填为含 DEC-TMK-20260810-006 的提交；实现完成后绑定 Evidence 并关闭 WP。"
 }

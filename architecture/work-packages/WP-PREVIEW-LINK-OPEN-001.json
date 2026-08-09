@@ -4,15 +4,18 @@
   "project_id": "tomark",
   "name": "预览链接普通点击外开",
   "status": "in_progress",
-  "baseline_commit": "d9d79dfa95fa5a188425f0e98a5a331bf9614be6",
+  "baseline_commit": "70a011e19482091f730b499f0562baf753124885",
   "implementation_commit": null,
-  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-006 与修订 L0-TMK-009 的治理提交；提交后回填本字段为该 commit。",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-006 与修订 L0-TMK-009 的治理提交 70a011e。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-006.json",
   "l0_impact": {
     "classification": "modify_existing",
     "also_modifies": [],
-    "rule_ids": ["L0-TMK-009", "L0-TMK-008"],
+    "rule_ids": [
+      "L0-TMK-009",
+      "L0-TMK-008"
+    ],
     "reason": "明确 editable 预览普通点击安全链接外开，与 fallback 对齐；定位与打开分离。"
   },
   "goal": "editable 预览普通点击安全链接经系统 opener 打开；Cmd/Ctrl+点击仍定位；# 锚点与非安全协议拒绝。",
@@ -42,13 +45,19 @@
     "Cmd/Ctrl+点击误开链接。",
     "把普通点击外开解释为批准预览编辑链接文字。"
   ],
-  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "required_evidence": [
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
   "evidence_ids": [
     "EV-PREVIEW-LINK-OPEN-001-unit",
     "EV-PREVIEW-LINK-OPEN-001-integration",
     "EV-PREVIEW-LINK-OPEN-001-runtime-e2e-browser"
   ],
-  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。"
+  ],
   "task_envelope_id": "TASK-PREVIEW-LINK-OPEN-001",
   "closeout": {
     "decision": "open",
