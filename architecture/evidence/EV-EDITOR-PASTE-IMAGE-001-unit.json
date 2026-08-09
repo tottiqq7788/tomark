@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-001-unit",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "commit": "30a2ef918a14f4722912dc4d9f42ff9e61535af8",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test",
+  "result_summary": "Vitest 54 files / 286 tests passed。含 pasteImageMarkdown、useEditorPasteImage、documentAssetService、createEditor 粘贴路由。",
+  "limitations": [
+    "jsdom 无原生 DataTransfer/ClipboardEvent，编辑器粘贴路由用合成 Event + clipboardData stub。"
+  ]
+}

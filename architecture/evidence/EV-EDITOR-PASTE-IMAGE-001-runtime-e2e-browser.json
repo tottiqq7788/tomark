@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-001-runtime-e2e-browser",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "commit": "30a2ef918a14f4722912dc4d9f42ff9e61535af8",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e -- --spec tests/e2e/specs/editor-paste-image.spec.ts",
+  "result_summary": "Chromium WDIO：未命名文档经 mock 另存为后，粘贴编排写入 mock write_document_relative_image，源码出现 ![](assets/pasted-e2e.png)。",
+  "limitations": [
+    "浏览器合成 ClipboardEvent 无法可靠携带 clipboardData，E2E 经 VITE_WDIO 桥 pasteEditorImage 调用同一粘贴编排。",
+    "写盘与另存为由 browser.tauri.mock 拦截，非真实磁盘；原生 lane 未断言真实 assets/ 文件。"
+  ]
+}

@@ -36,5 +36,5 @@
   ],
   "required_evidence": ["unit", "integration", "runtime_e2e"],
   "stop_conditions": ["实际影响超出 allowed_scope。"],
-  "notes": "治理基线 29e09f3；DEC-TMK-20260810-007 / L0-TMK-021。"
+  "notes": "治理基线 29e09f3；实现 commit 30a2ef9；Evidence EV-EDITOR-PASTE-IMAGE-001-* 已绑定；WP closeout.decision=closed。"
 }

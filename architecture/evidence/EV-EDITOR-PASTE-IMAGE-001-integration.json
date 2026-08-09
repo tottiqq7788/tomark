@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-001-integration",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "commit": "30a2ef918a14f4722912dc4d9f42ff9e61535af8",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "cargo test --manifest-path src-tauri/Cargo.toml paste_image_path_requires_assets_prefix write_document_relative_image_creates_assets_file",
+  "result_summary": "Rust export_io 单元/集成：粘贴相对路径必须位于 assets/ 且拒绝越界/嵌套/svg；prepare_document_assets_directory + 原子写盘创建 assets 文件成功。",
+  "limitations": [
+    "未在完整 Tauri AppHandle fs_scope 下跑命令级集成；scope 校验与 read_export_image 同模式由 ensure_allowed(document_path) 承担。"
+  ]
+}

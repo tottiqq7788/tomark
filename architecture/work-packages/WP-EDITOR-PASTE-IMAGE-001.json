@@ -3,10 +3,10 @@
   "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
   "project_id": "tomark",
   "name": "源码区粘贴图片相对路径落盘",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "29e09f3448cc5952215edc1849f5275afa86a004",
-  "implementation_commit": null,
-  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-007 与 L0-TMK-021 的治理提交（或同批基线 29e09f3）。",
+  "implementation_commit": "30a2ef918a14f4722912dc4d9f42ff9e61535af8",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-007 与 L0-TMK-021 的治理提交（基线 29e09f3；实现 30a2ef9）。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-007.json",
   "l0_impact": {
@@ -55,13 +55,20 @@
     "把旁路图片文件当作第二文档权威。"
   ],
   "required_evidence": ["unit", "integration", "runtime_e2e"],
-  "evidence_ids": [],
+  "evidence_ids": [
+    "EV-EDITOR-PASTE-IMAGE-001-unit",
+    "EV-EDITOR-PASTE-IMAGE-001-integration",
+    "EV-EDITOR-PASTE-IMAGE-001-runtime-e2e-browser"
+  ],
   "stop_conditions": ["实际影响超出 allowed_scope。"],
   "task_envelope_id": "TASK-EDITOR-PASTE-IMAGE-001",
   "closeout": {
-    "decision": null,
-    "commit": null,
-    "reason": null,
-    "residual_risks": []
+    "decision": "closed",
+    "commit": "30a2ef918a14f4722912dc4d9f42ff9e61535af8",
+    "reason": "实现 commit 30a2ef9 上 unit/integration/Chromium runtime_e2e 通过；新增 write_document_relative_image；源码粘贴插入相对路径且预览仍只读。Evidence 见 architecture/evidence/EV-EDITOR-PASTE-IMAGE-001-*.json。",
+    "residual_risks": [
+      "浏览器 E2E 经 WDIO 桥调用粘贴编排；真实系统剪贴板粘贴依赖桌面应用手工确认。",
+      "原生 lane 未断言真实 assets/ 落盘与 fs_scope 组合。"
+    ]
   }
 }
