@@ -50,12 +50,13 @@
       "id": "L0-TMK-004",
       "name": "预览只读边界",
       "status": "candidate",
-      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧只读（不可键入或 WYSIWYG 修改其源码映射内容）；无法可靠映射的内容必须拒绝修改并引导到源码区。图片与 Mermaid 允许已批准的只读查看交互（工具栏/全屏/单图导出/复制），且不得写回源码。",
+      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧不可键入或 WYSIWYG 修改其源码映射内容；无法可靠映射的内容必须拒绝修改并引导到源码区。图片与 Mermaid 允许已批准的只读查看交互（工具栏/全屏/单图导出/复制），且不得写回源码。任务复选框允许已批准的普通点击切换写回（见 L0-TMK-020），该写回不得扩展为键入编辑。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
         "src/app/settings/HelpSettingsPanel.vue",
-        "architecture/decisions/DEC-TMK-20260810-004.json#DEC-TMK-IMAGE-VIEWER"
+        "architecture/decisions/DEC-TMK-20260810-004.json#DEC-TMK-IMAGE-VIEWER",
+        "architecture/decisions/DEC-TMK-20260810-005.json#DEC-TMK-TASK-CHECKBOX-TOGGLE"
       ]
     },
     {
@@ -239,6 +240,17 @@
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]
+    },
+    {
+      "id": "L0-TMK-020",
+      "name": "预览任务复选框点击切换",
+      "status": "approved",
+      "statement": "editable 预览中，普通点击任务复选框 atom 可切换勾选状态，并仅以 SourcePatchTransaction 写回 Markdown 源码 marker：`[ ]` ↔ `[x]`（统一小写 x），保留尾随空白；变更进入 CodeMirror 同一撤销历史。Cmd/Ctrl+点击仍定位源码且不切换。任务复选框仍不可键入或 WYSIWYG 编辑；revision 或 expectedText 不匹配时必须拒绝写入并重新同步。fallback HTML 预览首版不提供切换。",
+      "source_refs": [
+        "architecture/decisions/DEC-TMK-20260810-005.json#DEC-TMK-TASK-CHECKBOX-TOGGLE",
+        "readme.md#核心能力",
+        "agent.md#产品要点"
+      ]
     }
   ],
   "l1_responsibilities": [
@@ -288,7 +300,8 @@
         "L0-TMK-014",
         "L0-TMK-015A",
         "L0-TMK-018",
-        "L0-TMK-019"
+        "L0-TMK-019",
+        "L0-TMK-020"
       ],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]

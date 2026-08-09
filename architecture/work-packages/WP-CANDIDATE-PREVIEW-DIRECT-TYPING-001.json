@@ -48,7 +48,7 @@
     "Markdown 源码是唯一文档权威；ProseMirror 不拥有独立持久化内容。",
     "预览键入与源码编辑共用 CodeMirror 撤销/重做历史。",
     "标题、段落、列表项、引用、表格单元格、显式链接显示文字及受支持格式文字可直接键入。",
-    "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接、Mermaid、链接 URL/title 和不可可靠映射内容保持只读。",
+    "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接、Mermaid、链接 URL/title 和不可可靠映射内容保持不可键入；任务复选框点击切换由独立 WP-TASK-CHECKBOX-TOGGLE-001 覆盖，不得借本 WP 扩展键入编辑 marker。",
     "stale revision、expectedText mismatch 与投影重建竞态必须拒绝并重新同步。",
     "Cmd/Ctrl 双向定位、Alt/Option 外链、格式工具条、选择复制和 Mermaid 异步布局继续工作。",
     "中文、日文、韩文等输入法 composition 作为完整事务处理，不丢字、不重复提交。"

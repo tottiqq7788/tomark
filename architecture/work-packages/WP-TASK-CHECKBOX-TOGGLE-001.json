@@ -1,0 +1,67 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
+  "project_id": "tomark",
+  "name": "预览任务复选框点击切换",
+  "status": "in_progress",
+  "baseline_commit": "1ad61b3d434b3977ca0f5dd54dfb65efed52eb37",
+  "implementation_commit": null,
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-005 与 L0-TMK-020 的治理提交；提交后回填本字段为该 commit。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-005.json",
+  "l0_impact": {
+    "classification": "add_new",
+    "also_modifies": ["L0-TMK-004"],
+    "rule_ids": ["L0-TMK-020", "L0-TMK-004", "L0-TMK-002", "L0-TMK-005"],
+    "reason": "新增任务复选框点击切换写回；仍禁止键入/WYSIWYG 改 marker。"
+  },
+  "goal": "editable 预览普通点击任务复选框切换 [ ]/[x] 并经 SourcePatch 写回；Cmd/Ctrl+点击仍定位；进入同一撤销历史。",
+  "allowed_scope": [
+    "src/preview/**",
+    "src/shared/previewEditing.ts",
+    "src/editor/createEditor.ts",
+    "src/app/usePreviewEditBridge.ts",
+    "src/app/AppShell.vue",
+    "src/preview/PreviewPane.vue",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md",
+    "src/app/settings/HelpSettingsPanel.vue"
+  ],
+  "out_of_scope": [
+    "预览直接键入普通文字（WP-CANDIDATE-PREVIEW-DIRECT-TYPING-001）",
+    "键入或 WYSIWYG 编辑任务复选框 marker",
+    "fallback HTML 预览切换",
+    "键盘 Space/Enter 切换",
+    "批量切换"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "任务复选框仍不可键入修改。",
+    "Cmd/Ctrl+点击定位仍可用。",
+    "格式写回与其它只读边界不受影响。"
+  ],
+  "must_reject": [
+    "绕过 SourcePatchTransaction 直接改 session content。",
+    "把 ProseMirror 当作第二文档权威。",
+    "stale revision / expectedText mismatch 时猜测写入。",
+    "把点击切换解释为批准键入编辑复选框。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [
+    "EV-TASK-CHECKBOX-TOGGLE-001-unit",
+    "EV-TASK-CHECKBOX-TOGGLE-001-integration",
+    "EV-TASK-CHECKBOX-TOGGLE-001-runtime-e2e-browser"
+  ],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "task_envelope_id": "TASK-TASK-CHECKBOX-TOGGLE-001",
+  "closeout": {
+    "decision": "open",
+    "commit": null,
+    "reason": null,
+    "residual_risks": []
+  }
+}

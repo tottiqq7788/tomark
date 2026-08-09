@@ -1,0 +1,46 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-005",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "1ad61b3d434b3977ca0f5dd54dfb65efed52eb37",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：editable 预览中普通点击任务复选框可切换勾选状态并写回 Markdown 源码 marker（[ ] ↔ [x]）；Cmd/Ctrl+点击仍定位源码；不得通过键入或 WYSIWYG 编辑 marker；fallback HTML 预览首版不接线。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-TASK-CHECKBOX-TOGGLE",
+      "decision": "批准 L0-TMK-020：editable 预览任务复选框支持普通点击切换；写回仅替换源码 [ ]/[x]（统一小写 x）并保留尾随空白；经 SourcePatchTransaction 进入 CodeMirror 同一撤销历史；revision/expectedText 不匹配时拒绝；Cmd/Ctrl+点击不切换。",
+      "approved_rule_ids": ["L0-TMK-020"],
+      "modified_rule_ids": ["L0-TMK-004"],
+      "scope": {
+        "interaction": "plain_click_toggle",
+        "writeback": "source_marker_only",
+        "marker_checked": "[x]",
+        "marker_unchecked": "[ ]",
+        "locate_modifier": "cmd_or_ctrl_click_still_locates",
+        "out_of_scope_first_cut": [
+          "keyboard_space_enter_toggle",
+          "typing_edit_marker",
+          "wysiwyg_drag_reorder",
+          "fallback_html_toggle",
+          "bulk_toggle"
+        ]
+      },
+      "invariants": [
+        "Markdown 唯一权威；切换必须经 CodeMirror SourcePatchTransaction。",
+        "任务复选框仍不可键入或 WYSIWYG 编辑。",
+        "Cmd/Ctrl+点击定位语义不变。",
+        "陈旧 revision 或 expectedText 不匹配时不得猜测偏移写入。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "新增并批准 L0-TMK-020；修订 L0-TMK-004。",
+    "签发 WP-TASK-CHECKBOX-TOGGLE-001；实现前/同批将本决策与语义修订提交为不可变基线。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}
