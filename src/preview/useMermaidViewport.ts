@@ -157,14 +157,32 @@ export function panMermaidViewport(
   };
 }
 
+/**
+ * Layout style for the stage: zoom by resizing the SVG box (keeps vectors sharp),
+ * pan with translate only. Avoid CSS `scale()` — browsers often rasterize first
+ * then stretch, which looks blurry when zooming in.
+ */
+export function mermaidViewportStageStyle(state: MermaidViewportState): {
+  width: string;
+  height: string;
+  transform: string;
+} {
+  const width = state.naturalWidth * state.scale;
+  const height = state.naturalHeight * state.scale;
+  const centerX = state.viewportWidth / 2 + state.panX;
+  const centerY = state.viewportHeight / 2 + state.panY;
+  return {
+    width: `${width}px`,
+    height: `${height}px`,
+    transform: `translate(${centerX - width / 2}px, ${centerY - height / 2}px)`,
+  };
+}
+
+/** @deprecated Prefer mermaidViewportStageStyle; kept for call-site compatibility. */
 export function mermaidViewportTransform(
   state: MermaidViewportState,
 ): string {
-  const centerX = state.viewportWidth / 2 + state.panX;
-  const centerY = state.viewportHeight / 2 + state.panY;
-  const offsetX = -state.naturalWidth / 2;
-  const offsetY = -state.naturalHeight / 2;
-  return `translate(${centerX}px, ${centerY}px) scale(${state.scale}) translate(${offsetX}px, ${offsetY}px)`;
+  return mermaidViewportStageStyle(state).transform;
 }
 
 export function parseSvgNaturalSize(svg: SVGSVGElement | string): MermaidViewportSize {

@@ -4,7 +4,7 @@ import { trapFocus } from "@/shared/focusTrap";
 import {
   createMermaidViewportState,
   fitMermaidViewport,
-  mermaidViewportTransform,
+  mermaidViewportStageStyle,
   panMermaidViewport,
   parseSvgNaturalSize,
   resetMermaidViewport,
@@ -40,8 +40,10 @@ const titleText = computed(() => props.title || "Mermaid 图表");
 const scalePercent = computed(() =>
   state.value ? Math.round(state.value.scale * 100) : 100,
 );
-const transform = computed(() =>
-  state.value ? mermaidViewportTransform(state.value) : "none",
+const stageStyle = computed(() =>
+  state.value
+    ? mermaidViewportStageStyle(state.value)
+    : { width: "0px", height: "0px", transform: "none" },
 );
 
 function measureAndInit() {
@@ -287,7 +289,7 @@ onBeforeUnmount(() => {
         >
           <div
             class="mermaid-viewer-stage"
-            :style="{ transform }"
+            :style="stageStyle"
             v-html="svgHtml"
           />
         </div>
@@ -398,14 +400,15 @@ onBeforeUnmount(() => {
   top: 0;
   left: 0;
   transform-origin: 0 0;
-  will-change: transform;
   pointer-events: none;
 }
 
+/* Fill the zoomed box so the browser re-rasters SVG at the display size. */
 .mermaid-viewer-stage :deep(svg) {
   display: block;
+  width: 100%;
+  height: 100%;
   max-width: none;
-  height: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

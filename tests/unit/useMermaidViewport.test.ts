@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMermaidViewportState,
   fitMermaidViewport,
-  mermaidViewportTransform,
+  mermaidViewportStageStyle,
   panMermaidViewport,
   resetMermaidViewport,
   zoomMermaidViewportIn,
@@ -38,8 +38,19 @@ describe("useMermaidViewport", () => {
     state = fitMermaidViewport(state);
     expect(state.mode).toBe("fit");
     expect(state.panX).toBe(0);
-    expect(mermaidViewportTransform(state)).toContain("scale(");
+    const fitStyle = mermaidViewportStageStyle(state);
+    expect(fitStyle.width).toBe(`${natural.width * state.scale}px`);
+    expect(fitStyle.height).toBe(`${natural.height * state.scale}px`);
+    expect(fitStyle.transform).toContain("translate(");
+    expect(fitStyle.transform).not.toContain("scale(");
+
+    state = zoomMermaidViewportIn(state);
+    const zoomed = mermaidViewportStageStyle(state);
+    expect(Number.parseFloat(zoomed.width)).toBeGreaterThan(
+      Number.parseFloat(fitStyle.width),
+    );
   });
+
 
   it("allows pan at fit scale (initial load / after zoom-out)", () => {
     const state = createMermaidViewportState(natural, viewport);
