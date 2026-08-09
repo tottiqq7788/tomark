@@ -1,0 +1,59 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
+  "project_id": "tomark",
+  "name": "预览链接普通点击外开",
+  "status": "in_progress",
+  "baseline_commit": "d9d79dfa95fa5a188425f0e98a5a331bf9614be6",
+  "implementation_commit": null,
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-006 与修订 L0-TMK-009 的治理提交；提交后回填本字段为该 commit。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-006.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-009", "L0-TMK-008"],
+    "reason": "明确 editable 预览普通点击安全链接外开，与 fallback 对齐；定位与打开分离。"
+  },
+  "goal": "editable 预览普通点击安全链接经系统 opener 打开；Cmd/Ctrl+点击仍定位；# 锚点与非安全协议拒绝。",
+  "allowed_scope": [
+    "src/preview/editing/usePreviewEditSession.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md",
+    "src/app/settings/HelpSettingsPanel.vue"
+  ],
+  "out_of_scope": [
+    "预览直接键入或链接文字编辑",
+    "新的 Tauri capability / IPC",
+    "放宽 javascript:/data: 等非安全协议"
+  ],
+  "must_preserve": [
+    "Cmd/Ctrl+点击定位。",
+    "fallback 既有外开与协议边界。",
+    "不得替换应用 WebView。",
+    "打开链接不改写 Markdown。"
+  ],
+  "must_reject": [
+    "非安全协议外开。",
+    "Cmd/Ctrl+点击误开链接。",
+    "把普通点击外开解释为批准预览编辑链接文字。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [
+    "EV-PREVIEW-LINK-OPEN-001-unit",
+    "EV-PREVIEW-LINK-OPEN-001-integration",
+    "EV-PREVIEW-LINK-OPEN-001-runtime-e2e-browser"
+  ],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "task_envelope_id": "TASK-PREVIEW-LINK-OPEN-001",
+  "closeout": {
+    "decision": "open",
+    "commit": null,
+    "reason": null,
+    "residual_risks": []
+  }
+}

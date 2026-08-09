@@ -68,6 +68,7 @@
         "成功渲染的 Mermaid 图普通点击显示浮动工具栏；顺序为全屏 icon、复制源码 icon、复制图片 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
         "成功显示的 Markdown 图片普通点击显示浮动工具栏；顺序为全屏 icon、复制图片 icon、英文 PNG；预览须解析本地相对图；Cmd/Ctrl+点击保留源码定位。",
         "editable 预览中普通点击任务复选框须经 SourcePatchTransaction 写回 [ ]/[x] marker；Cmd/Ctrl+点击保留源码定位且不切换。",
+        "editable 与 fallback 预览中普通点击安全链接须经系统 opener 打开；Cmd/Ctrl+点击保留源码定位且不打开；# 锚点不外开。",
         "全屏查看器不改变文档会话、脏状态或撤销历史；打开时持有内容快照，不绑定可能被重建的 live DOM。",
         "复制源码与导出不得写回围栏或图片语法；复制不等于批准预览编辑。",
         "定位和格式化使用源码范围或精确映射，不按显示文本或像素猜测。",
@@ -79,19 +80,20 @@
         "不得把任务复选框点击切换扩展为键入或 WYSIWYG 编辑 marker。",
         "不得通过查看器或单图导出写回 Markdown 或修改 Mermaid 围栏或图片语法。",
         "不得让 ProseMirror 建立独立于 Markdown 源码的持久化历史或第二数据源。",
-        "不得在 fallback 渲染中绕过链接协议、只读边界或源码定位约束。"
+        "不得在 fallback 或 editable 渲染中绕过链接协议、只读边界或源码定位约束。"
       ],
       "required_evidence": [
         "static: sanitize、源码映射、直接键入入口、Mermaid/图片点击路由和链接协议边界",
-        "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥、任务复选框切换 patch",
+        "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥、任务复选框切换 patch、链接普通点击外开",
         "integration: CodeMirror 与预览键入/格式/任务复选框投影共用源码与撤销历史；Mermaid/图片工具栏与格式工具栏互斥",
-        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid/图片工具栏与全屏查看、任务复选框点击切换"
+        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid/图片工具栏与全屏查看、任务复选框点击切换、链接普通点击外开"
       ],
       "implementation_gaps": [
         "冻结基线 usePreviewEditSession.ts 设置 editable() 为 false 并忽略文档变更，尚未实现直接键入。",
         "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展由 WP-MERMAID-TOOLBAR-002/003/004 覆盖。",
         "Markdown 图片只读查看由 WP-IMAGE-VIEWER-001 覆盖。",
         "任务复选框点击切换由 WP-TASK-CHECKBOX-TOGGLE-001 覆盖。",
+        "预览链接普通点击外开由 WP-PREVIEW-LINK-OPEN-001 覆盖。",
         "L1/L2 责任映射与本合同仍为 candidate，需在实现准入和独立审查中确认。"
       ]
     },
@@ -154,6 +156,7 @@
         "生产窗口只获得实现已批准语义所需的命令和插件权限。",
         "外部打开文件只扩大到用户或操作系统明确投递的必要路径。",
         "WebView 导航保持在应用入口，安全外链通过系统 opener 打开。",
+        "预览普通点击安全链接须走系统 opener，不得在 WebView 内导航。",
         "debug 与 E2E 命令在生产构建中不可产生可利用副作用。"
       ],
       "must_not": [

@@ -109,12 +109,13 @@
     {
       "id": "L0-TMK-009",
       "name": "链接交互与系统外开",
-      "status": "candidate",
-      "statement": "预览链接的定位、选择和打开行为必须分离；允许的外链由系统处理，不得替换应用 WebView，非安全协议必须拒绝。",
+      "status": "approved",
+      "statement": "预览（editable 与 fallback）中普通点击安全链接须经系统默认浏览器/系统 opener 打开；Cmd/Ctrl+点击定位源码且不打开；# 页内锚点不外开；非安全协议必须拒绝；不得替换应用 WebView。Alt/Option+点击与格式工具条「打开链接」可作为等价打开路径。打开链接不得改写 Markdown 源码；普通点击不用于编辑链接显示文字（链接文字编辑留给直接键入能力）。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
-        "plan/prd/tomarkv1.10.020260807.md#25-系统集成"
+        "plan/prd/tomarkv1.10.020260807.md#25-系统集成",
+        "architecture/decisions/DEC-TMK-20260810-006.json#DEC-TMK-PREVIEW-LINK-PLAIN-OPEN"
       ]
     },
     {

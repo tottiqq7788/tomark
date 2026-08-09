@@ -1,0 +1,42 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-006",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "d9d79dfa95fa5a188425f0e98a5a331bf9614be6",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：editable 与 fallback 预览中普通点击安全链接须经系统默认浏览器打开；Cmd/Ctrl+点击仍定位源码；# 锚点不外开；非安全协议拒绝；不得替换应用 WebView；本包不恢复普通点击编辑链接文字。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-PREVIEW-LINK-PLAIN-OPEN",
+      "decision": "修订 L0-TMK-009：预览安全链接普通点击外开；定位与打开行为分离；Alt/Option+点击与工具条「打开链接」可作为等价路径保留。",
+      "approved_rule_ids": ["L0-TMK-009"],
+      "modified_rule_ids": ["L0-TMK-009"],
+      "scope": {
+        "plain_click": "open_safe_external",
+        "locate_modifier": "cmd_or_ctrl_click_still_locates",
+        "hash_anchors": "no_external_open",
+        "opener": "system_default_browser_or_window_open",
+        "out_of_scope_first_cut": [
+          "plain_click_caret_for_link_label_edit",
+          "preview_direct_typing"
+        ]
+      },
+      "invariants": [
+        "不得替换应用 WebView。",
+        "非安全协议必须拒绝。",
+        "Cmd/Ctrl+点击定位语义不变。",
+        "Markdown 源码不被链接打开操作改写。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修订并明确 L0-TMK-009 的普通点击外开语义。",
+    "签发 WP-PREVIEW-LINK-OPEN-001；实现前/同批将本决策与语义修订提交为不可变基线。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}
