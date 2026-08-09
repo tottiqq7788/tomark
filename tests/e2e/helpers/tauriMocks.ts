@@ -35,6 +35,11 @@ export async function mockAppIpc(options?: {
     extension: "png",
   });
 
+  const writeDocumentRelativeImageMock = await browser.tauri.mock(
+    "write_document_relative_image",
+  );
+  await writeDocumentRelativeImageMock.mockResolvedValue("assets/pasted-e2e.png");
+
   return {
     openMock,
     saveMock,
@@ -44,5 +49,6 @@ export async function mockAppIpc(options?: {
     writeBytesMock,
     writeHtmlBundleMock,
     readExportImageMock,
+    writeDocumentRelativeImageMock,
   };
 }

@@ -118,6 +118,63 @@ fn mime_for_extension(extension: &str) -> Option<&'static str> {
     }
 }
 
+fn paste_image_extension_allowed(extension: &str) -> bool {
+    matches!(extension, "png" | "jpg" | "jpeg" | "gif" | "webp")
+}
+
+fn normalize_document_paste_image_path(relative_path: &str) -> Result<PathBuf, ExportIoError> {
+    let relative = normalize_relative_image_path(relative_path)?;
+    let mut components = relative.components();
+    let Some(Component::Normal(first)) = components.next() else {
+        return Err(ExportIoError::Message("图片路径无效".into()));
+    };
+    if first != "assets" {
+        return Err(ExportIoError::Message("粘贴图片必须位于 assets/ 目录".into()));
+    }
+    let Some(Component::Normal(file_name)) = components.next() else {
+        return Err(ExportIoError::Message("图片路径无效".into()));
+    };
+    if components.next().is_some() {
+        return Err(ExportIoError::Message("图片路径无效".into()));
+    }
+    let name = file_name
+        .to_str()
+        .ok_or_else(|| ExportIoError::Message("资源文件名不合法".into()))?;
+    let sanitized = sanitize_asset_name(name)?;
+    let extension = extension_of(Path::new(&sanitized));
+    if !paste_image_extension_allowed(&extension) {
+        return Err(ExportIoError::Message(format!("不支持的图片类型：.{extension}")));
+    }
+    Ok(PathBuf::from("assets").join(sanitized))
+}
+
+fn prepare_document_assets_directory(document_dir: &Path) -> Result<PathBuf, ExportIoError> {
+    let canonical_parent = document_dir
+        .canonicalize()
+        .map_err(|_| ExportIoError::Message("文档目录无效".into()))?;
+    let candidate = canonical_parent.join("assets");
+
+    match fs::symlink_metadata(&candidate) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(ExportIoError::Message("资源目录不能是符号链接".into()));
+        }
+        Ok(metadata) if !metadata.is_dir() => {
+            return Err(ExportIoError::Message("资源目录路径已被文件占用".into()));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir(&candidate)?;
+        }
+        Err(error) => return Err(error.into()),
+    }
+
+    let canonical = candidate.canonicalize()?;
+    if canonical.parent() != Some(canonical_parent.as_path()) {
+        return Err(ExportIoError::Message("资源目录越出文档目录".into()));
+    }
+    Ok(canonical)
+}
+
 fn image_byte_limit(requested: Option<usize>) -> usize {
     requested
         .unwrap_or(MAX_IMAGE_BYTES_DEFAULT)
@@ -241,6 +298,40 @@ pub fn atomic_write_bytes_file<R: Runtime>(
     let contents = decode_base64_bytes_limited(&contents_base64, MAX_EXPORT_FILE_BYTES)?;
     write_bytes_resolved(&target, &contents)?;
     Ok(())
+}
+
+#[tauri::command]
+pub fn write_document_relative_image<R: Runtime>(
+    app: AppHandle<R>,
+    document_path: String,
+    relative_path: String,
+    contents_base64: String,
+) -> Result<String, ExportIoError> {
+    let doc_path = PathBuf::from(&document_path);
+    ensure_allowed(&app, &doc_path)?;
+
+    let relative = normalize_document_paste_image_path(&relative_path)?;
+    let contents = decode_base64_bytes_limited(&contents_base64, MAX_IMAGE_BYTES_DEFAULT)?;
+    if contents.is_empty() {
+        return Err(ExportIoError::Message("图片内容为空".into()));
+    }
+
+    let base = document_dir(&document_path)?;
+    let assets_dir = prepare_document_assets_directory(&base)?;
+    let file_name = relative
+        .file_name()
+        .ok_or_else(|| ExportIoError::Message("图片路径无效".into()))?;
+    let target = assets_dir.join(file_name);
+    if target
+        .parent()
+        .is_none_or(|parent| parent != assets_dir.as_path())
+    {
+        return Err(ExportIoError::Message("图片路径越出文档目录".into()));
+    }
+
+    write_bytes_resolved(&target, &contents)?;
+    // Keep posix-style relative paths in Markdown regardless of host OS.
+    Ok(format!("assets/{}", file_name.to_string_lossy().replace('\\', "/")))
 }
 
 #[tauri::command]
@@ -424,6 +515,38 @@ mod tests {
         assert!(normalize_relative_image_path("/tmp/a.png").is_err());
         assert!(normalize_relative_image_path("C:\\\\a.png").is_err());
         assert!(normalize_relative_image_path("file:/tmp/a.png").is_err());
+    }
+
+    #[test]
+    fn paste_image_path_requires_assets_prefix() {
+        assert_eq!(
+            normalize_document_paste_image_path("assets/pasted.png").unwrap(),
+            PathBuf::from("assets/pasted.png")
+        );
+        assert!(normalize_document_paste_image_path("images/a.png").is_err());
+        assert!(normalize_document_paste_image_path("assets/../secret.png").is_err());
+        assert!(normalize_document_paste_image_path("assets/nested/a.png").is_err());
+        assert!(normalize_document_paste_image_path("assets/evil.svg").is_err());
+    }
+
+    #[test]
+    fn write_document_relative_image_creates_assets_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "tomark-paste-image-{}-{}",
+            std::process::id(),
+            "ok"
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let doc = dir.join("note.md");
+        fs::write(&doc, b"# note\n").unwrap();
+
+        let relative = normalize_document_paste_image_path("assets/pasted-test.png").unwrap();
+        let assets = prepare_document_assets_directory(&dir).unwrap();
+        let target = assets.join(relative.file_name().unwrap());
+        write_bytes_resolved(&target, b"\x89PNG").unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"\x89PNG");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

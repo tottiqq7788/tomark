@@ -20,6 +20,7 @@ import { useDocumentStats } from "./useDocumentStats";
 import { usePaneLocate } from "./usePaneLocate";
 import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
+import { createEditorPasteImageHandler } from "./useEditorPasteImage";
 import { isMacOS } from "@/shared/isMacOS";
 
 type ActiveDrawer = "settings" | null;
@@ -60,6 +61,15 @@ const {
   onDirtyCancel,
   dispose,
 } = useDocumentSession();
+
+const onPasteImage = createEditorPasteImageHandler({
+  getDocumentPath: () => path.value,
+  ensureDocumentSaved: () => saveAs(),
+  showError: async (title, error) => {
+    const { showError } = await import("@/native/fileService");
+    await showError(title, error);
+  },
+});
 
 const preview = usePreviewBridge(content);
 const previewHtml = preview.html;
@@ -398,6 +408,10 @@ if (import.meta.env.VITE_WDIO === "1") {
               pmTo?: number;
             } | null;
             triggerSave?: () => void;
+            pasteEditorImage?: (
+              bytes: number[],
+              mime?: string,
+            ) => Promise<boolean>;
           };
         }
       ).__tomarkE2e;
@@ -442,6 +456,16 @@ if (import.meta.env.VITE_WDIO === "1") {
       };
       e2e.triggerSave = () => {
         void save();
+      };
+      e2e.pasteEditorImage = async (bytes, mime = "image/png") => {
+        const pane = editorPaneRef.value;
+        if (!pane?.pasteImageFile) {
+          return false;
+        }
+        const file = new File([new Uint8Array(bytes)], "e2e-paste.png", {
+          type: mime,
+        });
+        return pane.pasteImageFile(file);
       };
     };
     install();
@@ -594,6 +618,7 @@ useAppShortcuts({
             :ref="setEditorPaneRef"
             :model-value="content"
             :document-version="documentVersion"
+            :paste-image="onPasteImage"
             @update:model-value="setContent"
             @locate="onLocatePreview"
           />

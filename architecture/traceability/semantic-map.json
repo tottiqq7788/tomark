@@ -252,6 +252,17 @@
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]
+    },
+    {
+      "id": "L0-TMK-021",
+      "name": "源码区粘贴图片相对路径落盘",
+      "status": "approved",
+      "statement": "左侧 Markdown 源码编辑器粘贴剪贴板图片时：经 Web clipboardData 读取首个受支持图片（png/jpeg/gif/webp，≤8MB）；若文档尚未保存，必须先完成另存为，取消则不写盘不改源码；成功后将图片原子写入文档旁 assets/ 目录，并在当前选区插入相对路径语法 ![](assets/<file>)，变更进入 CodeMirror 同一撤销历史。旁路图片文件仅为资源，不是第二文档权威；相对路径不得越出文档目录；不得使用 data URL 回退、不得新增 Tauri clipboard capability、不得因此批准预览编辑图片。纯文本粘贴保持默认行为。",
+      "source_refs": [
+        "architecture/decisions/DEC-TMK-20260810-007.json#DEC-TMK-EDITOR-PASTE-IMAGE",
+        "readme.md#核心能力",
+        "agent.md#产品要点"
+      ]
     }
   ],
   "l1_responsibilities": [
@@ -274,7 +285,8 @@
         "L0-TMK-002",
         "L0-TMK-010",
         "L0-TMK-011",
-        "L0-TMK-012"
+        "L0-TMK-012",
+        "L0-TMK-021"
       ],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
@@ -283,8 +295,8 @@
       "id": "L1-TMK-EDITOR",
       "name": "源码编辑与大纲",
       "status": "candidate",
-      "responsibility": "提供 CodeMirror 源码编辑、标题层级、折叠、源码事务和唯一撤销历史。",
-      "l0_refs": ["L0-TMK-002", "L0-TMK-005", "L0-TMK-007"],
+      "responsibility": "提供 CodeMirror 源码编辑、标题层级、折叠、源码事务、粘贴图片插入和唯一撤销历史。",
+      "l0_refs": ["L0-TMK-002", "L0-TMK-005", "L0-TMK-007", "L0-TMK-021"],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
     },
@@ -331,7 +343,8 @@
         "L0-TMK-010",
         "L0-TMK-011",
         "L0-TMK-012",
-        "L0-TMK-013"
+        "L0-TMK-013",
+        "L0-TMK-021"
       ],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
@@ -394,6 +407,7 @@
       "l1_refs": ["L1-TMK-DOCUMENT", "L1-TMK-NATIVE"],
       "selectors": [
         "src/native/fileService.ts",
+        "src/native/documentAssetService.ts",
         "src/native/tauriRuntime.ts",
         "src/shared/types.ts",
         "src/shared/encodingErrors.ts"
@@ -418,9 +432,11 @@
       "selectors": [
         "src/editor/EditorPane.vue",
         "src/editor/createEditor.ts",
+        "src/editor/pasteImageMarkdown.ts",
         "src/editor/headingTree.ts",
         "src/editor/headingFoldExtension.ts",
-        "src/editor/markdownInlineFormatting.ts"
+        "src/editor/markdownInlineFormatting.ts",
+        "src/app/useEditorPasteImage.ts"
       ]
     },
     {

@@ -9,6 +9,11 @@ description = "Allows reading local images relative to an already opened Markdow
 commands.allow = ["read_export_image"]
 
 [[permission]]
+identifier = "allow-write-document-relative-image"
+description = "Allows writing a pasted image under the opened Markdown document's assets/ directory."
+commands.allow = ["write_document_relative_image"]
+
+[[permission]]
 identifier = "allow-write-html-export-bundle"
 description = "Allows writing an HTML export file and its sibling asset directory."
 commands.allow = ["write_html_export_bundle"]

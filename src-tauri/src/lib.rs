@@ -95,6 +95,7 @@ pub fn run() {
             document_io::load_markdown_document,
             document_io::save_markdown_document,
             export_io::atomic_write_bytes_file,
+            export_io::write_document_relative_image,
             export_io::read_export_image,
             export_io::write_html_export_bundle,
             export_io::poll_force_export_job,

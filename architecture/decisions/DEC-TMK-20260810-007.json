@@ -1,0 +1,51 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-007",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "29e09f3448cc5952215edc1849f5275afa86a004",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：左侧源码区粘贴剪贴板图片时，未保存文档先另存为；成功后将图片原子写入文档旁 assets/，并在光标处插入相对路径 Markdown 图片语法；取消另存为或写盘失败不得改源码；不新增 Tauri clipboard；预览图片仍只读；本轮不做拖拽。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-EDITOR-PASTE-IMAGE",
+      "decision": "批准 L0-TMK-021：源码区粘贴图片经 Web clipboardData 读入，落盘为文档旁 assets/ 相对路径，插入 ![](assets/…)；未命名文档必须先另存为；旁路图片不是第二文档权威；预览仍按 L0-TMK-019 只读渲染。",
+      "approved_rule_ids": ["L0-TMK-021"],
+      "modified_rule_ids": [],
+      "scope": {
+        "trigger": "source_editor_paste_only",
+        "storage": {
+          "directory": "assets/",
+          "markdown": "relative_image_syntax",
+          "unsaved": "save_as_then_write"
+        },
+        "clipboard": "web_clipboard_data_image",
+        "types": ["png", "jpeg", "gif", "webp"],
+        "max_bytes": 8388608,
+        "out_of_scope_first_cut": [
+          "drag_and_drop",
+          "data_url_fallback",
+          "preview_paste",
+          "tauri_clipboard_capability",
+          "custom_asset_directory_setting"
+        ]
+      },
+      "invariants": [
+        "Markdown 源码唯一权威；旁路图片仅为资源。",
+        "取消另存为或写盘失败不得插入 Markdown。",
+        "相对路径不得越出文档目录。",
+        "插入进入 CodeMirror 同一撤销历史。",
+        "不得因此批准预览编辑图片。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "新增并批准 L0-TMK-021。",
+    "签发 WP-EDITOR-PASTE-IMAGE-001；实现前/同批将本决策与语义修订提交为不可变基线。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "project_id": "tomark",
+  "name": "源码区粘贴图片相对路径落盘",
+  "status": "in_progress",
+  "baseline_commit": "29e09f3448cc5952215edc1849f5275afa86a004",
+  "implementation_commit": null,
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-007 与 L0-TMK-021 的治理提交（或同批基线 29e09f3）。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-007.json",
+  "l0_impact": {
+    "classification": "add_new",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-021", "L0-TMK-002", "L0-TMK-005", "L0-TMK-012", "L0-TMK-019"],
+    "reason": "新增源码区粘贴图片写盘与插入 Markdown 语义；预览图片查看仍只读。"
+  },
+  "goal": "左侧 CodeMirror 粘贴剪贴板图片：未保存先另存为；写入文档旁 assets/；光标插入相对路径 ![]()；进入统一撤销历史；失败不半截写入。",
+  "allowed_scope": [
+    "src/editor/**",
+    "src/app/AppShell.vue",
+    "src/app/useEditorPasteImage.ts",
+    "src/app/settings/HelpSettingsPanel.vue",
+    "src/native/documentAssetService.ts",
+    "src-tauri/src/export_io.rs",
+    "src-tauri/src/lib.rs",
+    "src-tauri/permissions/export-io.toml",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "拖拽图片进编辑器",
+    "data URL 回退",
+    "预览区粘贴或编辑图片",
+    "新增 Tauri clipboard capability",
+    "自定义资源目录设置",
+    "图片压缩或重命名 UI"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "L0-TMK-019 预览图片只读查看不得被解释为可编辑。",
+    "Cmd/Ctrl+点击定位仍可用。",
+    "纯文本粘贴仍走默认行为。"
+  ],
+  "must_reject": [
+    "取消另存为仍写盘或插入 Markdown。",
+    "写盘失败仍插入 Markdown。",
+    "相对路径越出文档目录。",
+    "把旁路图片文件当作第二文档权威。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "task_envelope_id": "TASK-EDITOR-PASTE-IMAGE-001",
+  "closeout": {
+    "decision": null,
+    "commit": null,
+    "reason": null,
+    "residual_risks": []
+  }
+}

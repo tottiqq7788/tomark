@@ -26,6 +26,7 @@
             "allow-atomic-write-text-file",
             "allow-atomic-write-bytes-file",
             "allow-read-export-image",
+            "allow-write-document-relative-image",
             "allow-write-html-export-bundle",
             "allow-write-force-export-result",
             "allow-poll-force-export-job",

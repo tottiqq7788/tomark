@@ -31,6 +31,7 @@ import {
   revealSourceLineEffect,
 } from "./headingFoldExtension";
 import { isLocateModifier } from "@/shared/locateModifier";
+import { extractClipboardImageFile } from "@/editor/pasteImageMarkdown";
 import type { FormatRangeChange } from "@/shared/previewFormatting";
 import {
   validateSourcePatchTransaction,
@@ -46,12 +47,14 @@ export type {
 } from "@/shared/previewEditing";
 
 export type LocateHandler = (sourceLine: number) => void;
+export type PasteImageHandler = (file: File, view: EditorView) => void | Promise<void>;
 
 export interface CreateEditorOptions {
   parent: HTMLElement;
   doc: string;
   onChange: (value: string) => void;
   onLocate: LocateHandler;
+  onPasteImage?: PasteImageHandler;
   extensions?: Extension[];
 }
 
@@ -129,6 +132,22 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
         return true;
       }
       return false;
+    },
+    paste(event, view) {
+      if (!options.onPasteImage) {
+        return false;
+      }
+      const clipboard =
+        "clipboardData" in event
+          ? ((event as ClipboardEvent).clipboardData ?? null)
+          : null;
+      const file = extractClipboardImageFile(clipboard);
+      if (!file) {
+        return false;
+      }
+      event.preventDefault();
+      void options.onPasteImage(file, view);
+      return true;
     },
   });
 

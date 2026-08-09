@@ -13,6 +13,7 @@
     "allow-atomic-write-text-file",
     "allow-atomic-write-bytes-file",
     "allow-read-export-image",
+    "allow-write-document-relative-image",
     "allow-write-html-export-bundle",
     "allow-poll-force-export-job",
     "allow-write-force-export-result",

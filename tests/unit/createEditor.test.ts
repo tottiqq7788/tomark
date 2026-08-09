@@ -46,6 +46,45 @@ describe("createEditor", () => {
     expect(undo(editor.view)).toBe(false);
   });
 
+  it("routes clipboard image paste to onPasteImage and blocks default", () => {
+    host = document.createElement("div");
+    document.body.append(host);
+    const onPasteImage = vi.fn();
+    editor = createEditor({
+      parent: host,
+      doc: "hello\n",
+      onChange: () => undefined,
+      onLocate: () => undefined,
+      onPasteImage,
+    });
+
+    const file = new File([new Uint8Array([1])], "a.png", { type: "image/png" });
+    const clipboardData = {
+      items: [
+        {
+          kind: "file",
+          type: "image/png",
+          getAsFile: () => file,
+        },
+      ],
+      files: [] as unknown as FileList,
+      getData: () => "",
+      types: ["Files"],
+    } as unknown as DataTransfer;
+    const event = new Event("paste", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, "clipboardData", {
+      value: clipboardData,
+    });
+    const dispatched = editor.view.contentDOM.dispatchEvent(event);
+    expect(dispatched).toBe(false);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onPasteImage).toHaveBeenCalledTimes(1);
+    expect(onPasteImage.mock.calls[0]?.[0]).toBe(file);
+  });
+
   it("calls onLocate for Cmd/Ctrl+click on a source line", () => {
     host = document.createElement("div");
     document.body.append(host);

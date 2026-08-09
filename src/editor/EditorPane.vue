@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import { createEditor, type EditorHandle } from "./createEditor";
+import {
+  createEditor,
+  type EditorHandle,
+  type PasteImageHandler,
+} from "./createEditor";
 import type { FormatRangeChange } from "@/shared/previewFormatting";
 import type {
   ApplySourceTransactionResult,
@@ -10,6 +14,7 @@ import type {
 const props = defineProps<{
   modelValue: string;
   documentVersion: number;
+  pasteImage?: PasteImageHandler;
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +40,7 @@ onMounted(() => {
       emit("update:modelValue", value);
     },
     onLocate: (line) => emit("locate", line),
+    onPasteImage: props.pasteImage,
   });
 });
 
@@ -99,6 +105,14 @@ function redo(): boolean {
   return editor?.redo() ?? false;
 }
 
+async function pasteImageFile(file: File): Promise<boolean> {
+  if (!editor || !props.pasteImage) {
+    return false;
+  }
+  await props.pasteImage(file, editor.view);
+  return true;
+}
+
 defineExpose({
   revealSourceLine,
   requestMeasure,
@@ -109,6 +123,7 @@ defineExpose({
   getSelection,
   undo,
   redo,
+  pasteImageFile,
 });
 </script>
 

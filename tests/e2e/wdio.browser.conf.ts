@@ -18,6 +18,7 @@ export const config: Options.Testrunner = {
     "./specs/preview-editable.spec.ts",
     "./specs/preview-mermaid.spec.ts",
     "./specs/preview-image.spec.ts",
+    "./specs/editor-paste-image.spec.ts",
     "./specs/settings-export.spec.ts",
     "./specs/heading-fold.spec.ts",
   ],

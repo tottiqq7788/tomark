@@ -1,0 +1,40 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-EDITOR-PASTE-IMAGE-001",
+  "role": "implementation_owner",
+  "baseline_commit": "29e09f3448cc5952215edc1849f5275afa86a004",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-001",
+  "allowed_scope": [
+    "src/editor/**",
+    "src/app/AppShell.vue",
+    "src/app/useEditorPasteImage.ts",
+    "src/app/settings/HelpSettingsPanel.vue",
+    "src/native/documentAssetService.ts",
+    "src-tauri/src/export_io.rs",
+    "src-tauri/src/lib.rs",
+    "src-tauri/permissions/export-io.toml",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "add_new",
+  "l0_rule_ids": ["L0-TMK-021", "L0-TMK-002", "L0-TMK-005", "L0-TMK-012", "L0-TMK-019"],
+  "must_preserve": [
+    "Markdown 源码唯一权威与预览图片只读。",
+    "Cmd/Ctrl+点击定位与纯文本粘贴。",
+    "取消另存为不产生文件副作用。"
+  ],
+  "must_reject": [
+    "写盘失败仍插入 Markdown。",
+    "路径越出文档目录。",
+    "默认引入 Tauri clipboard capability。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "notes": "治理基线 29e09f3；DEC-TMK-20260810-007 / L0-TMK-021。"
+}

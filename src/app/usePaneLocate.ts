@@ -17,6 +17,7 @@ export type EditorPaneExpose = {
   getSelection?: () => { anchor: number; head: number };
   undo?: () => boolean;
   redo?: () => boolean;
+  pasteImageFile?: (file: File) => Promise<boolean>;
 };
 
 export type PreviewLocateApi = {
