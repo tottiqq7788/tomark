@@ -479,10 +479,19 @@ function makeReadonlyInline(
   label = readonlyLabel(node),
 ): InlineBuild {
   const range = nodeRange(node) ?? { from: 0, to: 0 };
+  const imageSrc =
+    kind === "image" && typeof node.url === "string" && node.url.trim()
+      ? node.url.trim()
+      : null;
   const atom = editablePreviewSchema.nodes.readonly_inline
     .create({
       kind,
       label,
+      src: imageSrc,
+      alt:
+        kind === "image" && typeof node.alt === "string" ? node.alt : null,
+      title:
+        kind === "image" && typeof node.title === "string" ? node.title : null,
       sourceFrom: range.from,
       sourceTo: range.to,
       reason,

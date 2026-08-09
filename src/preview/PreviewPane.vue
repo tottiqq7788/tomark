@@ -19,6 +19,19 @@ import {
   resolveMermaidDiagramFromTarget,
 } from "@/preview/mermaidDiagramRegistry";
 import {
+  getPreviewImageContext,
+  registerPreviewImage,
+  resolvePreviewImageFromTarget,
+} from "@/preview/previewImageRegistry";
+import {
+  clearPreviewImageCache,
+  resolvePreviewImage,
+} from "@/preview/resolvePreviewImage";
+import {
+  notifyPreviewImageDocumentPathChanged,
+  setPreviewImageDocumentPathProvider,
+} from "@/preview/editing/imageNodeView";
+import {
   ExportCancelledError,
   ExportFailedError,
 } from "@/export/types";
@@ -29,6 +42,8 @@ import {
 import PreviewFormatToolbar from "./PreviewFormatToolbar.vue";
 import MermaidDiagramToolbar from "./MermaidDiagramToolbar.vue";
 import MermaidFullscreenViewer from "./MermaidFullscreenViewer.vue";
+import ImageDiagramToolbar from "./ImageDiagramToolbar.vue";
+import ImageFullscreenViewer from "./ImageFullscreenViewer.vue";
 import PreviewEditableHost from "./editing/PreviewEditableHost.vue";
 import type { PreviewEditStatus } from "./editing/usePreviewEditSession";
 import "./editing/editablePreview.css";
@@ -46,9 +61,12 @@ const props = withDefaults(
     getRevision: () => number;
     /** Document file name used for single-diagram PNG suggestions. */
     fileName?: string;
+    /** Absolute path of the open document; required for local relative images. */
+    documentPath?: string | null;
   }>(),
   {
     fileName: "untitled.md",
+    documentPath: null,
   },
 );
 
@@ -116,12 +134,30 @@ const mermaidViewerOpen = ref(false);
 const mermaidFullscreenBtn = ref<HTMLElement | null>(null);
 let mermaidTargetObserver: MutationObserver | null = null;
 
+const imageToolbarVisible = ref(false);
+const imageToolbarTop = ref(0);
+const imageToolbarCenterX = ref(0);
+const imageToolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
+const imageTarget = ref<HTMLElement | null>(null);
+const imageDataUrlSnapshot = ref("");
+const imageBytesSnapshot = ref<Uint8Array | undefined>(undefined);
+const imageMimeSnapshot = ref("image/png");
+const imageNaturalWidth = ref(1);
+const imageNaturalHeight = ref(1);
+const imageIndex = ref(1);
+const imageExportBusy = ref(false);
+const imageViewerOpen = ref(false);
+const imageFullscreenBtn = ref<HTMLElement | null>(null);
+let imageTargetObserver: MutationObserver | null = null;
+let fallbackImageMountToken = 0;
+
 const useEditable = computed(
   () => props.renderMode === "editable" && props.projection != null,
 );
 
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
 const MERMAID_TOOLBAR_SIZE = { width: 178, height: 38 };
+const IMAGE_TOOLBAR_SIZE = { width: 118, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
   const el = toolbarRef.value?.root ?? null;
@@ -262,12 +298,193 @@ function showMermaidToolbarFor(wrapper: HTMLElement) {
     return;
   }
   hideToolbar();
+  hideImageToolbar({ keepViewer: false });
   mermaidTarget.value = wrapper;
   mermaidSourceSnapshot.value = context.source;
   mermaidSvgSnapshot.value = context.svg;
   mermaidDiagramIndex.value = diagramIndexAmongSuccess(wrapper);
   placeMermaidToolbar(wrapper);
   observeMermaidTarget(wrapper);
+}
+
+function measureImageToolbarSize(): { width: number; height: number } {
+  const el = imageToolbarRef.value?.root ?? null;
+  if (!el) {
+    return IMAGE_TOOLBAR_SIZE;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width > 0 && rect.height > 0) {
+    return { width: rect.width, height: rect.height };
+  }
+  return IMAGE_TOOLBAR_SIZE;
+}
+
+function placeImageToolbar(wrapper: HTMLElement) {
+  const rect = wrapper.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    hideImageToolbar({ keepViewer: imageViewerOpen.value });
+    return;
+  }
+  const viewport = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+  if (
+    rect.bottom < 0 ||
+    rect.top > viewport.height ||
+    rect.right < 0 ||
+    rect.left > viewport.width
+  ) {
+    hideImageToolbar({ keepViewer: imageViewerOpen.value });
+    return;
+  }
+  const size = measureImageToolbarSize();
+  const pos = clampToolbarPosition(
+    {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      height: rect.height,
+    },
+    size,
+    viewport,
+  );
+  imageToolbarTop.value = pos.top;
+  imageToolbarCenterX.value = pos.centerX;
+  imageToolbarVisible.value = true;
+}
+
+function disconnectImageTargetObserver() {
+  imageTargetObserver?.disconnect();
+  imageTargetObserver = null;
+}
+
+function hideImageToolbar(options?: { keepViewer?: boolean }) {
+  imageToolbarVisible.value = false;
+  imageTarget.value = null;
+  if (!options?.keepViewer) {
+    imageDataUrlSnapshot.value = "";
+    imageBytesSnapshot.value = undefined;
+    imageMimeSnapshot.value = "image/png";
+    imageNaturalWidth.value = 1;
+    imageNaturalHeight.value = 1;
+    imageViewerOpen.value = false;
+  }
+  disconnectImageTargetObserver();
+}
+
+function observeImageTarget(wrapper: HTMLElement) {
+  disconnectImageTargetObserver();
+  if (typeof MutationObserver === "undefined") {
+    return;
+  }
+  imageTargetObserver = new MutationObserver(() => {
+    if (!wrapper.isConnected) {
+      hideImageToolbar();
+    }
+  });
+  imageTargetObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+function imageIndexAmongSuccess(wrapper: HTMLElement): number {
+  const root = scrollRoot.value;
+  if (!root) {
+    return 1;
+  }
+  const wrappers = [
+    ...root.querySelectorAll(".preview-image[data-preview-image='1']"),
+  ] as HTMLElement[];
+  const index = wrappers.indexOf(wrapper);
+  return index >= 0 ? index + 1 : 1;
+}
+
+function showImageToolbarFor(wrapper: HTMLElement) {
+  const context = getPreviewImageContext(wrapper);
+  if (!context) {
+    return;
+  }
+  hideToolbar();
+  hideMermaidToolbar({ keepViewer: false });
+  imageTarget.value = wrapper;
+  imageDataUrlSnapshot.value = context.dataUrl;
+  imageBytesSnapshot.value = context.bytes;
+  imageMimeSnapshot.value = context.mimeType;
+  imageIndex.value = imageIndexAmongSuccess(wrapper);
+  const img = wrapper.querySelector("img");
+  imageNaturalWidth.value = Math.max(
+    1,
+    img?.naturalWidth || img?.width || 1,
+  );
+  imageNaturalHeight.value = Math.max(
+    1,
+    img?.naturalHeight || img?.height || 1,
+  );
+  placeImageToolbar(wrapper);
+  observeImageTarget(wrapper);
+}
+
+async function mountFallbackPreviewImages() {
+  const root = fallbackContainer.value;
+  if (!root) {
+    return;
+  }
+  const token = ++fallbackImageMountToken;
+  const images = [...root.querySelectorAll("img[src]")] as HTMLImageElement[];
+  for (const img of images) {
+    if (token !== fallbackImageMountToken) {
+      return;
+    }
+    if (img.closest(".preview-image")) {
+      continue;
+    }
+    const originalSrc = img.getAttribute("src")?.trim() || "";
+    if (!originalSrc) {
+      continue;
+    }
+    const wrapper = document.createElement("span");
+    wrapper.className = "preview-image";
+    wrapper.setAttribute("role", "img");
+    img.replaceWith(wrapper);
+    wrapper.appendChild(img);
+    try {
+      const resolved = await resolvePreviewImage(
+        originalSrc,
+        props.documentPath ?? null,
+      );
+      if (token !== fallbackImageMountToken || !wrapper.isConnected) {
+        return;
+      }
+      img.src = resolved.dataUrl;
+      wrapper.setAttribute("data-preview-image", "1");
+      wrapper.setAttribute("data-tm-image-src", originalSrc);
+      registerPreviewImage(wrapper, {
+        originalSrc,
+        dataUrl: resolved.dataUrl,
+        bytes: resolved.bytes,
+        mimeType: resolved.mimeType,
+        sourceLine: null,
+      });
+    } catch (error) {
+      if (token !== fallbackImageMountToken || !wrapper.isConnected) {
+        return;
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      wrapper.classList.add("preview-image-error");
+      wrapper.setAttribute("data-preview-image-error", "1");
+      const alt = img.getAttribute("alt")?.trim() || "";
+      wrapper.replaceChildren();
+      const label = document.createElement("span");
+      label.className = "preview-image-error-label";
+      label.title = message;
+      label.textContent = alt ? `图片加载失败：${alt}` : "图片加载失败";
+      wrapper.appendChild(label);
+    }
+  }
 }
 
 function onMermaidScrollOrResize() {
@@ -281,6 +498,17 @@ function onMermaidScrollOrResize() {
   placeMermaidToolbar(mermaidTarget.value);
 }
 
+function onImageScrollOrResize() {
+  if (!imageToolbarVisible.value || !imageTarget.value) {
+    return;
+  }
+  if (!imageTarget.value.isConnected) {
+    hideImageToolbar();
+    return;
+  }
+  placeImageToolbar(imageTarget.value);
+}
+
 function onPreviewCaptureClick(event: MouseEvent) {
   if (event.button !== 0) {
     return;
@@ -291,45 +519,63 @@ function onPreviewCaptureClick(event: MouseEvent) {
   }
   if (
     target.closest(
-      '[data-testid="preview-mermaid-toolbar"], [data-testid="preview-format-toolbar"], [data-testid="mermaid-fullscreen-viewer"]',
+      '[data-testid="preview-mermaid-toolbar"], [data-testid="preview-image-toolbar"], [data-testid="preview-format-toolbar"], [data-testid="mermaid-fullscreen-viewer"], [data-testid="image-fullscreen-viewer"]',
     )
   ) {
     return;
   }
 
   if (isLocateModifier(event)) {
-    // Cmd/Ctrl+click keeps the existing locate path; never arm the diagram toolbar.
+    // Cmd/Ctrl+click keeps the existing locate path; never arm viewer toolbars.
     hideMermaidToolbar();
+    hideImageToolbar();
     return;
   }
 
-  const resolved = resolveMermaidDiagramFromTarget(target);
-  if (!resolved) {
-    if (
-      mermaidToolbarVisible.value &&
-      !target.closest(".mermaid-diagram[data-mermaid='1']")
-    ) {
-      hideMermaidToolbar({ keepViewer: mermaidViewerOpen.value });
-    }
+  const mermaidResolved = resolveMermaidDiagramFromTarget(target);
+  if (mermaidResolved) {
+    event.preventDefault();
+    event.stopPropagation();
+    showMermaidToolbarFor(mermaidResolved.wrapper);
     return;
   }
 
-  // Capture-phase stop so editable readonly tip / other click handlers skip this hit.
-  event.preventDefault();
-  event.stopPropagation();
-  showMermaidToolbarFor(resolved.wrapper);
+  const imageResolved = resolvePreviewImageFromTarget(target);
+  if (imageResolved) {
+    event.preventDefault();
+    event.stopPropagation();
+    showImageToolbarFor(imageResolved.wrapper);
+    return;
+  }
+
+  if (
+    mermaidToolbarVisible.value &&
+    !target.closest(".mermaid-diagram[data-mermaid='1']")
+  ) {
+    hideMermaidToolbar({ keepViewer: mermaidViewerOpen.value });
+  }
+  if (
+    imageToolbarVisible.value &&
+    !target.closest(".preview-image[data-preview-image='1']")
+  ) {
+    hideImageToolbar({ keepViewer: imageViewerOpen.value });
+  }
 }
 
 function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key !== "Escape") {
     return;
   }
-  if (mermaidViewerOpen.value) {
+  if (mermaidViewerOpen.value || imageViewerOpen.value) {
     return;
   }
   if (mermaidToolbarVisible.value) {
     event.preventDefault();
     hideMermaidToolbar();
+  }
+  if (imageToolbarVisible.value) {
+    event.preventDefault();
+    hideImageToolbar();
   }
 }
 
@@ -512,6 +758,108 @@ function onMermaidFullscreen() {
   mermaidViewerOpen.value = true;
 }
 
+async function onImageCopyImage() {
+  if (!imageDataUrlSnapshot.value.trim()) {
+    emit("status", "未选中可复制的图片");
+    return;
+  }
+  if (imageExportBusy.value) {
+    emit("status", "正在处理图片…");
+    return;
+  }
+  imageExportBusy.value = true;
+  try {
+    emit("status", "正在复制图片…");
+    const { copyPreviewImagePngToClipboard } = await import(
+      "@/export/exportPreviewImagePng"
+    );
+    await copyPreviewImagePngToClipboard({
+      dataUrl: imageDataUrlSnapshot.value,
+      bytes: imageBytesSnapshot.value,
+      mimeType: imageMimeSnapshot.value,
+    });
+    emit("status", "已复制图片");
+  } catch (error) {
+    const message =
+      error instanceof ExportFailedError || error instanceof Error
+        ? error.message
+        : String(error);
+    emit("status", `复制图片失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("复制图片失败", error);
+    } catch {
+      // Status remains fallback.
+    }
+  } finally {
+    imageExportBusy.value = false;
+  }
+}
+
+async function onImageExportPng() {
+  if (!imageDataUrlSnapshot.value.trim()) {
+    emit("status", "未选中可导出的图片");
+    return;
+  }
+  if (imageExportBusy.value) {
+    emit("status", "正在导出图片…");
+    return;
+  }
+  imageExportBusy.value = true;
+  try {
+    const { exportPreviewImagePng } = await import(
+      "@/export/exportPreviewImagePng"
+    );
+    const result = await exportPreviewImagePng({
+      dataUrl: imageDataUrlSnapshot.value,
+      bytes: imageBytesSnapshot.value,
+      mimeType: imageMimeSnapshot.value,
+      fileName: props.fileName,
+      imageIndex: imageIndex.value,
+      onProgress: (message) => emit("status", message),
+    });
+    emit("status", `已导出：${result.fileName}`);
+  } catch (error) {
+    if (
+      error instanceof ExportCancelledError ||
+      (error instanceof Error && error.name === "ExportCancelledError")
+    ) {
+      emit("status", "已取消导出");
+      return;
+    }
+    const message =
+      error instanceof ExportFailedError || error instanceof Error
+        ? error.message
+        : String(error);
+    emit("status", `导出失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("导出图片 PNG 失败", error);
+    } catch {
+      // Status remains fallback.
+    }
+  } finally {
+    imageExportBusy.value = false;
+  }
+}
+
+function onImageFullscreen() {
+  if (!imageDataUrlSnapshot.value) {
+    return;
+  }
+  const active = document.activeElement;
+  imageFullscreenBtn.value =
+    active instanceof HTMLElement ? active : null;
+  imageViewerOpen.value = true;
+}
+
+function onImageViewerClose() {
+  imageViewerOpen.value = false;
+  void nextTick(() => {
+    imageFullscreenBtn.value?.focus?.();
+  });
+}
+
 function onMermaidViewerClose() {
   mermaidViewerOpen.value = false;
   void nextTick(() => {
@@ -639,6 +987,7 @@ async function refreshMermaid() {
   beginMermaidCycle();
   await nextTick();
   await mountMermaid(generation);
+  await mountFallbackPreviewImages();
 }
 
 function hideToolbar() {
@@ -660,6 +1009,7 @@ function hideToolbar() {
 function hideAllToolbars() {
   hideToolbar();
   hideMermaidToolbar();
+  hideImageToolbar();
 }
 
 function withExpectedText(
@@ -703,6 +1053,8 @@ function applyResolvedSelection(resolved: PreviewFormatSelection | null) {
   // Freeze once armed — toolbar clicks must consume this immutable snapshot.
   formatSelectionSnapshot.value = snapshot;
   toolbarActive.value = { ...snapshot.active };
+  hideMermaidToolbar();
+  hideImageToolbar();
   placeToolbar(snapshot.rect);
 }
 
@@ -769,6 +1121,7 @@ function onLinkEditing(open: boolean) {
 
 function onScrollOrResize() {
   onMermaidScrollOrResize();
+  onImageScrollOrResize();
   if (!toolbarVisible.value || !currentSelection.value) {
     return;
   }
@@ -1021,7 +1374,21 @@ watch(
   },
 );
 
+watch(
+  () => props.documentPath,
+  () => {
+    clearPreviewImageCache();
+    setPreviewImageDocumentPathProvider(() => props.documentPath ?? null);
+    notifyPreviewImageDocumentPathChanged();
+    if (!useEditable.value) {
+      void refreshMermaid();
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(() => {
+  setPreviewImageDocumentPathProvider(() => props.documentPath ?? null);
   document.addEventListener("selectionchange", onSelectionChange);
   window.addEventListener("resize", onScrollOrResize);
   window.addEventListener("keydown", onFormatKeyDown, true);
@@ -1039,7 +1406,10 @@ onBeforeUnmount(() => {
   clearFlashTimer();
   bumpMermaidGeneration();
   finishMermaidCycle();
+  fallbackImageMountToken += 1;
   hideAllToolbars();
+  setPreviewImageDocumentPathProvider(null);
+  clearPreviewImageCache();
   document.removeEventListener("selectionchange", onSelectionChange);
   window.removeEventListener("resize", onScrollOrResize);
   window.removeEventListener("keydown", onFormatKeyDown, true);
@@ -1111,6 +1481,27 @@ onBeforeUnmount(() => {
       @export-svg="onMermaidExportSvg"
       @export-png="onMermaidExportPng"
     />
+    <ImageDiagramToolbar
+      ref="imageToolbarRef"
+      :visible="imageToolbarVisible"
+      :top="imageToolbarTop"
+      :center-x="imageToolbarCenterX"
+      :busy="imageExportBusy"
+      @fullscreen="onImageFullscreen"
+      @copy-image="onImageCopyImage"
+      @export-png="onImageExportPng"
+      @dismiss="hideImageToolbar()"
+    />
+    <ImageFullscreenViewer
+      :open="imageViewerOpen"
+      :image-src="imageDataUrlSnapshot"
+      :natural-width="imageNaturalWidth"
+      :natural-height="imageNaturalHeight"
+      :export-busy="imageExportBusy"
+      @close="onImageViewerClose"
+      @copy-image="onImageCopyImage"
+      @export-png="onImageExportPng"
+    />
   </div>
 </template>
 
@@ -1146,5 +1537,29 @@ onBeforeUnmount(() => {
   outline-offset: 2px;
   border-radius: 4px;
   transition: outline-color 0.2s ease;
+}
+
+.preview-content :deep(.preview-image) {
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  vertical-align: middle;
+}
+
+.preview-content :deep(.preview-image img) {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.preview-content :deep(.preview-image-error),
+.preview-content :deep(.preview-image-error-label) {
+  display: inline;
+  padding: 0 0.15em;
+  border-radius: 3px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.92em;
+  line-height: normal;
 }
 </style>

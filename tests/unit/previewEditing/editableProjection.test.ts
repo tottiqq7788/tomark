@@ -199,6 +199,21 @@ describe("editable Markdown projection", () => {
     host.append(fragment);
     expect(host.querySelector("b")).toBeNull();
     expect(host.textContent).toContain("图片：<b>");
+    let imageSrc: string | null = null;
+    let imageAlt: string | null = null;
+    projection.doc.descendants((node) => {
+      if (
+        node.type.name === "readonly_inline" &&
+        node.attrs.kind === "image"
+      ) {
+        imageSrc = String(node.attrs.src || "");
+        imageAlt = String(node.attrs.alt || "");
+        return false;
+      }
+      return true;
+    });
+    expect(imageSrc).toBe("x.png");
+    expect(imageAlt).toBe("<b>");
   });
 
   it("resolves text ranges across immutable format delimiters", () => {

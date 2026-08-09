@@ -615,6 +615,7 @@ useAppShortcuts({
             :selection-recovery="previewSelectionRecovery"
             :get-revision="editBridge.getRevision"
             :file-name="fileName"
+            :document-path="path"
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
             @format-selection="editBridge.onFormatSelection"

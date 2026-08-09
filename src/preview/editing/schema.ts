@@ -189,6 +189,9 @@ const nodes: Record<string, NodeSpec> = {
     attrs: {
       kind: { default: "unsupported" },
       label: { default: "" },
+      src: { default: null as string | null },
+      alt: { default: null as string | null },
+      title: { default: null as string | null },
       sourceFrom: { default: 0 },
       sourceTo: { default: 0 },
       reason: { default: "read-only" },
@@ -206,6 +209,9 @@ const nodes: Record<string, NodeSpec> = {
         "data-tm-readonly": String(node.attrs.reason),
         "data-tm-from": String(node.attrs.sourceFrom),
         "data-tm-to": String(node.attrs.sourceTo),
+        ...(typeof node.attrs.src === "string" && node.attrs.src
+          ? { "data-tm-image-src": String(node.attrs.src) }
+          : {}),
         role: "note",
       },
       String(node.attrs.label),

@@ -12,6 +12,10 @@ import {
   __resetEditableMermaidPendingForTests,
   __setEditableMermaidRendererLoaderForTests,
 } from "@/preview/editing/mermaidNodeView";
+import { clearPreviewImageCache } from "@/preview/resolvePreviewImage";
+
+const TINY_PNG =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 function locateModifierInit(): { metaKey: boolean; ctrlKey: boolean } {
   const isApple = /Mac|iPhone|iPad|iPod/i.test(navigator.platform);
@@ -78,6 +82,7 @@ function selectNeedle(wrapper: ReturnType<typeof mount>, needle: string) {
 
 describe("PreviewPane locate", () => {
   afterEach(() => {
+    clearPreviewImageCache();
     __setMermaidLoaderForTests(null);
     __resetMermaidStateForTests();
     __resetEditableMermaidPendingForTests();
@@ -608,6 +613,60 @@ describe("PreviewPane locate", () => {
     await nextTick();
     expect(
       wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("shows image toolbar on plain click of a resolved data URL image", async () => {
+    const source = `# Title\n\n![tiny](${TINY_PNG})\n`;
+    const wrapper = mountEditablePreview(source);
+    await vi.waitFor(() => {
+      expect(
+        wrapper
+          .find(".preview-image[data-preview-image='1'] img")
+          .exists(),
+      ).toBe(true);
+    });
+
+    const imageWrap = wrapper.find(
+      ".preview-image[data-preview-image='1']",
+    );
+    const el = imageWrap.element as HTMLElement;
+    el.getBoundingClientRect = () =>
+      ({
+        x: 40,
+        y: 80,
+        top: 80,
+        left: 40,
+        bottom: 140,
+        right: 140,
+        width: 100,
+        height: 60,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    await imageWrap.find("img").trigger("click");
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="preview-image-toolbar"]').isVisible(),
+    ).toBe(true);
+    expect(wrapper.find('[data-testid="image-fullscreen"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="image-copy-image"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="image-export-png"]').text()).toBe(
+      "PNG",
+    );
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-image-toolbar"]').isVisible(),
     ).toBe(false);
     wrapper.unmount();
   });

@@ -2,7 +2,7 @@
   "schema_version": "task-envelope:v0.1",
   "task_id": "TASK-IMAGE-VIEWER-001",
   "role": "implementation_owner",
-  "baseline_commit": "61b365a15c02229bf509c55e31a3bc5c9ed30bce",
+  "baseline_commit": "78304d2602a86f535f6e0bfbaf2526581fed642f",
   "work_package_id": "WP-IMAGE-VIEWER-001",
   "allowed_scope": [
     "src/preview/**",

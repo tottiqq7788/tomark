@@ -4,8 +4,8 @@
   "project_id": "tomark",
   "name": "Markdown 图片只读查看与工具栏",
   "status": "in_progress",
-  "baseline_commit": "61b365a15c02229bf509c55e31a3bc5c9ed30bce",
-  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-004 与 L0-TMK-019 的治理提交；可与实现同批提交。",
+  "baseline_commit": "78304d2602a86f535f6e0bfbaf2526581fed642f",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-004 与 L0-TMK-019 的治理提交 78304d2。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-004.json",
   "l0_impact": {

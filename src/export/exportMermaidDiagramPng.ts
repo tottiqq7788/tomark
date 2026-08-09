@@ -229,7 +229,7 @@ export async function copyMermaidDiagramPngToClipboard(
     throw new ExportFailedError("Mermaid 源码为空");
   }
   const { bytes, width, height } = await rasterizeMermaidDiagramPng(trimmed);
-  const blob = new Blob([bytes], { type: "image/png" });
+  const blob = new Blob([Uint8Array.from(bytes)], { type: "image/png" });
   const clipboard = navigator.clipboard;
   if (!clipboard?.write || typeof ClipboardItem === "undefined") {
     throw new ExportFailedError("当前环境不支持复制图片到剪贴板");

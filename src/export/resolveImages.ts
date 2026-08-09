@@ -97,7 +97,7 @@ function collectImageSources(html: string): string[] {
   return found;
 }
 
-async function resolveOneImage(
+export async function resolveOneImage(
   src: string,
   documentPath: string | null,
 ): Promise<Omit<ResolvedImage, "assetName">> {

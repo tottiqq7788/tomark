@@ -10,6 +10,7 @@ import {
   isEditableMermaidPending,
   waitForEditableMermaidReady,
 } from "./mermaidNodeView";
+import { createReadonlyInlineNodeView } from "./imageNodeView";
 import {
   resolveEditableFormatSelection,
   sourceLineAtPosition,
@@ -470,6 +471,7 @@ export function createPreviewEditSession(
     }),
     nodeViews: {
       readonly_block: createReadonlyBlockNodeView,
+      readonly_inline: createReadonlyInlineNodeView,
     },
     dispatchTransaction(tr) {
       if (destroyed) {
