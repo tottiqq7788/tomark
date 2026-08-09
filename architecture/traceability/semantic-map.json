@@ -171,7 +171,7 @@
       "id": "L0-TMK-015A",
       "name": "Mermaid 只读渲染",
       "status": "approved",
-      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文），且不得改变围栏源码。源码定位仍由 Cmd/Ctrl+点击提供。复制源码不等于批准编辑。",
+      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文、复制图片），且不得改变围栏源码。源码定位仍由 Cmd/Ctrl+点击提供。复制源码或图片不等于批准编辑。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
@@ -180,7 +180,8 @@
         "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-MERMAID-FORMAL",
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
-        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003"
+        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
+        "architecture/decisions/DEC-TMK-20260810-003.json#DEC-TMK-MERMAID-TOOLBAR-004"
       ]
     },
     {
@@ -217,11 +218,12 @@
       "id": "L0-TMK-018",
       "name": "Mermaid 只读查看与单图导出",
       "status": "approved",
-      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示浮动工具栏，顺序为全屏（icon）、复制围栏正文（icon）、导出 SVG（英文标签 SVG）、导出 PNG（英文标签 PNG，白底 2×，画布上限内；超出则明确失败）。工具栏不提供定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
+      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示浮动工具栏，顺序为全屏（icon）、复制围栏正文（icon）、复制图片（icon，PNG 白底 2× 栅格写入剪贴板，画布上限与导出 PNG 一致；失败须明确反馈）、导出 SVG（英文标签 SVG）、导出 PNG（英文标签 PNG，白底 2×）。工具栏不提供定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码或图片不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
       "source_refs": [
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
         "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
+        "architecture/decisions/DEC-TMK-20260810-003.json#DEC-TMK-MERMAID-TOOLBAR-004",
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]

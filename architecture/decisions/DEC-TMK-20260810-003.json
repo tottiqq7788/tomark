@@ -1,0 +1,52 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-003",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "0338da015e7ced361f6434199dda3a3a79e490a3",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision",
+    "statement": "项目负责人确认 Mermaid 浮动工具栏在复制源码右侧增加复制图片（PNG 白底 2× 栅格）能力；仍不得写回围栏源码，不新增 Tauri clipboard capability（优先 Web Clipboard）。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-MERMAID-TOOLBAR-004",
+      "decision": "扩展 L0-TMK-018：浮动工具栏顺序为 fullscreen（icon）、copy_source（icon）、copy_image（icon）、export_svg（SVG）、export_png（PNG）。复制图片使用与单图 PNG 导出一致的白底 2× 栅格，写入系统剪贴板；失败须明确反馈。复制图片不等于批准编辑围栏。",
+      "approved_rule_ids": ["L0-TMK-018", "L0-TMK-015A"],
+      "modified_rule_ids": ["L0-TMK-018", "L0-TMK-015A"],
+      "scope": {
+        "toolbar": [
+          "fullscreen",
+          "copy_source",
+          "copy_image",
+          "export_svg",
+          "export_png"
+        ],
+        "copy_image": {
+          "format": "image/png",
+          "raster": "white_bg_2x_same_as_export_png",
+          "clipboard": "navigator.clipboard.write_ClipboardItem",
+          "authority": "registry_source_snapshot_rerender"
+        }
+      },
+      "out_of_scope": [
+        "Mermaid 源码编辑 / 围栏写回",
+        "复制 SVG 矢量到剪贴板",
+        "文档级 ExportSettingsPanel 三种导出格式行为变更",
+        "默认新增 Tauri clipboard capability（除非运行态证明 Web Clipboard 不可用）"
+      ],
+      "invariants": [
+        "Markdown 与围栏源码唯一权威；工具栏交互不得写回。",
+        "错误块不提供工具栏与成功复制/导出路径。",
+        "复制图片与导出 PNG 共用栅格语义（白底 2×、画布上限）。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修订并保持批准 L0-TMK-018 / L0-TMK-015A。",
+    "签发 WP-MERMAID-TOOLBAR-004；实现前/同批落地本决策与语义修订。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

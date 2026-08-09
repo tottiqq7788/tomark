@@ -210,6 +210,7 @@ describe("mermaid preview", () => {
               getComputedStyle(toolbar).display !== "none" &&
               document.querySelector('[data-testid="mermaid-fullscreen"]') &&
               document.querySelector('[data-testid="mermaid-copy-source"]') &&
+              document.querySelector('[data-testid="mermaid-copy-image"]') &&
               svgBtn?.textContent?.trim() === "SVG" &&
               pngBtn?.textContent?.trim() === "PNG" &&
               !document.querySelector('[data-testid="mermaid-locate-source"]'),
@@ -218,18 +219,27 @@ describe("mermaid preview", () => {
       {
         timeout: 10_000,
         timeoutMsg:
-          "expected Mermaid toolbar: fullscreen, copy, SVG, PNG (no locate)",
+          "expected Mermaid toolbar: fullscreen, copy source/image, SVG, PNG",
       },
     );
 
     await browser.execute(() => {
       const win = window as unknown as {
         __tomarkClipboard?: string;
+        __tomarkClipboardImage?: boolean;
       };
       win.__tomarkClipboard = "";
+      win.__tomarkClipboardImage = false;
       const clipboard = {
         writeText: async (text: string) => {
           win.__tomarkClipboard = text;
+        },
+        write: async (items: ClipboardItem[]) => {
+          for (const item of items) {
+            if (item.types.includes("image/png")) {
+              win.__tomarkClipboardImage = true;
+            }
+          }
         },
       };
       try {
@@ -259,6 +269,22 @@ describe("mermaid preview", () => {
       {
         timeout: 8_000,
         timeoutMsg: "copy-source did not report success or write clipboard mock",
+      },
+    );
+
+    await $('[data-testid="mermaid-copy-image"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const status = document.querySelector(".status-left")?.textContent ?? "";
+          const copied = (
+            window as unknown as { __tomarkClipboardImage?: boolean }
+          ).__tomarkClipboardImage;
+          return status.includes("已复制 Mermaid 图片") || Boolean(copied);
+        }),
+      {
+        timeout: 15_000,
+        timeoutMsg: "copy-image did not report success or write clipboard mock",
       },
     );
 

@@ -1,0 +1,36 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-MERMAID-TOOLBAR-004",
+  "role": "implementation_owner",
+  "baseline_commit": "0338da015e7ced361f6434199dda3a3a79e490a3",
+  "work_package_id": "WP-MERMAID-TOOLBAR-004",
+  "allowed_scope": [
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/export/exportMermaidDiagramPng.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "modify_existing",
+  "l0_rule_ids": ["L0-TMK-018", "L0-TMK-015A", "L0-TMK-002"],
+  "must_preserve": [
+    "Markdown 源码唯一权威与 Mermaid 预览只读。",
+    "Cmd/Ctrl+点击定位与现有回归。",
+    "PNG 导出语义不变；复制图片共用其栅格参数。"
+  ],
+  "must_reject": [
+    "修改 Mermaid 围栏源码或建立第二文档权威。",
+    "错误块导出/复制成功路径。",
+    "默认引入新的 Tauri clipboard capability。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。"
+  ],
+  "notes": "用户确认在复制源码右侧增加复制图片。"
+}

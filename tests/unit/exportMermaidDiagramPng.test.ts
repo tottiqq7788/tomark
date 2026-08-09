@@ -19,10 +19,13 @@ vi.mock("@/native/exportFileService", () => ({
 }));
 
 import {
+  copyMermaidDiagramPngToClipboard,
+  cropCanvasWhiteMargins,
   exportMermaidDiagramPng,
   PNG_SCALE,
   rasterizeMermaidDiagramPng,
   suggestMermaidPngName,
+  tightenMermaidSvgToContent,
 } from "@/export/exportMermaidDiagramPng";
 
 describe("exportMermaidDiagramPng", () => {
@@ -100,5 +103,115 @@ describe("exportMermaidDiagramPng", () => {
       message: expect.stringContaining("画布限制"),
     });
     expect(html2canvas).not.toHaveBeenCalled();
+  });
+
+  it("writes a PNG ClipboardItem via Web Clipboard", async () => {
+    class FakeClipboardItem {
+      readonly types: string[];
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        this.types = Object.keys(items);
+      }
+    }
+    vi.stubGlobal("ClipboardItem", FakeClipboardItem);
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { write },
+    });
+    const result = await copyMermaidDiagramPngToClipboard("graph TD\nA-->B");
+    expect(result.width).toBe(200);
+    expect(result.height).toBe(100);
+    expect(write).toHaveBeenCalledTimes(1);
+    const items = write.mock.calls[0][0] as Array<{ types: string[] }>;
+    expect(items).toHaveLength(1);
+    expect(items[0].types).toContain("image/png");
+    vi.unstubAllGlobals();
+  });
+
+  it("fails closed when ClipboardItem write is unavailable", async () => {
+    vi.stubGlobal("ClipboardItem", undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn() },
+    });
+    await expect(
+      copyMermaidDiagramPngToClipboard("graph TD\nA-->B"),
+    ).rejects.toMatchObject({
+      name: "ExportFailedError",
+      message: expect.stringContaining("不支持复制图片"),
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("tightens SVG viewBox to getBBox content plus pad", () => {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 200 300");
+    svg.setAttribute("width", "200");
+    svg.setAttribute("height", "300");
+    svg.getBBox = () =>
+      ({
+        x: 10,
+        y: 20,
+        width: 80,
+        height: 60,
+        top: 20,
+        left: 10,
+        right: 90,
+        bottom: 80,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const size = tightenMermaidSvgToContent(svg, 8);
+    expect(size).toEqual({ width: 96, height: 76 });
+    expect(svg.getAttribute("viewBox")).toBe("2 12 96 76");
+    expect(svg.getAttribute("width")).toBe("96");
+    expect(svg.getAttribute("height")).toBe("76");
+  });
+
+  it("crops near-white margins from a raster canvas", () => {
+    const width = 40;
+    const height = 40;
+    const data = new Uint8ClampedArray(width * height * 4);
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+    }
+    // Opaque dark content at (5,5)-(14,12)
+    for (let y = 5; y < 13; y += 1) {
+      for (let x = 5; x < 15; x += 1) {
+        const i = (y * width + x) * 4;
+        data[i] = 51;
+        data[i + 1] = 51;
+        data[i + 2] = 51;
+      }
+    }
+    const drawImage = vi.fn();
+    const outCanvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({
+        fillStyle: "",
+        fillRect: vi.fn(),
+        drawImage,
+      }),
+    };
+    const createElement = vi
+      .spyOn(document, "createElement")
+      .mockReturnValue(outCanvas as unknown as HTMLCanvasElement);
+    const canvas = {
+      width,
+      height,
+      getContext: () => ({
+        getImageData: () => ({ data, width, height }),
+      }),
+    } as unknown as HTMLCanvasElement;
+
+    const cropped = cropCanvasWhiteMargins(canvas, 2);
+    expect(cropped).toBe(outCanvas);
+    expect(outCanvas.width).toBe(14);
+    expect(outCanvas.height).toBe(12);
+    expect(drawImage).toHaveBeenCalledWith(canvas, 3, 3, 14, 12, 0, 0, 14, 12);
+    createElement.mockRestore();
   });
 });

@@ -63,7 +63,7 @@
         "渲染 HTML 必须经过已声明的 sanitize schema。",
         "标题、段落、列表项、引用、表格单元格及其它已批准可映射普通文字允许直接键入，并以显式源码事务写回唯一 Markdown 源码。",
         "Mermaid 围栏作为正式能力渲染，在预览侧保持只读，并遵循与导出一致的图表语义。",
-        "成功渲染的 Mermaid 图普通点击显示浮动工具栏；顺序为全屏 icon、复制源码 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
+        "成功渲染的 Mermaid 图普通点击显示浮动工具栏；顺序为全屏 icon、复制源码 icon、复制图片 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
         "全屏查看器不改变文档会话、脏状态或撤销历史；打开时持有 SVG 快照，不绑定可能被重建的 live DOM。",
         "复制源码与导出不得写回围栏；复制不等于批准预览编辑。",
         "定位和格式化使用源码范围或精确映射，不按显示文本或像素猜测。",
@@ -84,7 +84,7 @@
       ],
       "implementation_gaps": [
         "冻结基线 usePreviewEditSession.ts 设置 editable() 为 false 并忽略文档变更，尚未实现直接键入。",
-        "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展（复制源码/SVG）由 WP-MERMAID-TOOLBAR-002 覆盖；工具栏去定位按钮与顺序修订由 WP-MERMAID-TOOLBAR-003 覆盖。",
+        "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展（复制源码/SVG）由 WP-MERMAID-TOOLBAR-002 覆盖；工具栏去定位按钮与顺序修订由 WP-MERMAID-TOOLBAR-003 覆盖；复制图片由 WP-MERMAID-TOOLBAR-004 覆盖。",
         "L1/L2 责任映射与本合同仍为 candidate，需在实现准入和独立审查中确认。"
       ]
     },

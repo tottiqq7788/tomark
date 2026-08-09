@@ -484,6 +484,9 @@ describe("PreviewPane locate", () => {
     expect(wrapper.find('[data-testid="mermaid-copy-source"]').exists()).toBe(
       true,
     );
+    expect(wrapper.find('[data-testid="mermaid-copy-image"]').exists()).toBe(
+      true,
+    );
     expect(wrapper.find('[data-testid="mermaid-export-svg"]').text()).toBe(
       "SVG",
     );
@@ -505,6 +508,18 @@ describe("PreviewPane locate", () => {
       expect.stringContaining("graph TD"),
     );
     expect(wrapper.emitted("status")?.at(-1)?.[0]).toBe("已复制 Mermaid 源码");
+
+    const pngMod = await import("@/export/exportMermaidDiagramPng");
+    const copyImage = vi
+      .spyOn(pngMod, "copyMermaidDiagramPngToClipboard")
+      .mockResolvedValue({ width: 20, height: 10 });
+    await wrapper.find('[data-testid="mermaid-copy-image"]').trigger("click");
+    await flushPromises();
+    expect(copyImage).toHaveBeenCalledWith(
+      expect.stringContaining("graph TD"),
+    );
+    expect(wrapper.emitted("status")?.at(-1)?.[0]).toBe("已复制 Mermaid 图片");
+    copyImage.mockRestore();
 
     // Outside click dismisses the Mermaid toolbar.
     await wrapper.get(".preview-pane").trigger("click");

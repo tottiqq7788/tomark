@@ -13,6 +13,7 @@ const root = ref<HTMLElement | null>(null);
 const emit = defineEmits<{
   fullscreen: [];
   "copy-source": [];
+  "copy-image": [];
   "export-svg": [];
   "export-png": [];
   dismiss: [];
@@ -79,6 +80,24 @@ function onToolbarKeydown(event: KeyboardEvent) {
     </button>
     <button
       type="button"
+      class="mermaid-btn"
+      title="复制图片"
+      aria-label="复制图片"
+      data-testid="mermaid-copy-image"
+      :disabled="busy"
+      :aria-busy="busy ? 'true' : 'false'"
+      @mousedown="retainSelection"
+      @click="emit('copy-image')"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M2.75 2.5A1.75 1.75 0 0 0 1 4.25v7.5c0 .966.784 1.75 1.75 1.75h10.5A1.75 1.75 0 0 0 15 11.75v-7.5A1.75 1.75 0 0 0 13.25 2.5H2.75zM2.5 4.25c0-.138.112-.25.25-.25h10.5c.138 0 .25.112.25.25v5.19l-2.22-2.22a.75.75 0 0 0-1.06 0L6.5 11l-1.47-1.47a.75.75 0 0 0-1.06 0L2.5 11.5V4.25zm8.25 1.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"
+        />
+      </svg>
+    </button>
+    <button
+      type="button"
       class="mermaid-btn mermaid-btn-label"
       title="Export SVG"
       aria-label="Export SVG"
@@ -114,7 +133,7 @@ function onToolbarKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 2px;
   padding: 4px;
-  max-width: min(220px, calc(100vw - 16px));
+  max-width: min(260px, calc(100vw - 16px));
   transform: translateX(-50%);
   background: #111827;
   color: #f9fafb;

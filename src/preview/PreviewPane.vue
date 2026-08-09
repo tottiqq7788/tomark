@@ -121,7 +121,7 @@ const useEditable = computed(
 );
 
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
-const MERMAID_TOOLBAR_SIZE = { width: 148, height: 38 };
+const MERMAID_TOOLBAR_SIZE = { width: 178, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
   const el = toolbarRef.value?.root ?? null;
@@ -464,6 +464,41 @@ async function onMermaidCopySource() {
     } catch {
       // Status remains fallback.
     }
+  }
+}
+
+async function onMermaidCopyImage() {
+  const source = mermaidSourceSnapshot.value.trim();
+  if (!source) {
+    emit("status", "未选中可复制的 Mermaid 图表");
+    return;
+  }
+  if (mermaidExportBusy.value) {
+    emit("status", "正在处理 Mermaid 图表…");
+    return;
+  }
+  mermaidExportBusy.value = true;
+  try {
+    emit("status", "正在生成图片…");
+    const { copyMermaidDiagramPngToClipboard } = await import(
+      "@/export/exportMermaidDiagramPng"
+    );
+    await copyMermaidDiagramPngToClipboard(source);
+    emit("status", "已复制 Mermaid 图片");
+  } catch (error) {
+    const message =
+      error instanceof ExportFailedError || error instanceof Error
+        ? error.message
+        : String(error);
+    emit("status", `复制图片失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("复制 Mermaid 图片失败", error);
+    } catch {
+      // Status remains fallback.
+    }
+  } finally {
+    mermaidExportBusy.value = false;
   }
 }
 
@@ -1061,6 +1096,7 @@ onBeforeUnmount(() => {
       :busy="mermaidExportBusy"
       @fullscreen="onMermaidFullscreen"
       @copy-source="onMermaidCopySource"
+      @copy-image="onMermaidCopyImage"
       @export-svg="onMermaidExportSvg"
       @export-png="onMermaidExportPng"
       @dismiss="hideMermaidToolbar()"
@@ -1070,9 +1106,10 @@ onBeforeUnmount(() => {
       :svg-html="mermaidSvgSnapshot"
       :export-busy="mermaidExportBusy"
       @close="onMermaidViewerClose"
-      @export-png="onMermaidExportPng"
-      @export-svg="onMermaidExportSvg"
       @copy-source="onMermaidCopySource"
+      @copy-image="onMermaidCopyImage"
+      @export-svg="onMermaidExportSvg"
+      @export-png="onMermaidExportPng"
     />
   </div>
 </template>

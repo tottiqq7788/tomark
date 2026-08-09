@@ -27,6 +27,7 @@ const emit = defineEmits<{
   "export-png": [];
   "export-svg": [];
   "copy-source": [];
+  "copy-image": [];
 }>();
 
 const dialogRef = ref<HTMLElement | null>(null);
@@ -266,6 +267,14 @@ onBeforeUnmount(() => {
               @click="emit('copy-source')"
             >
               复制源码
+            </button>
+            <button
+              type="button"
+              data-testid="mermaid-viewer-copy-image"
+              :disabled="exportBusy"
+              @click="emit('copy-image')"
+            >
+              复制图片
             </button>
             <button
               type="button"

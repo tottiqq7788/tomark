@@ -1,0 +1,56 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-MERMAID-TOOLBAR-004",
+  "project_id": "tomark",
+  "name": "Mermaid 工具栏：复制图片",
+  "status": "in_progress",
+  "baseline_commit": "0338da015e7ced361f6434199dda3a3a79e490a3",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-003 与扩展后 L0-TMK-018 的治理对象；可与实现同批提交。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-003.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": ["L0-TMK-015A"],
+    "rule_ids": ["L0-TMK-018", "L0-TMK-015A", "L0-TMK-002"],
+    "reason": "在只读工具栏增加复制图片动作；不引入围栏编辑或新文档权威。"
+  },
+  "goal": "成功渲染的 Mermaid 工具栏在复制源码右侧提供复制图片（PNG 白底 2× 到剪贴板）；全程只读、不写回源码。",
+  "allowed_scope": [
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/export/exportMermaidDiagramPng.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "Mermaid 源码编辑 / 围栏写回",
+    "文档级导出三种格式行为变更",
+    "默认新增 Tauri clipboard capability"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威；复制/导出不得写回文档。",
+    "错误块无工具栏；普通点击开工具栏；Cmd/Ctrl+点击定位仍可用。",
+    "PNG 导出白底 2× 与画布上限行为不变。"
+  ],
+  "must_reject": [
+    "把复制图片解释为批准预览编辑围栏。",
+    "从预览 DOM 反推 Markdown 作为栅格权威。",
+    "错误块复制图片成功。"
+  ],
+  "required_evidence": [
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "Web Clipboard 在目标 WebKit 不可用且未重新准入 capability。"
+  ],
+  "task_envelope_id": "TASK-MERMAID-TOOLBAR-004"
+}
