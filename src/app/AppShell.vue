@@ -207,6 +207,10 @@ const previewPaneApi = ref<{
     pmFrom?: number;
     pmTo?: number;
   } | null;
+  exportMermaidDiagramPngAt?: (
+    diagramIndex: number,
+    targetPath: string,
+  ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
 } | null>(null);
 
 function setPreviewPaneRef(el: unknown) {
@@ -224,6 +228,12 @@ function setPreviewPaneRef(el: unknown) {
             pmFrom?: number;
             pmTo?: number;
           } | null;
+          exportMermaidDiagramPngAt?: (
+            diagramIndex: number,
+            targetPath: string,
+          ) => Promise<
+            { ok: true; fileName: string } | { ok: false; error: string }
+          >;
         })
       : null;
 }
@@ -276,6 +286,16 @@ const { fileOpsViaMenu } = useShellLifecycle(
   preview,
   {
     isBlocked: () => activeDrawer.value !== null || exportBusy.value,
+    exportMermaidDiagramPngAt: (diagramIndex, targetPath) => {
+      const api = previewPaneApi.value?.exportMermaidDiagramPngAt;
+      if (!api) {
+        return Promise.resolve({
+          ok: false as const,
+          error: "预览未就绪",
+        });
+      }
+      return api(diagramIndex, targetPath);
+    },
   },
 );
 
@@ -574,10 +594,12 @@ useAppShortcuts({
             :editable-sync-token="previewEditableSyncToken"
             :selection-recovery="previewSelectionRecovery"
             :get-revision="editBridge.getRevision"
+            :file-name="fileName"
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
             @format-selection="editBridge.onFormatSelection"
             @edit-status="editBridge.onEditStatus"
+            @status="statusMessage = $event"
           />
           <template #fallback>
             <div class="pane-fallback">加载预览…</div>

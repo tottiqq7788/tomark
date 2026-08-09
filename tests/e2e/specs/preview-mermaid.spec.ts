@@ -148,5 +148,169 @@ describe("mermaid preview", () => {
         timeoutMsg: "Cmd/Ctrl+click did not locate the Mermaid source fence",
       },
     );
+
+    const toolbarHiddenAfterLocate = await browser.execute(() => {
+      const toolbar = document.querySelector(
+        '[data-testid="preview-mermaid-toolbar"]',
+      );
+      return !toolbar || getComputedStyle(toolbar).display === "none";
+    });
+    expect(toolbarHiddenAfterLocate).toBe(true);
+  });
+
+  it("shows icon toolbar on plain click and supports fullscreen viewport", async () => {
+    await setEditorContent(fixture);
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length === 3,
+        ),
+      {
+        timeout: 30_000,
+        timeoutMsg: "expected Mermaid SVGs before toolbar interaction",
+      },
+    );
+
+    await browser.execute(() => {
+      const svg = document.querySelector(
+        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+      );
+      if (!(svg instanceof Element)) {
+        throw new Error("missing mermaid svg");
+      }
+      const rect = svg.getBoundingClientRect();
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const toolbar = document.querySelector(
+            '[data-testid="preview-mermaid-toolbar"]',
+          );
+          return Boolean(
+            toolbar &&
+              getComputedStyle(toolbar).display !== "none" &&
+              document.querySelector('[data-testid="mermaid-fullscreen"]') &&
+              document.querySelector('[data-testid="mermaid-export-png"]'),
+          );
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "expected Mermaid icon toolbar with two actions",
+      },
+    );
+
+    await $('[data-testid="mermaid-fullscreen"]').click();
+    await $('[data-testid="mermaid-fullscreen-viewer"]').waitForDisplayed({
+      timeout: 10_000,
+    });
+
+    const scaleBefore = await $(
+      ".mermaid-viewer-scale",
+    ).getText();
+    await $('[data-testid="mermaid-viewer-zoom-in"]').click();
+    await browser.waitUntil(
+      async () => (await $(".mermaid-viewer-scale").getText()) !== scaleBefore,
+      {
+        timeout: 5_000,
+        timeoutMsg: "zoom-in did not change scale label",
+      },
+    );
+    await $('[data-testid="mermaid-viewer-reset"]').click();
+    await browser.waitUntil(
+      async () => (await $(".mermaid-viewer-scale").getText()) === "100%",
+      {
+        timeout: 5_000,
+        timeoutMsg: "reset did not reach 100%",
+      },
+    );
+
+    await browser.execute(() => {
+      const viewport = document.querySelector(".mermaid-viewer-viewport");
+      if (!(viewport instanceof HTMLElement)) {
+        throw new Error("missing viewport");
+      }
+      const rect = viewport.getBoundingClientRect();
+      const x = rect.left + rect.width / 2;
+      const y = rect.top + rect.height / 2;
+      viewport.dispatchEvent(
+        new PointerEvent("pointerdown", {
+          bubbles: true,
+          button: 0,
+          clientX: x,
+          clientY: y,
+          pointerId: 1,
+        }),
+      );
+      viewport.dispatchEvent(
+        new PointerEvent("pointermove", {
+          bubbles: true,
+          button: 0,
+          clientX: x + 40,
+          clientY: y + 20,
+          pointerId: 1,
+        }),
+      );
+      viewport.dispatchEvent(
+        new PointerEvent("pointerup", {
+          bubbles: true,
+          button: 0,
+          clientX: x + 40,
+          clientY: y + 20,
+          pointerId: 1,
+        }),
+      );
+    });
+
+    await $('[data-testid="mermaid-viewer-close"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            !document.querySelector('[data-testid="mermaid-fullscreen-viewer"]'),
+        ),
+      {
+        timeout: 5_000,
+        timeoutMsg: "fullscreen viewer did not close",
+      },
+    );
+
+    await browser.execute(() => {
+      const hooks = (
+        window as unknown as {
+          __tomarkE2e: {
+            replaceContent?: (next: string) => void;
+            setContent: (next: string) => void;
+          };
+        }
+      ).__tomarkE2e;
+      (hooks.replaceContent ?? hooks.setContent)("# rebuilt\n");
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const toolbar = document.querySelector(
+            '[data-testid="preview-mermaid-toolbar"]',
+          );
+          return !toolbar || getComputedStyle(toolbar).display === "none";
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "stale Mermaid toolbar remained after rebuild",
+      },
+    );
   });
 });

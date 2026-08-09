@@ -2,7 +2,7 @@
   "schema_version": "task-envelope:v0.1",
   "task_id": "TASK-MERMAID-VIEWER-001",
   "role": "implementation_owner",
-  "baseline_commit": "pending-governance-commit",
+  "baseline_commit": "8943da47339bcc9f85ddc7542ce54b55da941ef1",
   "work_package_id": "WP-MERMAID-VIEWER-001",
   "allowed_scope": [
     "src/preview/mermaidDiagramRegistry.ts",
@@ -55,5 +55,5 @@
     "治理基线尚未进入不可变 commit。",
     "无法在 Tauri WebKit 复现单图 PNG 证据。"
   ],
-  "notes": "治理提交完成后，将 baseline_commit 更新为该 commit；此前不得以 pending 值作为 closeout 证据绑定。"
+  "notes": "治理基线已为 8943da47339bcc9f85ddc7542ce54b55da941ef1。实现已落地并通过本地验证；Evidence closeout 须在用户授权的实现提交后绑定该实现 commit。"
 }

@@ -431,4 +431,148 @@ describe("PreviewPane locate", () => {
     );
     wrapper.unmount();
   });
+
+  it("shows Mermaid icon toolbar on plain click and hides on Esc / rebuild", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async () => ({
+          svg: `<svg data-testid="toolbar-mermaid"><text>diagram</text></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+    __setEditableMermaidRendererLoaderForTests(async () => ({
+      renderMermaidInto: (
+        await import("@/preview/renderMermaid")
+      ).renderMermaidInto,
+    }));
+
+    const source = `# Title\n\nHello world.\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const wrapper = mountEditablePreview(source);
+    await vi.waitFor(() => {
+      expect(
+        wrapper.find(".tm-readonly-mermaid .mermaid-diagram svg").exists(),
+      ).toBe(true);
+    });
+
+    const diagram = wrapper.find(
+      ".tm-readonly-mermaid .mermaid-diagram[data-mermaid='1']",
+    );
+    const diagramEl = diagram.element as HTMLElement;
+    diagramEl.getBoundingClientRect = () =>
+      ({
+        x: 40,
+        y: 80,
+        top: 80,
+        left: 40,
+        bottom: 200,
+        right: 240,
+        width: 200,
+        height: 120,
+        toJSON: () => ({}),
+      }) as DOMRect;
+    const svg = diagram.find("svg");
+    await svg.trigger("click");
+    await nextTick();
+
+    const toolbar = wrapper.find('[data-testid="preview-mermaid-toolbar"]');
+    expect(toolbar.isVisible()).toBe(true);
+    expect(wrapper.find('[data-testid="mermaid-fullscreen"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="mermaid-export-png"]').exists()).toBe(
+      true,
+    );
+
+    // Outside click dismisses the Mermaid toolbar.
+    await wrapper.get(".preview-pane").trigger("click");
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+
+    await svg.trigger("click");
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+
+    await svg.trigger("click");
+    await nextTick();
+    const nextSource = `# rebuilt\n`;
+    const projection = buildEditableProjection(nextSource);
+    const { html, lineToAnchor } = renderMarkdown(nextSource);
+    await wrapper.setProps({
+      html,
+      lineToAnchor,
+      renderedSource: nextSource,
+      projection,
+      editableSyncToken: 3,
+    });
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it("does not show Mermaid toolbar for Cmd/Ctrl locate clicks", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async () => ({
+          svg: `<svg data-testid="locate-only"><text>diagram</text></svg>`,
+          bindFunctions: undefined,
+        })),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A-->B\n\`\`\`\n`;
+    const wrapper = mountFallbackPreview(source);
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-diagram svg").exists()).toBe(true);
+    });
+
+    await wrapper
+      .find(".mermaid-diagram svg")
+      .trigger("click", locateModifierInit());
+    await nextTick();
+    expect(wrapper.emitted("locate-source")?.[0]?.[0]).toBe(3);
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+    wrapper.unmount();
+  });
+
+  it("does not show Mermaid toolbar for error blocks", async () => {
+    __setMermaidLoaderForTests(async () => ({
+      default: {
+        initialize: vi.fn(),
+        render: vi.fn(async () => {
+          throw new Error("bad diagram");
+        }),
+      } as never,
+    }));
+
+    const source = `# Title\n\n\`\`\`mermaid\ngraph TD\n  A ->\n\`\`\`\n`;
+    const wrapper = mountFallbackPreview(source);
+    await vi.waitFor(() => {
+      expect(wrapper.find(".mermaid-error").exists()).toBe(true);
+    });
+
+    await wrapper.find(".mermaid-error").trigger("click");
+    await nextTick();
+    expect(
+      wrapper.find('[data-testid="preview-mermaid-toolbar"]').isVisible(),
+    ).toBe(false);
+    wrapper.unmount();
+  });
 });

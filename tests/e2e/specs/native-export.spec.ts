@@ -1,11 +1,19 @@
 import {
   existsSync,
   readFileSync,
+  rmSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+function cleanupPath(filePath: string) {
+  if (!existsSync(filePath)) {
+    return;
+  }
+  rmSync(filePath, { recursive: true, force: true });
+}
 
 type ExportHookResult =
   | { ok: true; fileName: string }
@@ -77,9 +85,7 @@ describe("native export (Tauri WebView)", () => {
 
   afterEach(() => {
     for (const filePath of cleanupPaths.splice(0)) {
-      if (existsSync(filePath)) {
-        unlinkSync(filePath);
-      }
+      cleanupPath(filePath);
     }
   });
 
@@ -189,5 +195,88 @@ describe("native export (Tauri WebView)", () => {
     const bytes = readFileSync(outputPath);
     expect(bytes.length).toBeGreaterThan(8);
     expect(Array.from(bytes.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+
+  it("exports a single Mermaid diagram PNG at 2× with white background path", async () => {
+    const unique = `${process.pid}-${Date.now()}`;
+    const outputPath = path.join(
+      tmpdir(),
+      `tomark-mermaid-diagram-${unique}.png`,
+    );
+    cleanupPaths.push(outputPath);
+
+    const resultPath = path.join(tmpdir(), "tomark-force-export-result.json");
+    if (existsSync(resultPath)) {
+      unlinkSync(resultPath);
+    }
+
+    await browser.execute(() => {
+      const hooks = (
+        window as unknown as {
+          __tomarkE2e: {
+            replaceContent?: (next: string) => void;
+            setContent: (next: string) => void;
+          };
+        }
+      ).__tomarkE2e;
+      (hooks.replaceContent ?? hooks.setContent)(
+        "# Mermaid PNG\n\n```mermaid\ngraph TD\nA[中文]-->B[Done]\n```\n",
+      );
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length >= 1,
+        ),
+      {
+        timeout: 45_000,
+        timeoutMsg: "mermaid diagram was not ready for single PNG export",
+      },
+    );
+
+    const started = await browser.execute((payload) => {
+      const testWindow = window as unknown as {
+        __tomarkE2e?: {
+          runMermaidDiagramPngToPath?: (
+            value: typeof payload,
+          ) => Promise<ExportHookResult>;
+        };
+      };
+      const hook = testWindow.__tomarkE2e?.runMermaidDiagramPngToPath;
+      if (!hook) {
+        return false;
+      }
+      void hook(payload);
+      return true;
+    }, { path: outputPath, diagramIndex: 1 });
+
+    expect(started).toBe(true);
+    await browser.waitUntil(() => existsSync(resultPath), {
+      timeout: 110_000,
+      interval: 100,
+      timeoutMsg: "single Mermaid PNG export did not finish",
+    });
+    const result = JSON.parse(
+      readFileSync(resultPath, "utf8"),
+    ) as ExportHookResult;
+    expect(result).toEqual({
+      ok: true,
+      fileName: path.basename(outputPath),
+    });
+
+    const bytes = readFileSync(outputPath);
+    expect(Array.from(bytes.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+    // IHDR chunk: width / height are big-endian u32 at bytes 16..24
+    const width = bytes.readUInt32BE(16);
+    const height = bytes.readUInt32BE(20);
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+    // Fixed 2× rasterization should produce even pixel dimensions for integer SVG sizes.
+    expect(width % 2).toBe(0);
+    expect(height % 2).toBe(0);
   });
 });

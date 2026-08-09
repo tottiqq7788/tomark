@@ -29,6 +29,11 @@ export type ShellLifecyclePreview = {
 export type ShellLifecycleOptions = {
   /** Extra file-ops gate (drawers / export busy), stacked with saving & dirty dialog. */
   isBlocked?: () => boolean;
+  /** E2E / forced-path single Mermaid PNG export via the live preview registry. */
+  exportMermaidDiagramPngAt?: (
+    diagramIndex: number,
+    targetPath: string,
+  ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
 };
 
 export function useShellLifecycle(
@@ -114,6 +119,10 @@ export function useShellLifecycle(
               fileName?: string;
               documentPath?: string | null;
             }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
+            runMermaidDiagramPngToPath: (job: {
+              path: string;
+              diagramIndex?: number;
+            }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
           };
         }
       ).__tomarkE2e = {
@@ -160,6 +169,27 @@ export function useShellLifecycle(
             const message = `${
               error instanceof Error ? error.message : String(error)
             }（最后进度：${lastProgress}）`;
+            session.statusMessage.value = `导出失败：${message}`;
+            const hookResult = { ok: false as const, error: message };
+            await writeE2eExportResult(hookResult);
+            return hookResult;
+          }
+        },
+        runMermaidDiagramPngToPath: async (job) => {
+          try {
+            if (!job?.path) {
+              throw new Error("runMermaidDiagramPngToPath requires path");
+            }
+            const exportAt = options.exportMermaidDiagramPngAt;
+            if (!exportAt) {
+              throw new Error("Mermaid PNG export hook is unavailable");
+            }
+            const result = await exportAt(job.diagramIndex ?? 1, job.path);
+            await writeE2eExportResult(result);
+            return result;
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
             session.statusMessage.value = `导出失败：${message}`;
             const hookResult = { ok: false as const, error: message };
             await writeE2eExportResult(hookResult);

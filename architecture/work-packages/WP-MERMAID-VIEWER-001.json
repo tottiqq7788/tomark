@@ -3,9 +3,9 @@
   "work_package_id": "WP-MERMAID-VIEWER-001",
   "project_id": "tomark",
   "name": "Mermaid 图表工具栏、全屏查看与单图 PNG",
-  "status": "admitted",
-  "baseline_commit": null,
-  "baseline_requirement": "必须以包含 DEC-TMK-20260809-002 与 L0-TMK-018 的治理提交为不可变实现基线；提交后回填 baseline_commit 与任务信封。",
+  "status": "implemented_pending_closeout",
+  "baseline_commit": "8943da47339bcc9f85ddc7542ce54b55da941ef1",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260809-002 与 L0-TMK-018 的治理提交。实现提交后需将证据绑定到该实现 commit 再关闭。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260809-002.json",
   "l0_impact": {
@@ -77,6 +77,6 @@
   "task_envelope_id": "TASK-MERMAID-VIEWER-001",
   "closeout": {
     "decision": "open",
-    "reason": "等待治理基线提交后实现与证据绑定。"
+    "reason": "实现与本地验证已完成（unit/browser e2e/native e2e/build/cargo/audit）；独立审查 PASS_WITH_NOTES 后已修复全屏导出源码快照与画布上限负向单测。等待用户授权实现提交后绑定不可变 commit 再关闭 Evidence。"
   }
 }

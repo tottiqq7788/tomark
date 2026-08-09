@@ -5,6 +5,7 @@ import {
   currentMermaidGeneration,
   __resetMermaidGenerationForTests,
 } from "@/preview/mermaidGeneration";
+import { registerMermaidDiagram } from "@/preview/mermaidDiagramRegistry";
 
 export type MermaidModule = typeof MermaidApi;
 
@@ -134,7 +135,19 @@ function buildErrorContent(source: string, message: string): HTMLElement {
   return wrapper;
 }
 
-function buildSuccessContent(svg: string): HTMLElement {
+function parseSourceLine(raw: string | null): number | null {
+  if (raw == null || raw === "") {
+    return null;
+  }
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 1 ? n : null;
+}
+
+function buildSuccessContent(
+  svg: string,
+  source: string,
+  sourceLine: number | null = null,
+): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "mermaid-diagram";
   wrapper.setAttribute("data-mermaid", "1");
@@ -142,6 +155,7 @@ function buildSuccessContent(svg: string): HTMLElement {
   // Mermaid also lists securityLevel in its secure config keys, so diagram
   // frontmatter cannot loosen sanitization for this insert.
   wrapper.innerHTML = svg;
+  registerMermaidDiagram(wrapper, { source, svg, sourceLine });
   return wrapper;
 }
 
@@ -155,10 +169,32 @@ function buildErrorBlock(
   return wrapper;
 }
 
-function buildSuccessBlock(pre: HTMLPreElement, svg: string): HTMLElement {
-  const wrapper = buildSuccessContent(svg);
+function buildSuccessBlock(
+  pre: HTMLPreElement,
+  svg: string,
+  source: string,
+): HTMLElement {
+  const wrapper = buildSuccessContent(
+    svg,
+    source,
+    parseSourceLine(pre.getAttribute("data-source-line")),
+  );
   copyAnchorAttrs(pre, wrapper);
   return wrapper;
+}
+
+/**
+ * Render Mermaid source to SVG without touching the preview generation counter
+ * or preview DOM. Used by single-diagram PNG export and fullscreen snapshots.
+ */
+export async function renderMermaidSvg(source: string): Promise<string> {
+  const mermaid = await getMermaid();
+  const id = `tomark-mermaid-svg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const { svg } = await mermaid.render(id, source);
+  if (!svg || !svg.includes("<svg")) {
+    throw new Error("Mermaid 未返回有效 SVG");
+  }
+  return svg;
 }
 
 function errorMessage(err: unknown): string {
@@ -225,7 +261,9 @@ export async function renderMermaidInto(
     if (cancelled() || !host.isConnected) {
       return false;
     }
-    host.replaceChildren(buildSuccessContent(svg));
+    // Editable NodeView does not attach data-source-line on the diagram; keep
+    // null and rely on locate via outer shell / PM mapping when needed.
+    host.replaceChildren(buildSuccessContent(svg, source, null));
   } catch (err) {
     if (cancelled() || !host.isConnected) {
       return false;
@@ -293,7 +331,7 @@ export async function renderMermaidInRoot(
       if (generation !== currentMermaidGeneration() || !pre.isConnected) {
         return false;
       }
-      pre.replaceWith(buildSuccessBlock(pre, svg));
+      pre.replaceWith(buildSuccessBlock(pre, svg, source));
     } catch (err) {
       if (generation !== currentMermaidGeneration() || !pre.isConnected) {
         return false;
@@ -344,7 +382,7 @@ export async function renderMermaidForExport(
       if (!pre.isConnected) {
         continue;
       }
-      pre.replaceWith(buildSuccessBlock(pre, svg));
+      pre.replaceWith(buildSuccessBlock(pre, svg, source));
     } catch (err) {
       if (!pre.isConnected) {
         continue;

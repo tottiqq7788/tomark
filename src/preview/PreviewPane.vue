@@ -15,25 +15,42 @@ import {
   currentMermaidGeneration,
 } from "@/preview/mermaidGeneration";
 import {
+  getMermaidDiagramContext,
+  resolveMermaidDiagramFromTarget,
+} from "@/preview/mermaidDiagramRegistry";
+import {
+  ExportCancelledError,
+  ExportFailedError,
+} from "@/export/types";
+import {
   clampToolbarPosition,
   resolvePreviewSelection,
 } from "./previewSelection";
 import PreviewFormatToolbar from "./PreviewFormatToolbar.vue";
+import MermaidDiagramToolbar from "./MermaidDiagramToolbar.vue";
+import MermaidFullscreenViewer from "./MermaidFullscreenViewer.vue";
 import PreviewEditableHost from "./editing/PreviewEditableHost.vue";
 import type { PreviewEditStatus } from "./editing/usePreviewEditSession";
 import "./editing/editablePreview.css";
 
-const props = defineProps<{
-  html: string;
-  lineToAnchor: Map<number, PreviewAnchor>;
-  /** Source that produced the current preview; formatting is refused when stale. */
-  renderedSource: string | null;
-  projection: EditableProjection | null;
-  renderMode: "editable" | "fallback";
-  editableSyncToken: number;
-  selectionRecovery?: { anchor: number; head: number } | null;
-  getRevision: () => number;
-}>();
+const props = withDefaults(
+  defineProps<{
+    html: string;
+    lineToAnchor: Map<number, PreviewAnchor>;
+    /** Source that produced the current preview; formatting is refused when stale. */
+    renderedSource: string | null;
+    projection: EditableProjection | null;
+    renderMode: "editable" | "fallback";
+    editableSyncToken: number;
+    selectionRecovery?: { anchor: number; head: number } | null;
+    getRevision: () => number;
+    /** Document file name used for single-diagram PNG suggestions. */
+    fileName?: string;
+  }>(),
+  {
+    fileName: "untitled.md",
+  },
+);
 
 const emit = defineEmits<{
   "locate-source": [sourceLine: number];
@@ -45,6 +62,7 @@ const emit = defineEmits<{
     },
   ];
   "edit-status": [status: PreviewEditStatus];
+  status: [message: string];
 }>();
 
 const scrollRoot = ref<HTMLElement | null>(null);
@@ -85,11 +103,25 @@ const formatSelectionSnapshot = ref<PreviewFormatSelection | null>(null);
 let suppressSelectionClear = false;
 const linkEditing = ref(false);
 
+const mermaidToolbarVisible = ref(false);
+const mermaidToolbarTop = ref(0);
+const mermaidToolbarCenterX = ref(0);
+const mermaidToolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
+const mermaidTarget = ref<HTMLElement | null>(null);
+const mermaidSourceSnapshot = ref("");
+const mermaidSvgSnapshot = ref("");
+const mermaidDiagramIndex = ref(1);
+const mermaidExportBusy = ref(false);
+const mermaidViewerOpen = ref(false);
+const mermaidFullscreenBtn = ref<HTMLElement | null>(null);
+let mermaidTargetObserver: MutationObserver | null = null;
+
 const useEditable = computed(
   () => props.renderMode === "editable" && props.projection != null,
 );
 
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
+const MERMAID_TOOLBAR_SIZE = { width: 72, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
   const el = toolbarRef.value?.root ?? null;
@@ -104,6 +136,7 @@ function measureToolbarSize(): { width: number; height: number } {
 }
 
 function placeToolbar(rect: PreviewFormatSelection["rect"]) {
+  hideMermaidToolbar();
   const pos = clampToolbarPosition(rect, measureToolbarSize());
   toolbarTop.value = pos.top;
   toolbarCenterX.value = pos.centerX;
@@ -120,6 +153,284 @@ function placeToolbar(rect: PreviewFormatSelection["rect"]) {
       toolbarTop.value = refined.top;
       toolbarCenterX.value = refined.centerX;
     });
+  });
+}
+
+function measureMermaidToolbarSize(): { width: number; height: number } {
+  const el = mermaidToolbarRef.value?.root ?? null;
+  if (!el) {
+    return MERMAID_TOOLBAR_SIZE;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    return MERMAID_TOOLBAR_SIZE;
+  }
+  return { width: rect.width, height: rect.height };
+}
+
+function disconnectMermaidTargetObserver() {
+  mermaidTargetObserver?.disconnect();
+  mermaidTargetObserver = null;
+}
+
+function hideMermaidToolbar(options?: { keepViewer?: boolean }) {
+  mermaidToolbarVisible.value = false;
+  mermaidTarget.value = null;
+  // Keep source/SVG snapshots while the fullscreen viewer is still open so
+  // export from the viewer does not lose the authoritative fence body.
+  if (!options?.keepViewer) {
+    mermaidSourceSnapshot.value = "";
+    mermaidSvgSnapshot.value = "";
+    mermaidViewerOpen.value = false;
+  }
+  disconnectMermaidTargetObserver();
+}
+
+function diagramIndexAmongSuccess(wrapper: HTMLElement): number {
+  const root = scrollRoot.value;
+  if (!root) {
+    return 1;
+  }
+  const all = root.querySelectorAll(
+    ".mermaid-diagram[data-mermaid='1']:not([data-mermaid-error])",
+  );
+  let index = 1;
+  for (const node of all) {
+    if (node === wrapper) {
+      return index;
+    }
+    index += 1;
+  }
+  return 1;
+}
+
+function placeMermaidToolbar(wrapper: HTMLElement) {
+  const rect = wrapper.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) {
+    hideMermaidToolbar({ keepViewer: mermaidViewerOpen.value });
+    return;
+  }
+  const viewport = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+  if (
+    rect.bottom < 0 ||
+    rect.top > viewport.height ||
+    rect.right < 0 ||
+    rect.left > viewport.width
+  ) {
+    hideMermaidToolbar({ keepViewer: mermaidViewerOpen.value });
+    return;
+  }
+  const pos = clampToolbarPosition(
+    {
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      right: rect.right,
+      width: rect.width,
+      height: rect.height,
+    },
+    measureMermaidToolbarSize(),
+    viewport,
+  );
+  mermaidToolbarTop.value = pos.top;
+  mermaidToolbarCenterX.value = pos.centerX;
+  mermaidToolbarVisible.value = true;
+}
+
+function observeMermaidTarget(wrapper: HTMLElement) {
+  disconnectMermaidTargetObserver();
+  if (typeof MutationObserver === "undefined") {
+    return;
+  }
+  mermaidTargetObserver = new MutationObserver(() => {
+    if (!wrapper.isConnected) {
+      hideMermaidToolbar();
+    }
+  });
+  mermaidTargetObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
+}
+
+function showMermaidToolbarFor(wrapper: HTMLElement) {
+  const context = getMermaidDiagramContext(wrapper);
+  if (!context) {
+    return;
+  }
+  hideToolbar();
+  mermaidTarget.value = wrapper;
+  mermaidSourceSnapshot.value = context.source;
+  mermaidSvgSnapshot.value = context.svg;
+  mermaidDiagramIndex.value = diagramIndexAmongSuccess(wrapper);
+  placeMermaidToolbar(wrapper);
+  observeMermaidTarget(wrapper);
+}
+
+function onMermaidScrollOrResize() {
+  if (!mermaidToolbarVisible.value || !mermaidTarget.value) {
+    return;
+  }
+  if (!mermaidTarget.value.isConnected) {
+    hideMermaidToolbar();
+    return;
+  }
+  placeMermaidToolbar(mermaidTarget.value);
+}
+
+function onPreviewCaptureClick(event: MouseEvent) {
+  if (event.button !== 0) {
+    return;
+  }
+  const target = event.target;
+  if (!(target instanceof Element)) {
+    return;
+  }
+  if (
+    target.closest(
+      '[data-testid="preview-mermaid-toolbar"], [data-testid="preview-format-toolbar"], [data-testid="mermaid-fullscreen-viewer"]',
+    )
+  ) {
+    return;
+  }
+
+  if (isLocateModifier(event)) {
+    // Cmd/Ctrl+click keeps the existing locate path; never arm the diagram toolbar.
+    hideMermaidToolbar();
+    return;
+  }
+
+  const resolved = resolveMermaidDiagramFromTarget(target);
+  if (!resolved) {
+    if (
+      mermaidToolbarVisible.value &&
+      !target.closest(".mermaid-diagram[data-mermaid='1']")
+    ) {
+      hideMermaidToolbar({ keepViewer: mermaidViewerOpen.value });
+    }
+    return;
+  }
+
+  // Capture-phase stop so editable readonly tip / other click handlers skip this hit.
+  event.preventDefault();
+  event.stopPropagation();
+  showMermaidToolbarFor(resolved.wrapper);
+}
+
+function onGlobalKeydown(event: KeyboardEvent) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (mermaidViewerOpen.value) {
+    return;
+  }
+  if (mermaidToolbarVisible.value) {
+    event.preventDefault();
+    hideMermaidToolbar();
+  }
+}
+
+async function runMermaidPngExport(options?: {
+  targetPath?: string;
+  source?: string;
+  diagramIndex?: number;
+}): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+  const source = (options?.source ?? mermaidSourceSnapshot.value).trim();
+  if (!source) {
+    return { ok: false, error: "未选中可导出的 Mermaid 图表" };
+  }
+  if (mermaidExportBusy.value) {
+    return { ok: false, error: "正在导出 Mermaid PNG…" };
+  }
+  mermaidExportBusy.value = true;
+  try {
+    const { exportMermaidDiagramPng } = await import(
+      "@/export/exportMermaidDiagramPng"
+    );
+    const result = await exportMermaidDiagramPng({
+      source,
+      fileName: props.fileName,
+      diagramIndex: options?.diagramIndex ?? mermaidDiagramIndex.value,
+      targetPath: options?.targetPath,
+      onProgress: (message) => emit("status", message),
+    });
+    emit("status", `已导出：${result.fileName}`);
+    return { ok: true, fileName: result.fileName };
+  } catch (error) {
+    if (
+      error instanceof ExportCancelledError ||
+      (error instanceof Error && error.name === "ExportCancelledError")
+    ) {
+      emit("status", "已取消导出");
+      return { ok: false, error: "已取消导出" };
+    }
+    const message =
+      error instanceof ExportFailedError || error instanceof Error
+        ? error.message
+        : String(error);
+    emit("status", `导出失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("导出 Mermaid PNG 失败", error);
+    } catch {
+      // Status message remains the fallback when dialogs are unavailable.
+    }
+    return { ok: false, error: message };
+  } finally {
+    mermaidExportBusy.value = false;
+  }
+}
+
+async function onMermaidExportPng() {
+  await runMermaidPngExport();
+}
+
+function onMermaidFullscreen() {
+  if (!mermaidSourceSnapshot.value || !mermaidSvgSnapshot.value) {
+    return;
+  }
+  const active = document.activeElement;
+  mermaidFullscreenBtn.value =
+    active instanceof HTMLElement ? active : null;
+  mermaidViewerOpen.value = true;
+}
+
+function onMermaidViewerClose() {
+  mermaidViewerOpen.value = false;
+  void nextTick(() => {
+    mermaidFullscreenBtn.value?.focus?.();
+  });
+}
+
+async function exportMermaidDiagramPngAt(
+  diagramIndex: number,
+  targetPath: string,
+): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+  const root = scrollRoot.value;
+  if (!root) {
+    return { ok: false, error: "预览未就绪" };
+  }
+  const wrappers = [
+    ...root.querySelectorAll(
+      ".mermaid-diagram[data-mermaid='1']:not([data-mermaid-error])",
+    ),
+  ] as HTMLElement[];
+  const wrapper = wrappers[Math.max(0, diagramIndex - 1)];
+  if (!wrapper) {
+    return { ok: false, error: `未找到第 ${diagramIndex} 个 Mermaid 图表` };
+  }
+  const context = getMermaidDiagramContext(wrapper);
+  if (!context) {
+    return { ok: false, error: "图表上下文缺失" };
+  }
+  showMermaidToolbarFor(wrapper);
+  return runMermaidPngExport({
+    targetPath,
+    source: context.source,
+    diagramIndex,
   });
 }
 
@@ -205,6 +516,11 @@ function hideToolbar() {
     linkHref: null,
     ranges: {},
   };
+}
+
+function hideAllToolbars() {
+  hideToolbar();
+  hideMermaidToolbar();
 }
 
 function withExpectedText(
@@ -313,6 +629,7 @@ function onLinkEditing(open: boolean) {
 }
 
 function onScrollOrResize() {
+  onMermaidScrollOrResize();
   if (!toolbarVisible.value || !currentSelection.value) {
     return;
   }
@@ -363,7 +680,7 @@ function onFallbackClick(event: MouseEvent) {
     return;
   }
   event.preventDefault();
-  hideToolbar();
+  hideAllToolbars();
   emit("locate-source", line);
 }
 
@@ -512,7 +829,7 @@ async function scrollToSourceLine(sourceLine: number) {
 }
 
 function hideFormatToolbar() {
-  hideToolbar();
+  hideAllToolbars();
   editableHost.value?.hideFormatToolbar();
 }
 
@@ -545,12 +862,14 @@ defineExpose({
   hideFormatToolbar,
   selectSourceRange,
   getFormatSelection,
+  exportMermaidDiagramPngAt,
+  hideMermaidToolbar,
 });
 
 watch(
   () => [props.html, props.editableSyncToken, props.renderMode] as const,
   () => {
-    hideToolbar();
+    hideAllToolbars();
     if (useEditable.value) {
       flashId.value = null;
       clearFlashTimer();
@@ -566,9 +885,11 @@ onMounted(() => {
   document.addEventListener("selectionchange", onSelectionChange);
   window.addEventListener("resize", onScrollOrResize);
   window.addEventListener("keydown", onFormatKeyDown, true);
+  window.addEventListener("keydown", onGlobalKeydown, true);
   scrollRoot.value?.addEventListener("scroll", onScrollOrResize, {
     passive: true,
   });
+  scrollRoot.value?.addEventListener("click", onPreviewCaptureClick, true);
   if (!useEditable.value) {
     void refreshMermaid();
   }
@@ -578,10 +899,13 @@ onBeforeUnmount(() => {
   clearFlashTimer();
   bumpMermaidGeneration();
   finishMermaidCycle();
+  hideAllToolbars();
   document.removeEventListener("selectionchange", onSelectionChange);
   window.removeEventListener("resize", onScrollOrResize);
   window.removeEventListener("keydown", onFormatKeyDown, true);
+  window.removeEventListener("keydown", onGlobalKeydown, true);
   scrollRoot.value?.removeEventListener("scroll", onScrollOrResize);
+  scrollRoot.value?.removeEventListener("click", onPreviewCaptureClick, true);
 });
 </script>
 
@@ -623,6 +947,23 @@ onBeforeUnmount(() => {
       @remove-link="onRemoveLink"
       @dismiss="onDismissToolbar"
       @link-editing="onLinkEditing"
+    />
+    <MermaidDiagramToolbar
+      ref="mermaidToolbarRef"
+      :visible="mermaidToolbarVisible"
+      :top="mermaidToolbarTop"
+      :center-x="mermaidToolbarCenterX"
+      :busy="mermaidExportBusy"
+      @fullscreen="onMermaidFullscreen"
+      @export-png="onMermaidExportPng"
+      @dismiss="hideMermaidToolbar()"
+    />
+    <MermaidFullscreenViewer
+      :open="mermaidViewerOpen"
+      :svg-html="mermaidSvgSnapshot"
+      :export-busy="mermaidExportBusy"
+      @close="onMermaidViewerClose"
+      @export-png="onMermaidExportPng"
     />
   </div>
 </template>
