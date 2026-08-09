@@ -3,8 +3,9 @@
   "work_package_id": "WP-IMAGE-VIEWER-001",
   "project_id": "tomark",
   "name": "Markdown 图片只读查看与工具栏",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "78304d2602a86f535f6e0bfbaf2526581fed642f",
+  "implementation_commit": "97f1da4e81c9468d336bb7cc0ba9f766e556c928",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-004 与 L0-TMK-019 的治理提交 78304d2。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-004.json",
@@ -48,7 +49,20 @@
     "从预览 DOM 截屏作为唯一权威而不经解析字节。"
   ],
   "required_evidence": ["unit", "integration", "runtime_e2e"],
-  "evidence_ids": [],
+  "evidence_ids": [
+    "EV-IMAGE-VIEWER-001-unit",
+    "EV-IMAGE-VIEWER-001-integration",
+    "EV-IMAGE-VIEWER-001-runtime-e2e-browser"
+  ],
   "stop_conditions": ["实际影响超出 allowed_scope。"],
-  "task_envelope_id": "TASK-IMAGE-VIEWER-001"
+  "task_envelope_id": "TASK-IMAGE-VIEWER-001",
+  "closeout": {
+    "decision": "closed",
+    "commit": "97f1da4e81c9468d336bb7cc0ba9f766e556c928",
+    "reason": "实现 commit 97f1da4 上 unit/integration/Chromium runtime_e2e 通过；复用 read_export_image；图片只读查看不写回 Markdown。Evidence 见 architecture/evidence/EV-IMAGE-VIEWER-001-*.json。",
+    "residual_risks": [
+      "浏览器 E2E 以 data URL 为主，本地相对路径依赖原生命令在手工/后续 native lane 验证。",
+      "imageReference 无稳定 URL 仍为占位。"
+    ]
+  }
 }

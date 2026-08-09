@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-IMAGE-VIEWER-001-integration",
+  "work_package_id": "WP-IMAGE-VIEWER-001",
+  "commit": "97f1da4e81c9468d336bb7cc0ba9f766e556c928",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- PreviewLocate editableProjection",
+  "result_summary": "PreviewPane 挂载 editable 投影后 data URL 图片解析成功、普通点击出全屏/复制/PNG 工具栏、Escape 关闭；投影写入 image src/alt。",
+  "limitations": [
+    "本地相对路径解析依赖 Tauri read_export_image，单元层以 mock resolveOneImage 覆盖失败语义。"
+  ]
+}

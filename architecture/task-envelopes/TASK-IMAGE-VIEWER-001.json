@@ -32,5 +32,5 @@
   ],
   "required_evidence": ["unit", "integration", "runtime_e2e"],
   "stop_conditions": ["实际影响超出 allowed_scope。"],
-  "notes": "用户确认 editable 真实渲染图片，并解析本地相对路径。"
+  "notes": "治理基线 78304d2；实现 commit 97f1da4；Evidence EV-IMAGE-VIEWER-001-* 已绑定；WP closeout.decision=closed。"
 }

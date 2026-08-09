@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-IMAGE-VIEWER-001-unit",
+  "work_package_id": "WP-IMAGE-VIEWER-001",
+  "commit": "97f1da4e81c9468d336bb7cc0ba9f766e556c928",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test",
+  "result_summary": "Vitest 50 files / 266 tests passed。含 resolvePreviewImage 缓存、exportPreviewImagePng、editableProjection 图片 attrs、PreviewLocate 图片工具栏。",
+  "limitations": [
+    "剪贴板与 Image 解码在 jsdom 中通过 stub/mock 验证。"
+  ]
+}

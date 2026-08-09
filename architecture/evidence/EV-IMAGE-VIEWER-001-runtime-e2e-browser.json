@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-IMAGE-VIEWER-001-runtime-e2e-browser",
+  "work_package_id": "WP-IMAGE-VIEWER-001",
+  "commit": "97f1da4e81c9468d336bb7cc0ba9f766e556c928",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e -- --spec tests/e2e/specs/preview-image.spec.ts",
+  "result_summary": "Chromium WDIO：preview-image.spec.ts passed。覆盖 data URL 图片解析、工具栏三按钮、全屏打开与关闭。",
+  "limitations": [
+    "本 lane 使用 data URL fixture，未在浏览器 E2E 断言本地相对路径读盘。",
+    "未单独跑 Tauri WebKit native E2E。"
+  ]
+}
