@@ -2,7 +2,7 @@
   "schema_version": "task-envelope:v0.1",
   "task_id": "TASK-MERMAID-TOOLBAR-002",
   "role": "implementation_owner",
-  "baseline_commit": "PENDING_GOVERNANCE_COMMIT",
+  "baseline_commit": "f4886be7af96857eb09eed21a19f4eedaab1a74b",
   "work_package_id": "WP-MERMAID-TOOLBAR-002",
   "allowed_scope": [
     "src/preview/MermaidDiagramToolbar.vue",

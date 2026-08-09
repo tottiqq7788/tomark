@@ -4,7 +4,7 @@
   "project_id": "tomark",
   "name": "Mermaid 工具栏：复制源码、导出 SVG、定位源码",
   "status": "admitted",
-  "baseline_commit": "PENDING_GOVERNANCE_COMMIT",
+  "baseline_commit": "f4886be7af96857eb09eed21a19f4eedaab1a74b",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-001 与扩展后 L0-TMK-018 的治理提交。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-001.json",
