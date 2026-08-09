@@ -332,7 +332,21 @@ function onSplitterKeydown(event: KeyboardEvent) {
   }
 }
 
+function isOpenableExternalUrl(url: string): boolean {
+  try {
+    const protocol = new URL(url).protocol.toLowerCase();
+    return ["http:", "https:", "mailto:", "tel:"].includes(protocol);
+  } catch {
+    return false;
+  }
+}
+
 async function onOpenLink(url: string) {
+  // Deny before side effect: only absolute http(s)/mailto/tel reach the opener.
+  if (!isOpenableExternalUrl(url)) {
+    statusMessage.value = "已拒绝打开不安全链接";
+    return;
+  }
   try {
     const { isTauri } = await import("@tauri-apps/api/core");
     if (isTauri()) {

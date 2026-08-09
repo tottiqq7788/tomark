@@ -410,12 +410,16 @@ export function createPreviewEditSession(
               return false;
             }
             if (isLocateModifier(event)) {
+              // Never let the browser navigate the WebView when locating a link.
+              if (event.target.closest("a[href]")) {
+                event.preventDefault();
+              }
               const pos = view.posAtCoords({
                 left: event.clientX,
                 top: event.clientY,
               });
               if (!pos) {
-                return false;
+                return Boolean(event.target.closest("a[href]"));
               }
               const line = sourceLineAtPosition(projection, pos.pos);
               if (line != null) {
@@ -423,19 +427,23 @@ export function createPreviewEditSession(
                 handlers.onLocateSource?.(line);
                 return true;
               }
-              return false;
+              return Boolean(event.target.closest("a[href]"));
             }
 
             const link = event.target.closest("a[href]");
             if (link instanceof HTMLAnchorElement) {
               const rawHref = link.getAttribute("href")?.trim() ?? "";
-              if (rawHref.startsWith("#")) {
+              if (!rawHref || rawHref.startsWith("#")) {
+                if (!rawHref) {
+                  event.preventDefault();
+                  return true;
+                }
                 return false;
               }
               event.preventDefault();
-              // Plain / Alt+click open safe links via system opener.
+              // Gate on authored href; resolved link.href can absolutize "//…".
               // Link-label caret editing is deferred to direct-typing WP.
-              if (isSafeLinkHref(link.href)) {
+              if (isSafeLinkHref(rawHref)) {
                 handlers.onOpenLink?.(link.href);
               }
               return true;
@@ -445,6 +453,11 @@ export function createPreviewEditSession(
               ".tm-readonly-task-checkbox",
             );
             if (checkbox instanceof HTMLElement) {
+              event.preventDefault();
+              // Ignore the synthetic second click from a double-click.
+              if (event.detail > 1) {
+                return true;
+              }
               const from = Number(checkbox.getAttribute("data-tm-from"));
               const to = Number(checkbox.getAttribute("data-tm-to"));
               if (
@@ -456,7 +469,6 @@ export function createPreviewEditSession(
                   from,
                   to,
                 );
-                event.preventDefault();
                 handlers.onToggleTaskCheckbox?.({
                   from,
                   to,
@@ -465,6 +477,7 @@ export function createPreviewEditSession(
                 });
                 return true;
               }
+              return true;
             }
 
             const readonly = event.target.closest("[data-tm-readonly]");

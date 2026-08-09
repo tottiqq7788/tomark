@@ -8,6 +8,7 @@ import type {
   PreviewFormatAction,
   PreviewFormatSelection,
 } from "@/shared/previewFormatting";
+import { isSafeLinkHref } from "@/shared/previewFormatting";
 import { isLocateModifier } from "@/shared/locateModifier";
 import { matchPreviewFormatShortcut } from "@/shared/previewFormatShortcuts";
 import {
@@ -1153,11 +1154,18 @@ function onFallbackClick(event: MouseEvent) {
       return;
     }
     const rawHref = link.getAttribute("href")?.trim() ?? "";
-    const protocol = link.protocol.toLowerCase();
-    if (rawHref.startsWith("#")) {
+    if (!rawHref || rawHref.startsWith("#")) {
+      if (!rawHref) {
+        event.preventDefault();
+      }
       return;
     }
     event.preventDefault();
+    // Gate on the authored href; resolved link.href can turn "//…" into https:.
+    if (!isSafeLinkHref(rawHref)) {
+      return;
+    }
+    const protocol = link.protocol.toLowerCase();
     if (["http:", "https:", "mailto:", "tel:"].includes(protocol)) {
       emit("open-link", link.href);
     }

@@ -196,6 +196,30 @@ describe("PreviewPane locate", () => {
     wrapper.unmount();
   });
 
+  it("rejects protocol-relative and empty hrefs in HTML fallback", async () => {
+    const proto = mountFallbackPreview(`[bad](//evil.example/x)\n`);
+    await nextTick();
+    // Inject an authored protocol-relative href the click gate must reject,
+    // even if sanitize/render already stripped the Markdown form.
+    const host = proto.find('[data-testid="preview-html-fallback"]').element;
+    host.innerHTML =
+      '<p><a href="//evil.example/x" rel="noopener noreferrer">bad</a></p>';
+    await proto.get("a").trigger("click");
+    expect(proto.emitted("open-link")).toBeUndefined();
+    proto.unmount();
+
+    const empty = mountFallbackPreview(`para\n`);
+    await nextTick();
+    const emptyHost = empty.find(
+      '[data-testid="preview-html-fallback"]',
+    ).element;
+    emptyHost.innerHTML =
+      '<p><a href="" rel="noopener noreferrer">empty</a></p>';
+    await empty.get("a").trigger("click");
+    expect(empty.emitted("open-link")).toBeUndefined();
+    empty.unmount();
+  });
+
   it("keeps same-document footnote links inside the HTML fallback", async () => {
     const source = `Ref[^n]\n\n[^n]: note\n`;
     const wrapper = mountFallbackPreview(source);

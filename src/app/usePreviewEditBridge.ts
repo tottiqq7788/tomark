@@ -146,10 +146,8 @@ export function usePreviewEditBridge(options: {
       origin: "task-checkbox",
       patches: [patch],
     };
-    const result = applySourceTransaction(transaction);
-    if (!result.ok) {
-      statusMessage.value = "切换任务状态失败";
-    }
+    // Failure status is already set by applySourceTransaction.
+    applySourceTransaction(transaction);
   }
 
   async function onFormatSelection(payload: {

@@ -211,6 +211,43 @@ describe("usePreviewEditBridge", () => {
     );
   });
 
+  it("refuses task checkbox toggle when revision is stale", () => {
+    const statusMessage = ref("");
+    const syncNow = vi.fn(async () => true);
+    const applySourceTransaction = vi.fn();
+    const source = "- [ ] buy milk\n";
+
+    const bridge = usePreviewEditBridge({
+      getEditor: () => ({
+        applySourceTransaction,
+        getRevision: () => 2,
+        getValue: () => source,
+        undo: () => false,
+        redo: () => false,
+      }),
+      preview: {
+        renderedSource: ref(source),
+        isCurrent: () => true,
+        syncNow,
+        syncAfterOwnEdit: vi.fn(),
+        beginOwnEdit: vi.fn(),
+        endOwnEdit: vi.fn(),
+      },
+      statusMessage,
+    });
+
+    bridge.onToggleTaskCheckbox({
+      from: 2,
+      to: 6,
+      expectedText: "[ ] ",
+      revision: 0,
+    });
+
+    expect(applySourceTransaction).not.toHaveBeenCalled();
+    expect(syncNow).toHaveBeenCalled();
+    expect(statusMessage.value).toContain("预览内容已更新");
+  });
+
   it("refuses task checkbox toggle when expectedText mismatches", () => {
     const statusMessage = ref("");
     const syncNow = vi.fn(async () => true);
