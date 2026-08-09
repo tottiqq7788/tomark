@@ -2,7 +2,7 @@
   "schema_version": "task-envelope:v0.1",
   "task_id": "TASK-TASK-CHECKBOX-TOGGLE-001",
   "role": "implementation_owner",
-  "baseline_commit": "1ad61b3d434b3977ca0f5dd54dfb65efed52eb37",
+  "baseline_commit": "122629c28c888a79b62680519f268e8dab113044",
   "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
   "allowed_scope": [
     "src/preview/**",
@@ -20,7 +20,12 @@
     "src/app/settings/HelpSettingsPanel.vue"
   ],
   "l0_impact": "add_new",
-  "l0_rule_ids": ["L0-TMK-020", "L0-TMK-004", "L0-TMK-002", "L0-TMK-005"],
+  "l0_rule_ids": [
+    "L0-TMK-020",
+    "L0-TMK-004",
+    "L0-TMK-002",
+    "L0-TMK-005"
+  ],
   "must_preserve": [
     "Markdown 源码唯一权威。",
     "任务复选框仍不可键入修改。",
@@ -33,7 +38,13 @@
     "stale/mismatch 猜测写入。",
     "把点击切换当作键入编辑批准。"
   ],
-  "required_evidence": ["unit", "integration", "runtime_e2e"],
-  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "required_evidence": [
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。"
+  ],
   "notes": "治理基线将回填为含 DEC-TMK-20260810-005 的提交；实现完成后绑定 Evidence 并关闭 WP。"
 }

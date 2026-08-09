@@ -4,15 +4,22 @@
   "project_id": "tomark",
   "name": "预览任务复选框点击切换",
   "status": "in_progress",
-  "baseline_commit": "1ad61b3d434b3977ca0f5dd54dfb65efed52eb37",
+  "baseline_commit": "122629c28c888a79b62680519f268e8dab113044",
   "implementation_commit": null,
-  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-005 与 L0-TMK-020 的治理提交；提交后回填本字段为该 commit。",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-005 与 L0-TMK-020 的治理提交 122629c。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-005.json",
   "l0_impact": {
     "classification": "add_new",
-    "also_modifies": ["L0-TMK-004"],
-    "rule_ids": ["L0-TMK-020", "L0-TMK-004", "L0-TMK-002", "L0-TMK-005"],
+    "also_modifies": [
+      "L0-TMK-004"
+    ],
+    "rule_ids": [
+      "L0-TMK-020",
+      "L0-TMK-004",
+      "L0-TMK-002",
+      "L0-TMK-005"
+    ],
     "reason": "新增任务复选框点击切换写回；仍禁止键入/WYSIWYG 改 marker。"
   },
   "goal": "editable 预览普通点击任务复选框切换 [ ]/[x] 并经 SourcePatch 写回；Cmd/Ctrl+点击仍定位；进入同一撤销历史。",
@@ -50,13 +57,19 @@
     "stale revision / expectedText mismatch 时猜测写入。",
     "把点击切换解释为批准键入编辑复选框。"
   ],
-  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "required_evidence": [
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
   "evidence_ids": [
     "EV-TASK-CHECKBOX-TOGGLE-001-unit",
     "EV-TASK-CHECKBOX-TOGGLE-001-integration",
     "EV-TASK-CHECKBOX-TOGGLE-001-runtime-e2e-browser"
   ],
-  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。"
+  ],
   "task_envelope_id": "TASK-TASK-CHECKBOX-TOGGLE-001",
   "closeout": {
     "decision": "open",
