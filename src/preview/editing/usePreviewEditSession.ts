@@ -16,6 +16,7 @@ import {
   sourceLineAtPosition,
 } from "./resolveEditableSelection";
 import { resolvePointerCaret } from "./resolvePointerCaret";
+import type { TaskCheckboxToggleRequest } from "./taskCheckboxToggle";
 
 export type PreviewEditStatusKind =
   | "editing"
@@ -34,6 +35,7 @@ export interface PreviewEditSessionHandlers {
   onSelectionChange?: (selection: PreviewFormatSelection | null) => void;
   onLocateSource?: (sourceLine: number) => void;
   onOpenLink?: (url: string) => void;
+  onToggleTaskCheckbox?: (request: TaskCheckboxToggleRequest) => void;
   /** Current CodeMirror revision used for optimistic locking. */
   getRevision: () => number;
 }
@@ -437,6 +439,32 @@ export function createPreviewEditSession(
               }
               // Plain click no longer places a caret for label editing.
               return true;
+            }
+
+            const checkbox = event.target.closest(
+              ".tm-readonly-task-checkbox",
+            );
+            if (checkbox instanceof HTMLElement) {
+              const from = Number(checkbox.getAttribute("data-tm-from"));
+              const to = Number(checkbox.getAttribute("data-tm-to"));
+              if (
+                Number.isSafeInteger(from) &&
+                Number.isSafeInteger(to) &&
+                to > from
+              ) {
+                const expectedText = projection.sourceMap.source.slice(
+                  from,
+                  to,
+                );
+                event.preventDefault();
+                handlers.onToggleTaskCheckbox?.({
+                  from,
+                  to,
+                  expectedText,
+                  revision: handlers.getRevision(),
+                });
+                return true;
+              }
             }
 
             const readonly = event.target.closest("[data-tm-readonly]");

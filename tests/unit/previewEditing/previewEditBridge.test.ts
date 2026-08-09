@@ -154,6 +154,100 @@ describe("usePreviewEditBridge", () => {
     expect(statusMessage.value).toContain("映射已过期");
   });
 
+  it("toggles a task checkbox through a source patch", () => {
+    const statusMessage = ref("");
+    const syncAfterOwnEdit = vi.fn();
+    const applySourceTransaction = vi.fn(() => ({
+      ok: true as const,
+      revision: 1,
+      value: "- [x] buy milk\n",
+    }));
+    const source = "- [ ] buy milk\n";
+
+    const bridge = usePreviewEditBridge({
+      getEditor: () => ({
+        applySourceTransaction,
+        getRevision: () => 0,
+        getValue: () => source,
+        undo: () => false,
+        redo: () => false,
+      }),
+      preview: {
+        renderedSource: ref(source),
+        isCurrent: () => true,
+        syncNow: vi.fn(async () => true),
+        syncAfterOwnEdit,
+        beginOwnEdit: vi.fn(),
+        endOwnEdit: vi.fn(),
+      },
+      statusMessage,
+    });
+
+    bridge.onToggleTaskCheckbox({
+      from: 2,
+      to: 6,
+      expectedText: "[ ] ",
+      revision: 0,
+    });
+
+    expect(applySourceTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "task-checkbox",
+        revision: 0,
+        patches: [
+          {
+            from: 2,
+            to: 6,
+            insert: "[x] ",
+            expectedText: "[ ] ",
+          },
+        ],
+      }),
+    );
+    expect(syncAfterOwnEdit).toHaveBeenCalledWith(
+      "- [x] buy milk\n",
+      null,
+      { bumpSync: true },
+    );
+  });
+
+  it("refuses task checkbox toggle when expectedText mismatches", () => {
+    const statusMessage = ref("");
+    const syncNow = vi.fn(async () => true);
+    const applySourceTransaction = vi.fn();
+    const source = "- [x] buy milk\n";
+
+    const bridge = usePreviewEditBridge({
+      getEditor: () => ({
+        applySourceTransaction,
+        getRevision: () => 0,
+        getValue: () => source,
+        undo: () => false,
+        redo: () => false,
+      }),
+      preview: {
+        renderedSource: ref(source),
+        isCurrent: () => true,
+        syncNow,
+        syncAfterOwnEdit: vi.fn(),
+        beginOwnEdit: vi.fn(),
+        endOwnEdit: vi.fn(),
+      },
+      statusMessage,
+    });
+
+    bridge.onToggleTaskCheckbox({
+      from: 2,
+      to: 6,
+      expectedText: "[ ] ",
+      revision: 0,
+    });
+
+    expect(applySourceTransaction).not.toHaveBeenCalled();
+    expect(syncNow).toHaveBeenCalled();
+    expect(statusMessage.value).toContain("任务状态已变化");
+  });
+
   it("refuses format when preview content is stale", async () => {
     const statusMessage = ref("");
     const applySourceTransaction = vi.fn();

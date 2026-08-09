@@ -252,8 +252,10 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
     }, 1200);
   }
 
-  function sourceUserEvent(_origin: PreviewEditOrigin): string {
-    return "input.preview.format";
+  function sourceUserEvent(origin: PreviewEditOrigin): string {
+    return origin === "task-checkbox"
+      ? "input.preview.task-checkbox"
+      : "input.preview.format";
   }
 
   function applySourceTransaction(

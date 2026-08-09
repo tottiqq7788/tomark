@@ -45,6 +45,18 @@
   color: #475569;
 }
 
+.tm-editable-preview .tm-readonly-task-checkbox {
+  cursor: pointer;
+  user-select: none;
+  font-size: 1.05em;
+  line-height: 1;
+  vertical-align: -0.05em;
+}
+
+.tm-editable-preview .tm-readonly-task-checkbox:hover {
+  background: #e2e8f0;
+}
+
 .tm-editable-preview .tm-readonly-image.preview-image {
   display: inline-block;
   max-width: 100%;

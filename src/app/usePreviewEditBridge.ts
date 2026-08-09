@@ -13,6 +13,10 @@ import {
   toggleLink,
 } from "@/editor/markdownInlineFormatting";
 import type { PreviewEditStatus } from "@/preview/editing/usePreviewEditSession";
+import {
+  buildTaskCheckboxTogglePatch,
+  type TaskCheckboxToggleRequest,
+} from "@/preview/editing/taskCheckboxToggle";
 
 export type PreviewEditEditorApi = {
   applySourceTransaction: (
@@ -93,6 +97,58 @@ export function usePreviewEditBridge(options: {
     // Session stale statuses claim a resync — make that true by forcing one.
     if (status.kind === "stale") {
       void preview.syncNow();
+    }
+  }
+
+  function onToggleTaskCheckbox(request: TaskCheckboxToggleRequest) {
+    if (!preview.isCurrent()) {
+      statusMessage.value = "预览内容已更新，请重试";
+      return;
+    }
+    const source = preview.renderedSource.value;
+    const editor = getEditor();
+    if (source == null || !editor) {
+      statusMessage.value = "编辑器尚未就绪";
+      return;
+    }
+    if (editor.getValue() !== source) {
+      statusMessage.value = "预览内容已更新，请重试";
+      return;
+    }
+    if (request.revision !== editor.getRevision()) {
+      statusMessage.value = "预览内容已更新，请重试";
+      void preview.syncNow();
+      return;
+    }
+    if (
+      request.from < 0 ||
+      request.to > source.length ||
+      request.to <= request.from ||
+      source.slice(request.from, request.to) !== request.expectedText
+    ) {
+      statusMessage.value = "任务状态已变化，请重试";
+      void preview.syncNow();
+      return;
+    }
+
+    const patch = buildTaskCheckboxTogglePatch(
+      source,
+      request.from,
+      request.to,
+    );
+    if (!patch) {
+      statusMessage.value = "无法切换该任务状态，请改用源码区";
+      return;
+    }
+
+    const transaction: SourcePatchTransaction = {
+      revision: editor.getRevision(),
+      origin: "task-checkbox",
+      patches: [patch],
+    };
+    const result = applySourceTransaction(transaction);
+    if (!result.ok) {
+      statusMessage.value = "切换任务状态失败";
     }
   }
 
@@ -223,6 +279,7 @@ export function usePreviewEditBridge(options: {
     getRevision,
     onEditStatus,
     onFormatSelection,
+    onToggleTaskCheckbox,
     undoEdit,
     redoEdit,
   };

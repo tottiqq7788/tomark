@@ -619,6 +619,7 @@ useAppShortcuts({
             @locate-source="onLocateSource"
             @open-link="onOpenLink"
             @format-selection="editBridge.onFormatSelection"
+            @toggle-task-checkbox="editBridge.onToggleTaskCheckbox"
             @edit-status="editBridge.onEditStatus"
             @status="statusMessage = $event"
           />

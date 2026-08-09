@@ -50,13 +50,22 @@ export function createReadonlyInlineNodeView(
   const kind = String(node.attrs.kind || "");
   if (kind !== "image") {
     const dom = document.createElement("span");
+    const label = String(node.attrs.label || "");
     dom.className = `tm-readonly tm-readonly-inline tm-readonly-${kind}`;
     dom.setAttribute("contenteditable", "false");
     dom.setAttribute("data-tm-readonly", String(node.attrs.reason));
     dom.setAttribute("data-tm-from", String(node.attrs.sourceFrom));
     dom.setAttribute("data-tm-to", String(node.attrs.sourceTo));
-    dom.setAttribute("role", "note");
-    dom.textContent = String(node.attrs.label || "");
+    if (kind === "task-checkbox") {
+      const checked = label === "☑";
+      dom.setAttribute("role", "checkbox");
+      dom.setAttribute("aria-checked", checked ? "true" : "false");
+      dom.setAttribute("data-testid", "preview-task-checkbox");
+      dom.title = checked ? "取消勾选" : "勾选";
+    } else {
+      dom.setAttribute("role", "note");
+    }
+    dom.textContent = label;
     return {
       dom,
       update(updated) {
@@ -66,11 +75,25 @@ export function createReadonlyInlineNodeView(
         if (String(updated.attrs.kind || "") === "image") {
           return false;
         }
+        const nextKind = String(updated.attrs.kind || "unsupported");
+        const nextLabel = String(updated.attrs.label || "");
         dom.setAttribute("data-tm-readonly", String(updated.attrs.reason));
         dom.setAttribute("data-tm-from", String(updated.attrs.sourceFrom));
         dom.setAttribute("data-tm-to", String(updated.attrs.sourceTo));
-        dom.className = `tm-readonly tm-readonly-inline tm-readonly-${String(updated.attrs.kind || "unsupported")}`;
-        dom.textContent = String(updated.attrs.label || "");
+        dom.className = `tm-readonly tm-readonly-inline tm-readonly-${nextKind}`;
+        if (nextKind === "task-checkbox") {
+          const checked = nextLabel === "☑";
+          dom.setAttribute("role", "checkbox");
+          dom.setAttribute("aria-checked", checked ? "true" : "false");
+          dom.setAttribute("data-testid", "preview-task-checkbox");
+          dom.title = checked ? "取消勾选" : "勾选";
+        } else {
+          dom.setAttribute("role", "note");
+          dom.removeAttribute("aria-checked");
+          dom.removeAttribute("data-testid");
+          dom.removeAttribute("title");
+        }
+        dom.textContent = nextLabel;
         return true;
       },
     };

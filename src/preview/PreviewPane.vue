@@ -46,6 +46,7 @@ import ImageDiagramToolbar from "./ImageDiagramToolbar.vue";
 import ImageFullscreenViewer from "./ImageFullscreenViewer.vue";
 import PreviewEditableHost from "./editing/PreviewEditableHost.vue";
 import type { PreviewEditStatus } from "./editing/usePreviewEditSession";
+import type { TaskCheckboxToggleRequest } from "./editing/taskCheckboxToggle";
 import "./editing/editablePreview.css";
 
 const props = withDefaults(
@@ -79,6 +80,7 @@ const emit = defineEmits<{
       selection: PreviewFormatSelection;
     },
   ];
+  "toggle-task-checkbox": [request: TaskCheckboxToggleRequest];
   "edit-status": [status: PreviewEditStatus];
   status: [message: string];
 }>();
@@ -1433,6 +1435,7 @@ onBeforeUnmount(() => {
       @selection-change="onEditableSelectionChange"
       @locate-source="emit('locate-source', $event)"
       @open-link="emit('open-link', $event)"
+      @toggle-task-checkbox="emit('toggle-task-checkbox', $event)"
     />
     <div
       v-else

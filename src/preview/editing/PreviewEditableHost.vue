@@ -7,6 +7,7 @@ import {
   type PreviewEditSession,
   type PreviewEditStatus,
 } from "./usePreviewEditSession";
+import type { TaskCheckboxToggleRequest } from "./taskCheckboxToggle";
 
 const props = defineProps<{
   projection: EditableProjection;
@@ -21,6 +22,7 @@ const emit = defineEmits<{
   "selection-change": [selection: PreviewFormatSelection | null];
   "locate-source": [sourceLine: number];
   "open-link": [url: string];
+  "toggle-task-checkbox": [request: TaskCheckboxToggleRequest];
 }>();
 
 const host = ref<HTMLElement | null>(null);
@@ -37,6 +39,8 @@ onMounted(() => {
     onSelectionChange: (selection) => emit("selection-change", selection),
     onLocateSource: (line) => emit("locate-source", line),
     onOpenLink: (url) => emit("open-link", url),
+    onToggleTaskCheckbox: (request) =>
+      emit("toggle-task-checkbox", request),
   });
   skipWatch = false;
 });
