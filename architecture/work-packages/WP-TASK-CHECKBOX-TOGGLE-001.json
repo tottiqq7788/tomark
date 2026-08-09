@@ -3,9 +3,9 @@
   "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
   "project_id": "tomark",
   "name": "预览任务复选框点击切换",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "122629c28c888a79b62680519f268e8dab113044",
-  "implementation_commit": null,
+  "implementation_commit": "5496c299897a9bfc8a129e944fc31e570f1c23e4",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-005 与 L0-TMK-020 的治理提交 122629c。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-005.json",
@@ -72,9 +72,12 @@
   ],
   "task_envelope_id": "TASK-TASK-CHECKBOX-TOGGLE-001",
   "closeout": {
-    "decision": "open",
-    "commit": null,
-    "reason": null,
-    "residual_risks": []
+    "decision": "closed",
+    "commit": "5496c299897a9bfc8a129e944fc31e570f1c23e4",
+    "reason": "实现 commit 5496c29 上 unit/integration/Chromium runtime_e2e 通过；任务复选框普通点击经 SourcePatch 写回，Cmd/Ctrl+点击仍定位。Evidence 见 architecture/evidence/EV-TASK-CHECKBOX-TOGGLE-001-*.json。",
+    "residual_risks": [
+      "fallback HTML 预览首版不提供切换。",
+      "未单独跑 Tauri WebKit native E2E。"
+    ]
   }
 }

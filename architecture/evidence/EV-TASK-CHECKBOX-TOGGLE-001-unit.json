@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-TASK-CHECKBOX-TOGGLE-001-unit",
+  "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
+  "commit": "5496c299897a9bfc8a129e944fc31e570f1c23e4",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- taskCheckboxToggle previewEditBridge",
+  "result_summary": "Vitest：taskCheckboxToggle patch 构造与拒绝路径、previewEditBridge 切换写回与 expectedText mismatch 拒绝通过。",
+  "limitations": [
+    "会话 DOM 点击路由由 runtime_e2e 覆盖。"
+  ]
+}

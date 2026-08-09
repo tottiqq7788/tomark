@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-TASK-CHECKBOX-TOGGLE-001-runtime-e2e-browser",
+  "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
+  "commit": "5496c299897a9bfc8a129e944fc31e570f1c23e4",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e -- --spec tests/e2e/specs/preview-task-checkbox.spec.ts",
+  "result_summary": "Chromium WDIO：preview-task-checkbox.spec.ts 2 passing。覆盖 [ ]↔[x] 切换、Undo 恢复、Cmd/Ctrl+点击定位且不切换。",
+  "limitations": [
+    "未单独跑 Tauri WebKit native E2E。"
+  ]
+}

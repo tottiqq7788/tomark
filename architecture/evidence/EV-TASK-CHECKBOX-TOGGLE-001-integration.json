@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-TASK-CHECKBOX-TOGGLE-001-integration",
+  "work_package_id": "WP-TASK-CHECKBOX-TOGGLE-001",
+  "commit": "5496c299897a9bfc8a129e944fc31e570f1c23e4",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test",
+  "result_summary": "Vitest 全量 51 files / 274 tests passed（含 SourcePatch 事务、editableProjection task-checkbox、previewEditBridge）。实现 commit 5496c29。",
+  "limitations": [
+    "未单独跑 Tauri native 集成。"
+  ]
+}
