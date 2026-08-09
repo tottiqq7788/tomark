@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-PREVIEW-LINK-OPEN-001-runtime-e2e-browser",
+  "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
+  "commit": "12d38bf79f0503d7a7d05a0a8c1b61be3b1e0ee4",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e -- --spec tests/e2e/specs/preview-link-open.spec.ts",
+  "result_summary": "Chromium WDIO：preview-link-open.spec.ts 2 passing。覆盖普通点击 window.open、源码不变、Cmd/Ctrl+点击定位且不打开。",
+  "limitations": [
+    "浏览器模式 stub window.open；未单独跑 Tauri WebKit native E2E。"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-PREVIEW-LINK-OPEN-001-unit",
+  "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
+  "commit": "12d38bf79f0503d7a7d05a0a8c1b61be3b1e0ee4",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- PreviewLocate",
+  "result_summary": "Vitest PreviewLocate：editable 普通点击与 Alt+点击均发出 open-link；fallback 外开回归通过。",
+  "limitations": [
+    "Cmd/Ctrl+点击不外开由 runtime_e2e 覆盖（jsdom posAtCoords 受限）。"
+  ]
+}

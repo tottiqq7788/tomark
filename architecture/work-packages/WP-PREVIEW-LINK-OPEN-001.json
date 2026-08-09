@@ -3,9 +3,9 @@
   "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
   "project_id": "tomark",
   "name": "预览链接普通点击外开",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "70a011e19482091f730b499f0562baf753124885",
-  "implementation_commit": null,
+  "implementation_commit": "12d38bf79f0503d7a7d05a0a8c1b61be3b1e0ee4",
   "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-006 与修订 L0-TMK-009 的治理提交 70a011e。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-006.json",
@@ -60,9 +60,12 @@
   ],
   "task_envelope_id": "TASK-PREVIEW-LINK-OPEN-001",
   "closeout": {
-    "decision": "open",
-    "commit": null,
-    "reason": null,
-    "residual_risks": []
+    "decision": "closed",
+    "commit": "12d38bf79f0503d7a7d05a0a8c1b61be3b1e0ee4",
+    "reason": "实现 commit 12d38bf 上 unit/integration/Chromium runtime_e2e 通过；editable 普通点击安全链接经系统 opener 打开，Cmd/Ctrl+点击仍定位。Evidence 见 architecture/evidence/EV-PREVIEW-LINK-OPEN-001-*.json。",
+    "residual_risks": [
+      "浏览器 E2E stub window.open；Tauri openUrl 路径依赖既有 AppShell 实现。",
+      "未单独跑 Tauri WebKit native E2E。"
+    ]
   }
 }

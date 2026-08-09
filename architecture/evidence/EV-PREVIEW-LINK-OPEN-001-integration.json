@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-PREVIEW-LINK-OPEN-001-integration",
+  "work_package_id": "WP-PREVIEW-LINK-OPEN-001",
+  "commit": "12d38bf79f0503d7a7d05a0a8c1b61be3b1e0ee4",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test",
+  "result_summary": "Vitest 全量 51 files / 275 tests passed。实现 commit 12d38bf。",
+  "limitations": [
+    "未单独跑 Tauri native 集成。"
+  ]
+}

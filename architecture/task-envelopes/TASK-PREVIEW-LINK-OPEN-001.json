@@ -38,5 +38,5 @@
   "stop_conditions": [
     "实际影响超出 allowed_scope。"
   ],
-  "notes": "治理基线将回填为含 DEC-TMK-20260810-006 的提交；实现完成后绑定 Evidence 并关闭 WP。"
+  "notes": "治理基线 70a011e；实现 commit 12d38bf；Evidence EV-PREVIEW-LINK-OPEN-001-* 已绑定；WP closeout.decision=closed。"
 }
