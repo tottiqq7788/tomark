@@ -1,0 +1,74 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "project_id": "tomark",
+  "name": "Mermaid 工具栏：复制源码、导出 SVG、定位源码",
+  "status": "admitted",
+  "baseline_commit": "PENDING_GOVERNANCE_COMMIT",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-001 与扩展后 L0-TMK-018 的治理提交。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-001.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": ["L0-TMK-008", "L0-TMK-015A"],
+    "rule_ids": [
+      "L0-TMK-018",
+      "L0-TMK-015A",
+      "L0-TMK-008",
+      "L0-TMK-002"
+    ],
+    "reason": "扩展已批准的 Mermaid 只读查看工具栏动作；不引入围栏编辑。"
+  },
+  "goal": "成功渲染的 Mermaid 工具栏在全屏与 PNG 之外提供复制围栏正文、导出 SVG、定位源码；全程只读、不写回源码。",
+  "allowed_scope": [
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/preview/mermaidDiagramRegistry.ts",
+    "src/export/exportMermaidDiagramSvg.ts",
+    "src/export/exportMermaidDiagramPng.ts",
+    "src/app/AppShell.vue",
+    "src/app/useShellLifecycle.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "tests/e2e/specs/native-export.spec.ts",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "Mermaid 源码编辑 / 围栏内键入",
+    "文档级 ExportSettingsPanel 三种导出格式行为变更",
+    "工具栏内嵌缩放控件",
+    "新增 Tauri clipboard capability 或 Rust IPC（除非运行态证明必须）"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威；复制/导出/定位不得写回文档。",
+    "错误块无工具栏；普通点击开工具栏；Cmd/Ctrl+点击定位仍可用。",
+    "取消导出不产生文件；PNG 白底 2× 行为不变。",
+    "editable 与 fallback 双路径均可触发工具栏。"
+  ],
+  "must_reject": [
+    "把复制源码解释为批准预览编辑围栏。",
+    "从预览 DOM 反推 Markdown 作为导出权威。",
+    "错误块导出成功或静默写空文件。",
+    "为剪贴板默认新增 capability 而未证明 Web Clipboard 不可用。"
+  ],
+  "required_evidence": [
+    "static",
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "治理基线尚未进入不可变 commit。",
+    "Web Clipboard 在目标 WebKit 不可用且未重新准入 capability。"
+  ],
+  "task_envelope_id": "TASK-MERMAID-TOOLBAR-002",
+  "closeout": {
+    "decision": "open",
+    "reason": "等待治理基线提交后实现与证据绑定。"
+  }
+}

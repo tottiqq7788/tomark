@@ -1,0 +1,58 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-001",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "4f2d7bede7d35ba5a3f0e929f0b92f3929ef64a8",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认扩展 Mermaid 只读工具栏：在保持不写回围栏源码的前提下，增加复制源码、导出 SVG 与定位源码；全屏与单图 PNG 白底 2× 继续保留。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-MERMAID-TOOLBAR-002",
+      "decision": "扩展 L0-TMK-018：Mermaid 工具栏在只读前提下提供全屏、导出 PNG、复制围栏正文、导出 SVG、定位源码。复制源码不等于批准编辑围栏。",
+      "approved_rule_ids": ["L0-TMK-018", "L0-TMK-015A"],
+      "modified_rule_ids": ["L0-TMK-018", "L0-TMK-008", "L0-TMK-015A"],
+      "scope": {
+        "toolbar": [
+          "fullscreen",
+          "export_png",
+          "copy_source",
+          "export_svg",
+          "locate_source"
+        ],
+        "copy_source": {
+          "content": "mermaid_fence_body",
+          "includes_fence_markers": false,
+          "clipboard": "navigator.clipboard.writeText"
+        },
+        "export_svg": {
+          "authority": "registry_source_snapshot_rerender",
+          "dialog": "native_save"
+        },
+        "locate_source": {
+          "equivalent_to": "modifier_click_locate"
+        }
+      },
+      "out_of_scope": [
+        "Mermaid 源码编辑 / 围栏写回",
+        "文档级 ExportSettingsPanel 三种导出格式行为变更",
+        "工具栏内嵌缩放控件",
+        "新增 Rust 命令或 Tauri clipboard capability（除非运行态证明必须）"
+      ],
+      "invariants": [
+        "Markdown 与围栏源码唯一权威；工具栏交互不得写回。",
+        "错误块不提供工具栏与成功导出路径。",
+        "取消保存对话框不产生文件。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修改并保持批准 L0-TMK-018 / L0-TMK-015A；扩展 L0-TMK-008 的定位入口说明。",
+    "签发 WP-MERMAID-TOOLBAR-002；实现前须将本决策与治理对象提交为不可变基线。",
+    "本决策只批准产品语义，不宣称代码已符合。"
+  ]
+}

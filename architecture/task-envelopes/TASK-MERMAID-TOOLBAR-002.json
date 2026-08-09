@@ -1,0 +1,54 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-MERMAID-TOOLBAR-002",
+  "role": "implementation_owner",
+  "baseline_commit": "PENDING_GOVERNANCE_COMMIT",
+  "work_package_id": "WP-MERMAID-TOOLBAR-002",
+  "allowed_scope": [
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/preview/mermaidDiagramRegistry.ts",
+    "src/export/exportMermaidDiagramSvg.ts",
+    "src/export/exportMermaidDiagramPng.ts",
+    "src/app/AppShell.vue",
+    "src/app/useShellLifecycle.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "tests/e2e/specs/native-export.spec.ts",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "modify_existing",
+  "l0_rule_ids": [
+    "L0-TMK-018",
+    "L0-TMK-015A",
+    "L0-TMK-008",
+    "L0-TMK-002"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威与 Mermaid 预览只读。",
+    "Cmd/Ctrl+点击定位与现有回归。",
+    "取消导出不产生文件；成功导出原子写入。",
+    "复制内容为围栏正文，不含外层 fence 标记。"
+  ],
+  "must_reject": [
+    "修改 Mermaid 围栏源码或建立第二文档权威。",
+    "错误块导出/复制成功路径。",
+    "修改文档级导出三种格式的产品行为。",
+    "默认引入新的 Tauri clipboard capability。"
+  ],
+  "required_evidence": [
+    "static",
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "治理基线尚未进入不可变 commit。"
+  ],
+  "notes": "治理提交完成后，将 baseline_commit 更新为该 commit；此前不得以 PENDING 值作为 closeout 证据绑定。"
+}
