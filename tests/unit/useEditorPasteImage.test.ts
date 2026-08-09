@@ -203,6 +203,42 @@ describe("useEditorPasteImage", () => {
     expect(writeRelativeImage).not.toHaveBeenCalled();
   });
 
+  it("shows a visible error when a second paste arrives while one is in flight", async () => {
+    let releaseNative: ((file: File) => void) | undefined;
+    const pendingNative = new Promise<File>((resolve) => {
+      releaseNative = resolve;
+    });
+    const showError = vi.fn();
+    writeRelativeImage.mockResolvedValue("assets/pasted-demo.png");
+    const handler = createEditorPasteImageHandler({
+      getDocumentPath: () => "/tmp/note.md",
+      ensureDocumentSaved: async () => true,
+      showError,
+      readAsyncClipboardImage: async () => null,
+      readNativeClipboardImage: () => pendingNative,
+    });
+    const view = {
+      state: {
+        selection: { main: { from: 0, to: 0 } },
+        doc: { length: 0 },
+      },
+      dispatch: vi.fn(),
+      focus: vi.fn(),
+    } as never;
+
+    const first = handler(screenshotClipboard(), view);
+    const second = await handler(screenshotClipboard(), view);
+    expect(second).toBe(true);
+    expect(showError).toHaveBeenCalledWith(
+      "粘贴图片失败",
+      expect.objectContaining({ message: expect.stringContaining("正在处理") }),
+    );
+
+    releaseNative?.(pngFile());
+    await first;
+    expect(writeRelativeImage).toHaveBeenCalledTimes(1);
+  });
+
   it("shows error when native clipboard has no image", async () => {
     const showError = vi.fn();
     const handler = createEditorPasteImageHandler({

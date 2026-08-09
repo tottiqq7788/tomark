@@ -114,6 +114,10 @@ export function createEditorPasteImageHandler(deps: EditorPasteImageDeps) {
     view: EditorView,
   ): Promise<boolean> {
     if (inFlight) {
+      await deps.showError(
+        "粘贴图片失败",
+        new Error("已有粘贴图片正在处理，请稍后再试"),
+      );
       return true;
     }
     inFlight = true;

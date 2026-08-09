@@ -67,6 +67,24 @@ describe("pasteImageMarkdown", () => {
     await expect(extractClipboardImageFile(clipboardData)).resolves.toBe(png);
   });
 
+  it("extracts File items typed as public.png via magic sniff", async () => {
+    const raw = new File([pngHeader()], "shot", { type: "public.png" });
+    const clipboardData = {
+      items: [
+        {
+          kind: "file",
+          type: "public.png",
+          getAsFile: () => raw,
+        },
+      ],
+      files: [] as unknown as FileList,
+      types: ["Files", "public.png"],
+      getData: () => "",
+    } as unknown as DataTransfer;
+    const file = await extractClipboardImageFile(clipboardData);
+    expect(file?.type).toBe("image/png");
+  });
+
   it("accepts empty MIME when file header is PNG", async () => {
     const raw = new File([pngHeader()], "shot", { type: "" });
     const clipboardData = {

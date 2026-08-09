@@ -150,7 +150,13 @@ export async function extractClipboardImageFile(
         continue;
       }
       const itemMime = normalizeImageMime(item.type);
-      if (item.type && !item.type.startsWith("image/") && !itemMime) {
+      const typeHint = (item.type || "").toLowerCase();
+      const looksLikeImageItem =
+        !typeHint
+        || typeHint.startsWith("image/")
+        || itemMime != null
+        || /png|jpe?g|gif|webp|tiff/.test(typeHint);
+      if (typeHint && !looksLikeImageItem) {
         continue;
       }
       const raw = item.getAsFile();
