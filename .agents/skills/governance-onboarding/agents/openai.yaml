@@ -1,0 +1,4 @@
+interface:
+  display_name: "Governance Onboarding"
+  short_description: "Initialize governance for new or existing projects"
+  default_prompt: "Use $governance-onboarding to connect this repository to the governance control plane."

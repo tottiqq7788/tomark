@@ -1,0 +1,141 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-GOV-ONBOARD-001",
+  "project_id": "tomark",
+  "name": "存量项目治理接入与候选基线发现",
+  "status": "evidence_incomplete",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "role": "discovery_owner",
+  "l0_impact": {
+    "classification": "none",
+    "reason": "本工作包只建立治理控制面并记录候选语义与冻结基线观察，不批准或改变产品运行时语义。"
+  },
+  "goal": "按 Agent Governance Kit v0.1 为 tomark 建立可审计的文件型控制面，形成候选语义地图、存量 Inventory、候选合同和后续有界工作包入口。",
+  "allowed_scope": [
+    "AGENTS.md",
+    ".agents/skills/**",
+    "architecture/**"
+  ],
+  "out_of_scope": [
+    "修改 src/**、src-tauri/**、tests/**、deps/** 或产品文档的实现与语义",
+    "裁决预览键入、Mermaid 和导出的正式产品定义",
+    "修复发现的安全、测试、版本或文档漂移",
+    "创建提交、推送远程、构建发行包或发布 Release"
+  ],
+  "source_requirements": [
+    ".ai/onto/docs/portable-kernel-spec.md",
+    ".ai/onto/agent-integration/common/skills/governance-onboarding/SKILL.md",
+    ".ai/onto/agent-integration/common/skills/legacy-system-discovery/SKILL.md",
+    "readme.md",
+    "agent.md",
+    "plan/prd/tomarkv1.10.020260807.md",
+    "src/app/settings/HelpSettingsPanel.vue",
+    "src/app/settings/ExportSettingsPanel.vue"
+  ],
+  "deliverables": [
+    {
+      "path": "architecture/governance.json",
+      "purpose": "项目模式、冻结基线和治理对象路径"
+    },
+    {
+      "path": "architecture/traceability/semantic-map.json",
+      "purpose": "来自自然语言来源的候选 L0，以及候选 L1/L2 映射"
+    },
+    {
+      "path": "architecture/inventories/baseline-046e97e.json",
+      "purpose": "冻结基线上的模块、入口、状态、写入、权限、验证和缺口观察"
+    },
+    {
+      "path": "architecture/contracts/candidate-contracts.json",
+      "purpose": "正向义务、禁止结果、证据要求和审批阻塞项"
+    },
+    {
+      "path": "architecture/task-envelopes/GOV-DISCOVERY-001.json",
+      "purpose": "本次发现任务的角色、范围和停止条件"
+    }
+  ],
+  "must_preserve": [
+    "所有产品源码、测试、依赖和产品文档保持冻结基线内容不变。",
+    "代码扫描只产生 candidate、observed、inferred 或 unknown 结论。",
+    "互相矛盾的来源并列保留，不选择方便的解释。",
+    "静态治理审计与运行态测试结论严格区分。",
+    "证据只有在绑定包含本治理数据的不可变 commit 后才能用于 closeout。"
+  ],
+  "must_reject": [
+    "把当前代码行为自动提升为 approved L0。",
+    "把目录存在或审计通过表述为治理语义已经正确。",
+    "在未获得语义裁决时修改产品代码以消除冲突。",
+    "把浏览器 mock E2E、前端构建或静态扫描表述为完整桌面运行证明。",
+    "在用户未要求时创建 git commit 或修改远程状态。"
+  ],
+  "acceptance_criteria": [
+    "治理清单记录 existing 模式和冻结 commit 046e97e48de8f2e4cb02c5e22603ed101a717517。",
+    "候选 L0 均含稳定 ID、状态、陈述和来源，冲突规则保持并列。",
+    "每个 L1 引用已存在 L0，每个 L2 引用已存在 L1。",
+    "Inventory 为所有关键发现标明 confidence，并记录扫描盲点。",
+    "候选合同包含 must、must_not 与 required_evidence。",
+    "示例任务信封被真实发现任务信封替换。",
+    "治理包校验、JSON Schema 校验和项目引用审计通过。",
+    "最终报告区分 authoritative、candidate、missing 和 out_of_scope。"
+  ],
+  "stop_conditions": [
+    "若需要将任一候选 L0 提升为 approved，停止并要求授权项目负责人确认。",
+    "若实际修改需要触及允许范围之外的文件，停止并重新执行架构准入。",
+    "若冻结基线与发现时 HEAD 不一致，停止并重建 Inventory。",
+    "若验证结果无法绑定包含治理数据的不可变 commit，不得关闭工作包。",
+    "若发现来源冲突，不得自行裁决；必须记录为阻塞项。"
+  ],
+  "verification_plan": [
+    {
+      "type": "static",
+      "command": "python3 .ai/onto/scripts/validate_package.py",
+      "purpose": "验证治理内核包结构"
+    },
+    {
+      "type": "static",
+      "command": "使用 .ai/onto/schemas/*.schema.json 校验治理清单、语义地图和任务信封",
+      "purpose": "验证机器可读对象结构"
+    },
+    {
+      "type": "static",
+      "command": "python3 architecture/tools/audit_project.py --target .",
+      "purpose": "验证目录、必填字段和 L0/L1/L2 引用"
+    },
+    {
+      "type": "static",
+      "command": "git diff --check && git status --short",
+      "purpose": "确认变更边界和文本完整性"
+    }
+  ],
+  "verification_results": [
+    {
+      "type": "static",
+      "command": "python3 .ai/onto/scripts/validate_package.py",
+      "result": "passed",
+      "summary": "Agent Governance Kit 0.1.0；6 个 Skills。"
+    },
+    {
+      "type": "static",
+      "command": "npx --yes ajv-cli@latest validate --spec=draft2020",
+      "result": "passed",
+      "summary": "governance manifest、semantic map 与 GOV-DISCOVERY-001 task envelope 均符合捆绑 Schema；校验器对 semantic-map Schema 自身给出 strictTypes 提示，但数据有效。"
+    },
+    {
+      "type": "static",
+      "command": "python3 architecture/tools/audit_project.py --target .",
+      "result": "passed",
+      "summary": "structure_and_references_only；runtime_evidence 未评估。"
+    },
+    {
+      "type": "static",
+      "command": "git diff --check",
+      "result": "passed",
+      "summary": "未发现已跟踪文本 diff 格式错误；新增 JSON 另经解析与 Schema 校验。"
+    }
+  ],
+  "closeout": {
+    "decision": "evidence_incomplete",
+    "reason": "治理数据当前位于未提交工作树，尚无包含这些文件的不可变 commit，因此不能生成合规 Evidence 或关闭工作包。",
+    "required_next_step": "审阅并确认候选治理数据；如需 closeout，先由用户明确要求提交，再在新 commit 上重跑验证并写入 Evidence。"
+  }
+}

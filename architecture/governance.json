@@ -1,0 +1,16 @@
+{
+  "schema_version": "governance-manifest:v0.1",
+  "project_id": "tomark",
+  "mode": "existing",
+  "baseline": {
+    "commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+    "status": "frozen"
+  },
+  "paths": {
+    "semantic_map": "architecture/traceability/semantic-map.json",
+    "contracts": "architecture/contracts",
+    "inventories": "architecture/inventories",
+    "work_packages": "architecture/work-packages",
+    "evidence": "architecture/evidence"
+  }
+}

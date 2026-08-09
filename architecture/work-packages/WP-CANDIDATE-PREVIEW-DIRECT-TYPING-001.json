@@ -1,0 +1,85 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-CANDIDATE-PREVIEW-DIRECT-TYPING-001",
+  "project_id": "tomark",
+  "name": "实现受限预览直接键入",
+  "status": "blocked_on_governance_commit",
+  "admission_state": "candidate_not_admitted",
+  "baseline_commit": null,
+  "baseline_requirement": "必须以包含 DEC-TMK-20260809-001 及 approved L0 的后续不可变 commit 为实现基线。",
+  "l0_impact": {
+    "classification": "none",
+    "rule_ids": [
+      "L0-TMK-002",
+      "L0-TMK-003A",
+      "L0-TMK-004",
+      "L0-TMK-005",
+      "L0-TMK-008",
+      "L0-TMK-009",
+      "L0-TMK-014",
+      "L0-TMK-015A"
+    ],
+    "reason": "实现已批准语义，不新增或修改 L0。"
+  },
+  "affected_l1": [
+    "L1-TMK-EDITOR",
+    "L1-TMK-PREVIEW",
+    "L1-TMK-NAVIGATION"
+  ],
+  "candidate_l2_scope": [
+    "src/preview/editing/usePreviewEditSession.ts",
+    "src/preview/editing/schema.ts",
+    "src/preview/editing/PreviewEditableHost.vue",
+    "src/markdown/buildEditableProjection.ts",
+    "src/app/usePreviewEditBridge.ts",
+    "src/editor/EditorPane.vue",
+    "src/editor/createEditor.ts",
+    "src/shared/previewEditing.ts",
+    "src/shared/previewFormatting.ts",
+    "src/preview/editing/editablePreview.css",
+    "tests/unit/previewEditing/**",
+    "tests/unit/usePreviewBridge.test.ts",
+    "tests/e2e/specs/preview-editable.spec.ts",
+    "tests/e2e/specs/preview-formatting.spec.ts",
+    "tests/e2e/specs/preview-selection-native.spec.ts"
+  ],
+  "goal": "允许用户在可靠映射的预览普通文字中直接键入，并把每次变更作为受 revision 与 expectedText 保护的源码事务提交到 CodeMirror 唯一历史。",
+  "must_preserve": [
+    "Markdown 源码是唯一文档权威；ProseMirror 不拥有独立持久化内容。",
+    "预览键入与源码编辑共用 CodeMirror 撤销/重做历史。",
+    "标题、段落、列表项、引用、表格单元格、显式链接显示文字及受支持格式文字可直接键入。",
+    "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接、Mermaid、链接 URL/title 和不可可靠映射内容保持只读。",
+    "stale revision、expectedText mismatch 与投影重建竞态必须拒绝并重新同步。",
+    "Cmd/Ctrl 双向定位、Alt/Option 外链、格式工具条、选择复制和 Mermaid 异步布局继续工作。",
+    "中文、日文、韩文等输入法 composition 作为完整事务处理，不丢字、不重复提交。"
+  ],
+  "must_reject": [
+    "把 ProseMirror 文档整体覆盖回 Markdown。",
+    "绕过 CodeMirror transaction 直接更新 useDocumentSession content。",
+    "对只读节点或 Markdown 分隔符应用模糊偏移补丁。",
+    "在投影陈旧时猜测新位置并静默写入。",
+    "建立第二套撤销历史或在预览 rebuild 时清空源码历史。",
+    "只通过 jsdom 或浏览器 mock 就宣称桌面输入法与 WebKit 已验证。"
+  ],
+  "required_evidence": [
+    "static: 可写节点白名单、只读节点闭包、源码事务唯一入口与未映射写路径",
+    "unit: 插入、删除、换行、跨格式、链接标签、revision、expectedText、undo/redo",
+    "integration: ProseMirror transaction 到 CodeMirror transaction 再到投影重建",
+    "fault_injection: 重建竞态、陈旧 revision、映射失败、composition 中同步刷新",
+    "runtime_e2e: Chromium 与 Tauri WebKit 的 ASCII/CJK/IME 键入、只读拒绝、历史与定位"
+  ],
+  "stop_conditions": [
+    "治理批准尚未进入不可变 commit。",
+    "需要扩展已批准可编辑节点集合或改变只读边界。",
+    "无法保持 CodeMirror 为唯一历史和源码权威。",
+    "实现需要触及 candidate_l2_scope 之外的持久化、权限或导出边界。",
+    "缺少可在 Tauri WebKit 复现的直接键入和输入法证据。"
+  ],
+  "known_dependencies": [
+    "CONTRACT-TMK-SOURCE-AUTHORITY",
+    "CONTRACT-TMK-PREVIEW-PROJECTION",
+    "DEC-TMK-20260809-001"
+  ],
+  "task_envelope": null,
+  "notes": "本文件只是有界候选工作包。治理批准提交并重新冻结基线前，不得据此开始实现。"
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Legacy System Discovery"
+  short_description: "Inventory an existing system before governance"
+  default_prompt: "Use $legacy-system-discovery to inventory this existing repository without changing it."

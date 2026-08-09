@@ -1,0 +1,525 @@
+{
+  "schema_version": "semantic-map:v0.1",
+  "l0_rules": [
+    {
+      "id": "L0-TMK-001",
+      "name": "桌面单文件编辑器",
+      "status": "candidate",
+      "statement": "tomark 是轻量级跨平台 Markdown 桌面编辑器，以单文件为工作单元，支持新建、打开、保存和另存为。",
+      "source_refs": [
+        "readme.md#tomark",
+        "plan/prd/tomarkv1.10.020260807.md#1-产品定位",
+        "plan/prd/tomarkv1.10.020260807.md#22-文件与编码"
+      ]
+    },
+    {
+      "id": "L0-TMK-002",
+      "name": "Markdown 源码唯一权威",
+      "status": "candidate",
+      "statement": "Markdown 源码是文档内容的唯一数据源，预览、格式化和导出不得建立第二份可独立持久化的文档真相。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-003A",
+      "name": "受限预览直接编辑",
+      "status": "approved",
+      "statement": "右侧预览允许直接编辑可可靠映射的普通文字，修改必须写回 Markdown 源码。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "src/app/settings/HelpSettingsPanel.vue",
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-PREVIEW-DIRECT-INPUT"
+      ]
+    },
+    {
+      "id": "L0-TMK-003B",
+      "name": "预览非所见即所得",
+      "status": "rejected",
+      "statement": "右侧只用于查看渲染结果，不提供键入式 WYSIWYG 编辑。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#1-产品定位",
+        "plan/prd/tomarkv1.10.020260807.md#3-明确未做--非目标",
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-PREVIEW-DIRECT-INPUT"
+      ]
+    },
+    {
+      "id": "L0-TMK-004",
+      "name": "预览只读边界",
+      "status": "candidate",
+      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧只读；无法可靠映射的内容必须拒绝修改并引导到源码区。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-005",
+      "name": "统一撤销历史",
+      "status": "candidate",
+      "statement": "源码区和预览侧产生的源码变更必须共用 CodeMirror 的同一套撤销与重做历史。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-006",
+      "name": "双栏与三态视图",
+      "status": "candidate",
+      "statement": "默认布局约为左侧三分之一源码、右侧三分之二预览，分隔比例可调，并可切换仅源码、分栏和仅预览三种视图。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-007",
+      "name": "标题单路径折叠",
+      "status": "candidate",
+      "statement": "打开文档时沿首条标题链展开到正文，其余标题默认折叠；手动展开时只保留当前标题及祖先展开，并在编辑中尽量保持折叠状态。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览"
+      ]
+    },
+    {
+      "id": "L0-TMK-008",
+      "name": "基于源码位置的双向定位",
+      "status": "candidate",
+      "statement": "Cmd/Ctrl 点击必须基于 AST 源码位置在源码与预览间双向定位，空行落到最近可渲染块，不得按标题文字或像素高度猜测。在已成功渲染的 Mermaid 图表上，Cmd/Ctrl+点击继续定位源码；普通点击触发 Mermaid 查看工具栏，不触发定位。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览",
+        "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER"
+      ]
+    },
+    {
+      "id": "L0-TMK-009",
+      "name": "链接交互与系统外开",
+      "status": "candidate",
+      "statement": "预览链接的定位、选择和打开行为必须分离；允许的外链由系统处理，不得替换应用 WebView，非安全协议必须拒绝。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "plan/prd/tomarkv1.10.020260807.md#25-系统集成"
+      ]
+    },
+    {
+      "id": "L0-TMK-010",
+      "name": "文档保存生命周期",
+      "status": "candidate",
+      "statement": "已落盘文件停止输入约两秒后自动保存；新建、打开、关窗和退出前必须处理待保存内容，仍有脏数据时提供保存、不保存和取消选择。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#22-文件与编码",
+        "plan/prd/tomarkv1.10.020260807.md#23-菜单快捷键与退出",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-011",
+      "name": "文本编码往返",
+      "status": "candidate",
+      "statement": "原生层应检测常见文本编码、BOM 和换行并尽量按原格式往返；出现不可映射字符时必须暂停自动保存并要求显式处理。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#22-文件与编码",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-012",
+      "name": "原子写盘",
+      "status": "candidate",
+      "statement": "文档写盘必须采用原子替换；符号链接必须解析到真实目标后写入，且不得绕过授权范围。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#22-文件与编码"
+      ]
+    },
+    {
+      "id": "L0-TMK-013",
+      "name": "系统文件集成",
+      "status": "candidate",
+      "statement": "安装包关联 .md 和 .markdown，支持系统打开文件并可引导设为默认 Markdown 应用；一次多文件投递只处理第一个 Markdown 路径。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#25-系统集成",
+        "plan/prd/tomarkv1.10.020260807.md#5-已知限制与可迭代点",
+        "src/app/settings/HelpSettingsPanel.vue"
+      ]
+    },
+    {
+      "id": "L0-TMK-014",
+      "name": "安全 GFM 渲染",
+      "status": "candidate",
+      "statement": "Markdown 使用 unified/remark GFM 管线并经 rehype-sanitize 输出；预览保留源码范围和行锚点供定位使用。",
+      "source_refs": [
+        "readme.md#技术栈概览",
+        "agent.md#技术栈约定",
+        "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览"
+      ]
+    },
+    {
+      "id": "L0-TMK-015A",
+      "name": "Mermaid 只读渲染",
+      "status": "approved",
+      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出），且不得改变围栏源码。",
+      "source_refs": [
+        "readme.md#核心能力",
+        "agent.md#产品要点",
+        "src/app/useDocumentSession.ts",
+        "src/app/settings/HelpSettingsPanel.vue",
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-MERMAID-FORMAL",
+        "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER"
+      ]
+    },
+    {
+      "id": "L0-TMK-015B",
+      "name": "Mermaid 非目标",
+      "status": "rejected",
+      "statement": "Mermaid 等扩展预览不属于产品目标。",
+      "source_refs": [
+        "plan/prd/tomarkv1.10.020260807.md#3-明确未做--非目标",
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-MERMAID-FORMAL"
+      ]
+    },
+    {
+      "id": "L0-TMK-016",
+      "name": "HTML 与 PNG 导出",
+      "status": "approved",
+      "statement": "当前编辑器中的 Markdown 内容可以导出为嵌入图片的单文件 HTML、带资源目录的 HTML 或长图 PNG。",
+      "source_refs": [
+        "src/app/settings/ExportSettingsPanel.vue",
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-EXPORT-FORMAL"
+      ]
+    },
+    {
+      "id": "L0-TMK-017",
+      "name": "Git 版本权威",
+      "status": "candidate",
+      "statement": "产品和安装包版本以 git 中较新的 vX.Y.Z tag 或提交说明版本为准，构建前同步到 Tauri、Cargo 和 npm 配置。",
+      "source_refs": [
+        "agent.md#版本号强制以-git-为准",
+        "plan/prd/tomarkv1.10.020260807.md#5-已知限制与可迭代点"
+      ]
+    },
+    {
+      "id": "L0-TMK-018",
+      "name": "Mermaid 只读查看与单图导出",
+      "status": "approved",
+      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示仅 icon 工具栏；工具栏首版提供全屏查看与单图 PNG 导出。全屏查看器支持缩放、适配/重置与拖拽平移。单图 PNG 使用白底并以 2× 像素密度导出（在画布上限内；超出则明确失败）。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；渲染失败的错误块不提供导出成功路径。",
+      "source_refs": [
+        "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
+        "readme.md#核心能力",
+        "agent.md#产品要点"
+      ]
+    }
+  ],
+  "l1_responsibilities": [
+    {
+      "id": "L1-TMK-SHELL",
+      "name": "应用壳与视图",
+      "status": "candidate",
+      "responsibility": "组合桌面编辑界面、三态视图、分栏、设置、状态和平台窗口差异。",
+      "l0_refs": ["L0-TMK-001", "L0-TMK-006"],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-DOCUMENT",
+      "name": "文档会话与持久化",
+      "status": "candidate",
+      "responsibility": "维护单文件内容权威、脏状态、自动保存、编码干预、打开切换和原子持久化。",
+      "l0_refs": [
+        "L0-TMK-001",
+        "L0-TMK-002",
+        "L0-TMK-010",
+        "L0-TMK-011",
+        "L0-TMK-012"
+      ],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-EDITOR",
+      "name": "源码编辑与大纲",
+      "status": "candidate",
+      "responsibility": "提供 CodeMirror 源码编辑、标题层级、折叠、源码事务和唯一撤销历史。",
+      "l0_refs": ["L0-TMK-002", "L0-TMK-005", "L0-TMK-007"],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-PREVIEW",
+      "name": "预览投影与格式操作",
+      "status": "candidate",
+      "responsibility": "从 Markdown 构建安全预览投影，支持可靠映射范围内的直接键入与格式写回，并维护只读边界、Mermaid 节点、只读查看工具栏/全屏查看器和降级渲染。",
+      "l0_refs": [
+        "L0-TMK-002",
+        "L0-TMK-003A",
+        "L0-TMK-004",
+        "L0-TMK-005",
+        "L0-TMK-014",
+        "L0-TMK-015A",
+        "L0-TMK-018"
+      ],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-NAVIGATION",
+      "name": "布局、定位与链接",
+      "status": "candidate",
+      "responsibility": "维护源码与预览之间的行级定位、视图切换、链接选择、源码定位和外部打开交互。",
+      "l0_refs": [
+        "L0-TMK-006",
+        "L0-TMK-007",
+        "L0-TMK-008",
+        "L0-TMK-009"
+      ],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-NATIVE",
+      "name": "原生与系统边界",
+      "status": "candidate",
+      "responsibility": "提供受 Tauri capability 约束的文件 IO、应用退出、系统打开文件、默认应用和外链能力。",
+      "l0_refs": [
+        "L0-TMK-009",
+        "L0-TMK-010",
+        "L0-TMK-011",
+        "L0-TMK-012",
+        "L0-TMK-013"
+      ],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-EXPORT",
+      "name": "内容导出",
+      "status": "candidate",
+      "responsibility": "以当前 Markdown 快照构建安全 HTML 或 PNG，并通过原生边界写入用户选择的位置；亦负责单张 Mermaid 图表的只读 PNG 导出。",
+      "l0_refs": [
+        "L0-TMK-002",
+        "L0-TMK-014",
+        "L0-TMK-015A",
+        "L0-TMK-016",
+        "L0-TMK-018"
+      ],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    },
+    {
+      "id": "L1-TMK-RELEASE",
+      "name": "版本与发布",
+      "status": "candidate",
+      "responsibility": "从 git 解析版本、同步构建元数据并生成和发布平台安装包。",
+      "l0_refs": ["L0-TMK-017"],
+      "owners": ["role:implementation_owner"],
+      "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
+    }
+  ],
+  "l2_components": [
+    {
+      "id": "L2-TMK-APP-SHELL",
+      "name": "Vue 应用壳",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-SHELL"],
+      "selectors": [
+        "src/main.ts",
+        "src/App.vue",
+        "src/app/AppShell.vue",
+        "src/app/SettingsDrawer.vue",
+        "src/app/useViewMode.ts",
+        "src/app/usePaneSplit.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-DOCUMENT-SESSION",
+      "name": "前端文档状态机",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-DOCUMENT"],
+      "selectors": [
+        "src/app/useDocumentSession.ts",
+        "src/app/DirtyConfirmDialog.vue",
+        "src/app/EncodingSaveDialog.vue"
+      ]
+    },
+    {
+      "id": "L2-TMK-DOCUMENT-BRIDGE",
+      "name": "前端原生文档桥",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-DOCUMENT", "L1-TMK-NATIVE"],
+      "selectors": [
+        "src/native/fileService.ts",
+        "src/native/tauriRuntime.ts",
+        "src/shared/types.ts",
+        "src/shared/encodingErrors.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-DOCUMENT-IO",
+      "name": "Rust 文档 IO 与编码",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-DOCUMENT", "L1-TMK-NATIVE"],
+      "selectors": [
+        "src-tauri/src/document_io.rs",
+        "src-tauri/src/text_codec.rs",
+        "src-tauri/src/atomic_write.rs"
+      ]
+    },
+    {
+      "id": "L2-TMK-EDITOR",
+      "name": "CodeMirror 编辑器",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-EDITOR", "L1-TMK-NAVIGATION"],
+      "selectors": [
+        "src/editor/EditorPane.vue",
+        "src/editor/createEditor.ts",
+        "src/editor/headingTree.ts",
+        "src/editor/headingFoldExtension.ts",
+        "src/editor/markdownInlineFormatting.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-MARKDOWN",
+      "name": "Markdown 解析与映射",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-NAVIGATION", "L1-TMK-EXPORT"],
+      "selectors": [
+        "src/markdown/parseMarkdownDocument.ts",
+        "src/markdown/renderMarkdown.ts",
+        "src/markdown/sanitizeSchema.ts",
+        "src/markdown/attachSourceRanges.ts",
+        "src/markdown/buildLineAnchorMap.ts",
+        "src/markdown/buildEditableProjection.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-PREVIEW",
+      "name": "预览渲染宿主",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-NAVIGATION"],
+      "selectors": [
+        "src/preview/PreviewPane.vue",
+        "src/preview/PreviewFormatToolbar.vue",
+        "src/preview/MermaidDiagramToolbar.vue",
+        "src/preview/MermaidFullscreenViewer.vue",
+        "src/preview/useMermaidViewport.ts",
+        "src/preview/editing/PreviewEditableHost.vue",
+        "src/preview/editing/usePreviewEditSession.ts",
+        "src/preview/editing/schema.ts",
+        "src/preview/editing/mermaidNodeView.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-PREVIEW-BRIDGES",
+      "name": "预览同步与源码事务桥",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-EDITOR", "L1-TMK-PREVIEW", "L1-TMK-NAVIGATION"],
+      "selectors": [
+        "src/app/usePreviewBridge.ts",
+        "src/app/usePreviewEditBridge.ts",
+        "src/app/usePaneLocate.ts",
+        "src/shared/previewEditing.ts",
+        "src/shared/previewFormatting.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-MERMAID",
+      "name": "Mermaid 渲染",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-EXPORT"],
+      "selectors": [
+        "src/preview/loadMermaid.ts",
+        "src/preview/renderMermaid.ts",
+        "src/preview/mountMermaid.ts",
+        "src/preview/mermaidGeneration.ts",
+        "src/preview/mermaidDiagramRegistry.ts",
+        "src/export/exportMermaidDiagramPng.ts"
+      ]
+    },
+    {
+      "id": "L2-TMK-SHELL-LIFECYCLE",
+      "name": "桌面壳生命周期",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-SHELL", "L1-TMK-NATIVE"],
+      "selectors": [
+        "src/app/useShellLifecycle.ts",
+        "src/app/useDefaultAppSetup.ts",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/open_file.rs",
+        "src-tauri/src/default_app.rs"
+      ]
+    },
+    {
+      "id": "L2-TMK-CAPABILITIES",
+      "name": "Tauri 能力边界",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-NATIVE", "L1-TMK-EXPORT"],
+      "selectors": [
+        "src-tauri/capabilities/default.json",
+        "src-tauri/permissions/*.toml",
+        "src-tauri/tauri.conf.json",
+        "src-tauri/tauri.e2e.conf.json"
+      ]
+    },
+    {
+      "id": "L2-TMK-EXPORT",
+      "name": "导出管线",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-EXPORT"],
+      "selectors": [
+        "src/app/settings/ExportSettingsPanel.vue",
+        "src/app/ExportProgressDialog.vue",
+        "src/export/*.ts",
+        "src/native/exportFileService.ts",
+        "src-tauri/src/export_io.rs"
+      ]
+    },
+    {
+      "id": "L2-TMK-RELEASE",
+      "name": "构建与版本同步",
+      "status": "candidate",
+      "l1_refs": ["L1-TMK-RELEASE"],
+      "selectors": [
+        "deps/package.json",
+        "deps/sync-version-from-git.mjs",
+        "src-tauri/Cargo.toml",
+        "src-tauri/tauri.conf.json",
+        "agent.md#打包安装包",
+        "agent.md#提交-release"
+      ]
+    },
+    {
+      "id": "L2-TMK-VERIFICATION",
+      "name": "验证矩阵",
+      "status": "candidate",
+      "l1_refs": [
+        "L1-TMK-SHELL",
+        "L1-TMK-DOCUMENT",
+        "L1-TMK-EDITOR",
+        "L1-TMK-PREVIEW",
+        "L1-TMK-NAVIGATION",
+        "L1-TMK-NATIVE",
+        "L1-TMK-EXPORT",
+        "L1-TMK-RELEASE"
+      ],
+      "selectors": [
+        "tests/unit/**/*.test.ts",
+        "tests/e2e/specs/*.spec.ts",
+        "tests/e2e/wdio.browser.conf.ts",
+        "tests/e2e/wdio.native.conf.ts",
+        "deps/vitest.config.ts",
+        "src-tauri/src/**/*.rs"
+      ]
+    }
+  ]
+}

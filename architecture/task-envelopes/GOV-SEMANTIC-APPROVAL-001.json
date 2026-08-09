@@ -1,0 +1,43 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "GOV-SEMANTIC-APPROVAL-001",
+  "role": "architecture_owner",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "work_package_id": "WP-GOV-SEMANTIC-APPROVAL-001",
+  "allowed_scope": [
+    "AGENTS.md",
+    "readme.md",
+    "agent.md",
+    "architecture/**"
+  ],
+  "l0_impact": "modify_existing",
+  "l0_rule_ids": [
+    "L0-TMK-003A",
+    "L0-TMK-003B",
+    "L0-TMK-015A",
+    "L0-TMK-015B",
+    "L0-TMK-016"
+  ],
+  "must_preserve": [
+    "批准决定逐字保持：预览允许直接键入；Mermaid 为正式能力；HTML/PNG 导出为正式能力。",
+    "Markdown 源码唯一权威、预览只读边界与 Mermaid 只读属性保持不变。",
+    "历史 Inventory 与旧 PRD 不被回写或伪装成批准后的现状。",
+    "L0 批准、L1/L2 候选映射、实现符合性和 Evidence closeout 分开表述。"
+  ],
+  "must_reject": [
+    "修改产品源码、测试、依赖或构建配置。",
+    "把批准规则状态变化表述为直接键入已经实现。",
+    "删除被拒绝规则及其历史来源。",
+    "在未提交工作树上创建 passed Evidence。"
+  ],
+  "required_evidence": [
+    "static"
+  ],
+  "stop_conditions": [
+    "需要重新解释用户批准的三个能力时停止。",
+    "实际影响超出 allowed_scope 时停止并重新准入。",
+    "Schema 或引用校验无法在治理元数据范围内修复时停止。",
+    "需要开始实现直接键入时停止，等待治理 commit 后签发实现任务信封。"
+  ],
+  "notes": "本任务只记录并传播已授权 L0 决策；不包含实现、架构验收或证据 closeout。"
+}

@@ -1,0 +1,82 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-MERMAID-VIEWER-001",
+  "project_id": "tomark",
+  "name": "Mermaid 图表工具栏、全屏查看与单图 PNG",
+  "status": "admitted",
+  "baseline_commit": null,
+  "baseline_requirement": "必须以包含 DEC-TMK-20260809-002 与 L0-TMK-018 的治理提交为不可变实现基线；提交后回填 baseline_commit 与任务信封。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260809-002.json",
+  "l0_impact": {
+    "classification": "add_new",
+    "also_modifies": ["L0-TMK-015A", "L0-TMK-008"],
+    "rule_ids": [
+      "L0-TMK-018",
+      "L0-TMK-015A",
+      "L0-TMK-008",
+      "L0-TMK-002",
+      "L0-TMK-016"
+    ],
+    "reason": "新增 Mermaid 只读查看与单图导出语义；扩展已批准/候选定位与只读规则。"
+  },
+  "goal": "成功渲染的 Mermaid 图表支持普通点击显示仅 icon 工具栏；首版提供全屏查看（缩放、适配、重置、拖拽）与白底 2× 单图 PNG 导出；Cmd/Ctrl+点击继续定位源码。",
+  "allowed_scope": [
+    "src/preview/mermaidDiagramRegistry.ts",
+    "src/preview/renderMermaid.ts",
+    "src/preview/PreviewPane.vue",
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/useMermaidViewport.ts",
+    "src/preview/markdownBody.css",
+    "src/preview/editing/editablePreview.css",
+    "src/export/exportMermaidDiagramPng.ts",
+    "src/app/AppShell.vue",
+    "src/app/useShellLifecycle.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "tests/e2e/specs/native-export.spec.ts",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "Mermaid 源码编辑 / 围栏内键入",
+    "文档级 ExportSettingsPanel 三种导出格式行为变更",
+    "单图 HTML/SVG 文件导出",
+    "预览直接键入实现（WP-CANDIDATE-PREVIEW-DIRECT-TYPING-001）",
+    "新增 Tauri capability 或 Rust IPC 命令（除非审计证明必须）"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威；查看/导出不得写回文档。",
+    "Mermaid 预览只读；全屏不得成为第二编辑面。",
+    "Cmd/Ctrl+点击定位与现有 E2E 回归。",
+    "预览与单图导出共用严格 Mermaid 渲染语义。",
+    "取消保存对话框不产生文件副作用。",
+    "editable 与 fallback 两条渲染路径均可用。"
+  ],
+  "must_reject": [
+    "从预览 DOM 反推 Markdown 作为导出权威。",
+    "普通点击 Mermaid 触发源码定位。",
+    "错误块静默导出空白/损坏 PNG。",
+    "超出画布上限时静默降采样成功。",
+    "把浏览器 mock E2E 当作 Tauri WebKit 单图导出证明。"
+  ],
+  "required_evidence": [
+    "static",
+    "unit",
+    "integration",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实现触及 allowed_scope 之外的持久化、权限或文档级导出边界。",
+    "无法保持 CodeMirror/Markdown 为唯一权威。",
+    "无法提供 Chromium 与 Tauri WebKit 的工具栏/全屏/单图 PNG 证据。"
+  ],
+  "task_envelope_id": "TASK-MERMAID-VIEWER-001",
+  "closeout": {
+    "decision": "open",
+    "reason": "等待治理基线提交后实现与证据绑定。"
+  }
+}

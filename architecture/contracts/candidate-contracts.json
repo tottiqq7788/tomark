@@ -1,0 +1,289 @@
+{
+  "schema_version": "contracts:v0.1",
+  "project_id": "tomark",
+  "status": "candidate",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "authority": "候选合同只约束后续准入讨论；在关联 L0 获批前不得宣称为已批准架构合同。",
+  "contracts": [
+    {
+      "id": "CONTRACT-TMK-SOURCE-AUTHORITY",
+      "name": "Markdown 源码权威合同",
+      "status": "candidate",
+      "l0_refs": ["L0-TMK-002", "L0-TMK-005"],
+      "l1_refs": [
+        "L1-TMK-DOCUMENT",
+        "L1-TMK-EDITOR",
+        "L1-TMK-PREVIEW",
+        "L1-TMK-EXPORT"
+      ],
+      "selectors": [
+        "src/app/useDocumentSession.ts",
+        "src/editor/**",
+        "src/app/usePreviewEditBridge.ts",
+        "src/export/**"
+      ],
+      "must": [
+        "所有用户可持久化的文档变更最终形成针对当前 Markdown 源码及其当前 revision 的显式事务。",
+        "预览格式操作复用 CodeMirror 源码事务和撤销历史。",
+        "导出读取一次明确的 Markdown 快照，不反向修改文档会话。"
+      ],
+      "must_not": [
+        "不得让 ProseMirror、HTML DOM 或导出 DOM 成为可独立保存的第二数据源。",
+        "不得在 revision 或 expectedText 不匹配时静默套用预览补丁。",
+        "不得为通过测试而建立与生产不同的文档权威路径。"
+      ],
+      "required_evidence": [
+        "static: 源码写入调用图与未映射写路径扫描",
+        "unit: revision、expectedText、撤销/重做与导出快照",
+        "integration: 源码和预览格式操作共用历史",
+        "runtime_e2e: 真实桌面会话中的编辑、保存、撤销和重开"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-PREVIEW-PROJECTION",
+      "name": "预览投影合同",
+      "status": "candidate",
+      "decision_state": "semantic_approved_implementation_gap",
+      "l0_refs": [
+        "L0-TMK-003A",
+        "L0-TMK-004",
+        "L0-TMK-008",
+        "L0-TMK-014",
+        "L0-TMK-015A",
+        "L0-TMK-018"
+      ],
+      "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-NAVIGATION"],
+      "selectors": [
+        "src/markdown/**",
+        "src/preview/**",
+        "src/app/usePreviewBridge.ts",
+        "src/app/usePreviewEditBridge.ts"
+      ],
+      "must": [
+        "渲染 HTML 必须经过已声明的 sanitize schema。",
+        "标题、段落、列表项、引用、表格单元格及其它已批准可映射普通文字允许直接键入，并以显式源码事务写回唯一 Markdown 源码。",
+        "Mermaid 围栏作为正式能力渲染，在预览侧保持只读，并遵循与导出一致的图表语义。",
+        "成功渲染的 Mermaid 图普通点击显示仅 icon 工具栏；Cmd/Ctrl+点击保留源码定位。",
+        "全屏查看器不改变文档会话、脏状态或撤销历史；打开时持有 SVG 快照，不绑定可能被重建的 live DOM。",
+        "定位和格式化使用源码范围或精确映射，不按显示文本或像素猜测。",
+        "只读节点、陈旧 revision 和不可可靠映射的操作必须被拒绝并给出可理解反馈。"
+      ],
+      "must_not": [
+        "不得用不可键入的选择投影冒充已批准的直接键入能力。",
+        "不得允许键入操作修改代码、图片、任务复选框、脚注生成内容、自动链接、Mermaid 或无法可靠映射的节点。",
+        "不得通过查看器或单图导出写回 Markdown 或修改 Mermaid 围栏。",
+        "不得让 ProseMirror 建立独立于 Markdown 源码的持久化历史或第二数据源。",
+        "不得在 fallback 渲染中绕过链接协议、只读边界或源码定位约束。"
+      ],
+      "required_evidence": [
+        "static: sanitize、源码映射、直接键入入口、Mermaid 点击路由和链接协议边界",
+        "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥",
+        "integration: CodeMirror 与预览键入/格式投影共用源码与撤销历史；Mermaid 工具栏与格式工具栏互斥",
+        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid 工具栏与全屏查看"
+      ],
+      "implementation_gaps": [
+        "冻结基线 usePreviewEditSession.ts 设置 editable() 为 false 并忽略文档变更，尚未实现直接键入。",
+        "Mermaid 查看器与单图 PNG 为本合同新增实现缺口，由 WP-MERMAID-VIEWER-001 覆盖。",
+        "L1/L2 责任映射与本合同仍为 candidate，需在实现准入和独立审查中确认。"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-DOCUMENT-PERSISTENCE",
+      "name": "文档持久化合同",
+      "status": "candidate",
+      "l0_refs": [
+        "L0-TMK-010",
+        "L0-TMK-011",
+        "L0-TMK-012"
+      ],
+      "l1_refs": ["L1-TMK-DOCUMENT", "L1-TMK-NATIVE"],
+      "selectors": [
+        "src/app/useDocumentSession.ts",
+        "src/native/fileService.ts",
+        "src-tauri/src/document_io.rs",
+        "src-tauri/src/text_codec.rs",
+        "src-tauri/src/atomic_write.rs"
+      ],
+      "must": [
+        "保存使用开始时的内容、格式和 documentVersion 快照，只有路径和版本仍匹配时才更新 savedContent。",
+        "不可映射字符在发生磁盘覆盖前阻止保存，并要求显式选择 UTF-8 覆盖或另存。",
+        "已落盘文件的自动保存有界重试，连续失败后停止重试并显式告知。",
+        "对符号链接解析后的真实读写目标执行与请求路径一致的授权检查。",
+        "单文件替换必须使用原子写。"
+      ],
+      "must_not": [
+        "不得在 dirty guard 接受前切换、关闭或退出当前文档。",
+        "不得把编码探测置信度当作无条件安全覆盖授权。",
+        "不得存在授权策略不同但可达同一持久化目标的并行写入口。",
+        "不得在 scope 拒绝后产生任何文件副作用。"
+      ],
+      "required_evidence": [
+        "static: 所有文档读写命令、scope 检查和符号链接解析顺序",
+        "unit: BOM、换行、legacy encoding、不可映射字符、原子替换",
+        "fault_injection: 权限拒绝、写失败、连续自动保存失败、symlink 越界",
+        "runtime_e2e: 真实 Tauri IPC 编码往返与脏文档退出"
+      ],
+      "known_gap_refs": [
+        "GAP-FS-SYMLINK-SCOPE",
+        "GAP-DUPLICATE-DOCUMENT-WRITE",
+        "GAP-OVERWRITE-FLAG"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-NATIVE-CAPABILITY",
+      "name": "原生能力最小化合同",
+      "status": "candidate",
+      "l0_refs": ["L0-TMK-009", "L0-TMK-012", "L0-TMK-013"],
+      "l1_refs": ["L1-TMK-NATIVE"],
+      "selectors": [
+        "src-tauri/capabilities/**",
+        "src-tauri/permissions/**",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/open_file.rs",
+        "src-tauri/src/default_app.rs"
+      ],
+      "must": [
+        "生产窗口只获得实现已批准语义所需的命令和插件权限。",
+        "外部打开文件只扩大到用户或操作系统明确投递的必要路径。",
+        "WebView 导航保持在应用入口，安全外链通过系统 opener 打开。",
+        "debug 与 E2E 命令在生产构建中不可产生可利用副作用。"
+      ],
+      "must_not": [
+        "不得用通用 plugin-fs 权限绕过自定义文档与导出命令的额外校验。",
+        "不得把 force-export 临时协议当作生产文件写入口。",
+        "不得在拒绝权限、无效协议或未确认退出时先执行副作用。"
+      ],
+      "required_evidence": [
+        "static: capability 到命令调用的双向映射",
+        "contract: production 与 E2E capability 差异快照",
+        "fault_injection: scope、导航、协议和退出拒绝",
+        "runtime_e2e: 外部打开、单实例、默认应用和系统外链"
+      ],
+      "known_gap_refs": [
+        "GAP-CAPABILITY-DRIFT",
+        "GAP-FS-SYMLINK-SCOPE"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-EXPORT",
+      "name": "导出快照与落盘合同",
+      "status": "candidate",
+      "decision_state": "semantic_approved_contract_candidate",
+      "l0_refs": [
+        "L0-TMK-002",
+        "L0-TMK-014",
+        "L0-TMK-015A",
+        "L0-TMK-016",
+        "L0-TMK-018"
+      ],
+      "l1_refs": ["L1-TMK-EXPORT"],
+      "selectors": [
+        "src/app/settings/ExportSettingsPanel.vue",
+        "src/export/**",
+        "src/native/exportFileService.ts",
+        "src-tauri/src/export_io.rs"
+      ],
+      "must": [
+        "导出使用启动时的 Markdown、文档路径和文件名快照，包括尚未保存的编辑内容。",
+        "HTML 和 PNG 共享安全 Markdown 渲染语义，图片失败以显式 warning 返回。",
+        "单图 Mermaid PNG 使用与预览一致的严格渲染语义、白底与固定 2× 像素密度；超出画布上限时明确失败。",
+        "用户取消路径选择不产生导出文件。",
+        "单文件产物原子写入；资源目录 HTML 必须明确报告其跨文件非事务限制。"
+      ],
+      "must_not": [
+        "不得从预览 DOM 反推 Markdown 作为导出权威。",
+        "不得读取文档目录边界外的相对图片。",
+        "不得将浏览器 mock 通过当作真实原生写入证据。",
+        "不得把单图 Mermaid PNG 与文档级长图 PNG 混为同一语义或互相替代。"
+      ],
+      "required_evidence": [
+        "unit: 三种格式、图片警告、路径和画布限制、单图 Mermaid 白底 2×",
+        "integration: HTML bundle 与 Mermaid 导出",
+        "fault_injection: 取消、图片失败、部分 bundle 写失败、单图画布超限",
+        "runtime_e2e: 真实原生 HTML、文档 PNG 与单图 Mermaid PNG 文件内容"
+      ],
+      "closeout_gaps": [
+        "原生 native-export E2E 的 afterEach 清理失败尚未修复。",
+        "正式能力尚无绑定包含治理批准数据之不可变 commit 的 Evidence。"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-VERIFICATION",
+      "name": "验证与证据合同",
+      "status": "candidate",
+      "l0_refs": [
+        "L0-TMK-002",
+        "L0-TMK-010",
+        "L0-TMK-012",
+        "L0-TMK-014",
+        "L0-TMK-017"
+      ],
+      "l1_refs": [
+        "L1-TMK-DOCUMENT",
+        "L1-TMK-PREVIEW",
+        "L1-TMK-NATIVE",
+        "L1-TMK-EXPORT",
+        "L1-TMK-RELEASE"
+      ],
+      "selectors": [
+        "deps/package.json",
+        "deps/vitest.config.ts",
+        "tests/**",
+        "src-tauri/src/**/*.rs",
+        "architecture/tools/audit_project.py"
+      ],
+      "must": [
+        "静态、单元、集成、故障注入和运行态 E2E 结论分别记录。",
+        "用于 closeout 的证据绑定包含被验证变更的不可变 commit。",
+        "测试失败、跳过、平台缺失和 mock 边界必须显式报告。",
+        "治理引用审计不能替代业务正确性或运行态证据。"
+      ],
+      "must_not": [
+        "不得把浏览器 mock E2E 表述为 Rust IPC 证明。",
+        "不得把前端 build 表述为 Tauri 发行包或签名证明。",
+        "不得在 required evidence 缺失时关闭工作包。"
+      ],
+      "required_evidence": [
+        "static: governance audit 与变更范围",
+        "unit: Vitest 与 cargo test",
+        "integration: 浏览器 E2E",
+        "runtime_e2e: Tauri 原生 E2E 与目标平台验证"
+      ],
+      "known_gap_refs": [
+        "GAP-NO-CI",
+        "GAP-AGGREGATE-LANE",
+        "GAP-NATIVE-E2E-CLEANUP"
+      ]
+    },
+    {
+      "id": "CONTRACT-TMK-RELEASE-VERSION",
+      "name": "版本权威合同",
+      "status": "candidate",
+      "l0_refs": ["L0-TMK-017"],
+      "l1_refs": ["L1-TMK-RELEASE"],
+      "selectors": [
+        "deps/sync-version-from-git.mjs",
+        "deps/package.json",
+        "deps/package-lock.json",
+        "src-tauri/Cargo.toml",
+        "src-tauri/tauri.conf.json"
+      ],
+      "must": [
+        "构建和 Release 版本来自 git 中较新的 vX.Y.Z tag 或提交说明版本。",
+        "打包前四份配置版本必须同步且产物文件名版本一致。",
+        "发布证据记录 git commit、版本、平台、架构和资产路径或 URL。"
+      ],
+      "must_not": [
+        "不得使用配置中的陈旧版本覆盖更新的 git 版本。",
+        "不得用旧版本资产补齐当前 Release。",
+        "不得把未签名构建表述为已签名或已公证产物。"
+      ],
+      "required_evidence": [
+        "static: git 版本解析和四文件一致性",
+        "integration: sync-version 幂等性",
+        "runtime_e2e: 目标平台安装包版本和启动验证"
+      ],
+      "known_gap_refs": ["GAP-VERSION-DRIFT"]
+    }
+  ]
+}

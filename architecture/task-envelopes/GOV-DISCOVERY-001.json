@@ -1,0 +1,56 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "GOV-DISCOVERY-001",
+  "role": "discovery_owner",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "work_package_id": "WP-GOV-ONBOARD-001",
+  "allowed_scope": [
+    "AGENTS.md",
+    ".agents/skills/**",
+    "architecture/**"
+  ],
+  "l0_impact": "none",
+  "l0_rule_ids": [
+    "L0-TMK-001",
+    "L0-TMK-002",
+    "L0-TMK-003A",
+    "L0-TMK-003B",
+    "L0-TMK-004",
+    "L0-TMK-005",
+    "L0-TMK-006",
+    "L0-TMK-007",
+    "L0-TMK-008",
+    "L0-TMK-009",
+    "L0-TMK-010",
+    "L0-TMK-011",
+    "L0-TMK-012",
+    "L0-TMK-013",
+    "L0-TMK-014",
+    "L0-TMK-015A",
+    "L0-TMK-015B",
+    "L0-TMK-016",
+    "L0-TMK-017"
+  ],
+  "must_preserve": [
+    "冻结基线的产品源码、测试、依赖和产品文档不变。",
+    "所有发现保留 candidate、observed、inferred 或 unknown 限定。",
+    "预览编辑、Mermaid 和导出语义冲突保持并列。",
+    "静态审计不冒充业务正确性或运行态证明。"
+  ],
+  "must_reject": [
+    "从代码现状自动创建 approved L0。",
+    "超出治理控制面目录修改产品实现。",
+    "在未绑定新不可变 commit 前写入 passed closeout Evidence。",
+    "未经用户明确要求创建提交或修改远程仓库。"
+  ],
+  "required_evidence": [
+    "static"
+  ],
+  "stop_conditions": [
+    "需要批准、拒绝或合并任一候选 L0 时停止并请求授权裁决。",
+    "HEAD 不再等于冻结基线时停止并重建 Inventory。",
+    "任何必要变更超出 allowed_scope 时停止并重新准入。",
+    "项目审计或 Schema 校验失败且无法在治理元数据范围内修复时停止。"
+  ],
+  "notes": "l0_impact=none 表示本任务不改变运行时产品语义；l0_rule_ids 仅列出本次从自然语言来源登记的候选规则，不代表批准。"
+}

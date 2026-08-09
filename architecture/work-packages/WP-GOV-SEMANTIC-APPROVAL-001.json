@@ -1,0 +1,114 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-GOV-SEMANTIC-APPROVAL-001",
+  "project_id": "tomark",
+  "name": "批准预览键入、Mermaid 与 HTML/PNG 导出语义",
+  "status": "evidence_incomplete",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "role": "architecture_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260809-001.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "rule_ids": [
+      "L0-TMK-003A",
+      "L0-TMK-003B",
+      "L0-TMK-015A",
+      "L0-TMK-015B",
+      "L0-TMK-016"
+    ],
+    "reason": "授权项目负责人明确批准三个正式能力，并拒绝两个与之冲突的历史候选。"
+  },
+  "allowed_scope": [
+    "AGENTS.md",
+    "readme.md",
+    "agent.md",
+    "architecture/**"
+  ],
+  "out_of_scope": [
+    "实现预览直接键入",
+    "修改 Mermaid 或导出生产代码",
+    "修复原生 E2E、权限、版本或 CI 缺口",
+    "重写历史 Inventory 或 v1.10.0 PRD 归档",
+    "创建 git commit、推送或发布"
+  ],
+  "must_preserve": [
+    "Markdown 源码继续是唯一数据源。",
+    "预览只读节点及无法可靠映射的内容继续拒绝修改。",
+    "Mermaid 在预览侧只读。",
+    "导出读取当前 Markdown 快照，不建立第二文档权威。",
+    "baseline-046e97e Inventory 保持批准前历史观察，不回写成当前状态。",
+    "被拒绝 L0 保留稳定 ID、原陈述和来源，不物理删除。"
+  ],
+  "must_reject": [
+    "把 L0 批准误报为实现已经完成。",
+    "把现有不可键入 ProseMirror 投影视为符合直接键入语义。",
+    "把已有 Mermaid/导出测试视为绑定新治理批准的 closeout Evidence。",
+    "在未准入的情况下修改 src/**、src-tauri/** 或 tests/**。"
+  ],
+  "mapping_recalculation": {
+    "l1": [
+      "L1-TMK-PREVIEW 移除 rejected 规则引用，并明确直接键入责任。",
+      "L1-TMK-EXPORT 保持候选责任映射，正式 L0 引用变为 approved。"
+    ],
+    "l2": [
+      "L2-TMK-PREVIEW、L2-TMK-PREVIEW-BRIDGES 与 L2-TMK-MERMAID 仍为候选实现边界。",
+      "L2-TMK-EXPORT 仍为候选实现边界，待独立架构审查和 Evidence closeout。"
+    ],
+    "contracts": [
+      "预览合同由语义冲突改为已批准但存在实现缺口。",
+      "导出合同由待产品确认改为正式语义、候选合同。"
+    ],
+    "tests_and_runtime_evidence": [
+      "直接键入需要新增输入法、只读边界、映射、历史与 WebKit 运行态证据。",
+      "Mermaid 与导出已有发现期测试，但必须在包含治理批准和后续变更的不可变 commit 上重跑。"
+    ]
+  },
+  "acceptance_criteria": [
+    "三个批准规则状态为 approved，两个冲突规则状态为 rejected。",
+    "批准与拒绝对象均引用持久化决策记录。",
+    "L1 和合同不再把被拒绝规则当作有效约束。",
+    "公开介绍与 Agent 产品要点登记 Mermaid 和 HTML/PNG 的正式地位。",
+    "直接键入的实现缺口被登记为有界候选工作包。",
+    "Schema、JSON 引用和项目治理审计通过。",
+    "不修改任何产品实现或测试。"
+  ],
+  "required_evidence": [
+    "static"
+  ],
+  "stop_conditions": [
+    "若需要改变已确认的直接键入范围、Mermaid 只读边界或导出格式，停止并重新请求 L0 决策。",
+    "若更新要求触及产品实现，停止并创建独立实现准入。",
+    "若语义批准未进入不可变 commit，不得为后续实现签发正式任务信封或关闭本工作包。"
+  ],
+  "verification_results": [
+    {
+      "type": "static",
+      "command": "python3 .ai/onto/scripts/validate_package.py",
+      "result": "passed",
+      "summary": "Agent Governance Kit 0.1.0 与 6 个 Skills 结构有效。"
+    },
+    {
+      "type": "static",
+      "command": "npx --yes ajv-cli@latest validate --spec=draft2020",
+      "result": "passed",
+      "summary": "governance manifest、semantic map 与全部任务信封符合捆绑 Schema。"
+    },
+    {
+      "type": "static",
+      "command": "python3 architecture/tools/audit_project.py --target .",
+      "result": "passed",
+      "summary": "结构与 L0/L1/L2 引用审计通过；运行态证据未评估。"
+    },
+    {
+      "type": "static",
+      "command": "custom governance cross-reference check",
+      "result": "passed",
+      "summary": "3 条 approved、14 条 candidate、2 条 rejected；有效 L1 与合同均未引用 rejected L0。"
+    }
+  ],
+  "closeout": {
+    "decision": "evidence_incomplete",
+    "reason": "批准记录和重算后的治理对象尚未绑定不可变 commit。",
+    "required_next_step": "审阅治理 diff；如需固化，明确要求提交后在新 commit 上重跑静态验证并写入 Evidence。"
+  }
+}

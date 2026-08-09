@@ -1,0 +1,4 @@
+interface:
+  display_name: "Governed Implementation"
+  short_description: "Implement only within an approved work package"
+  default_prompt: "Use $governed-implementation to implement the active governed work package."

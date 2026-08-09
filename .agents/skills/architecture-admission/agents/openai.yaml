@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Admission"
+  short_description: "Classify L0/L1/L2 impact before implementation"
+  default_prompt: "Use $architecture-admission to assess this change before implementation."

@@ -1,0 +1,57 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260809-001",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-09",
+  "baseline_commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision",
+    "statement": "项目负责人在治理会话中明确确认预览直接键入、Mermaid、HTML/PNG 导出的正式产品地位。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-PREVIEW-DIRECT-INPUT",
+      "decision": "预览允许直接键入",
+      "approved_rule_ids": ["L0-TMK-003A"],
+      "rejected_rule_ids": ["L0-TMK-003B"],
+      "supersedes": [
+        "plan/prd/tomarkv1.10.020260807.md#1-产品定位",
+        "plan/prd/tomarkv1.10.020260807.md#3-明确未做--非目标"
+      ],
+      "implementation_status": "gap",
+      "observed_gap": "冻结基线中的 src/preview/editing/usePreviewEditSession.ts 将 ProseMirror 配置为 non-editable、not typing，尚不符合已批准语义。"
+    },
+    {
+      "id": "DEC-TMK-MERMAID-FORMAL",
+      "decision": "Mermaid 为正式能力，在预览侧保持只读，并参与正式导出语义。",
+      "approved_rule_ids": ["L0-TMK-015A"],
+      "rejected_rule_ids": ["L0-TMK-015B"],
+      "supersedes": [
+        "plan/prd/tomarkv1.10.020260807.md#3-明确未做--非目标"
+      ],
+      "implementation_status": "observed_existing_not_closed",
+      "observed_gap": "已有实现与测试，但尚无绑定包含治理批准数据之不可变 commit 的 closeout Evidence。"
+    },
+    {
+      "id": "DEC-TMK-EXPORT-FORMAL",
+      "decision": "HTML 与 PNG 导出为正式能力，包含嵌入图片 HTML、资源目录 HTML 和长图 PNG。",
+      "approved_rule_ids": ["L0-TMK-016"],
+      "rejected_rule_ids": [],
+      "supersedes": [
+        "旧 PRD 未登记导出能力的缺口"
+      ],
+      "implementation_status": "observed_existing_not_closed",
+      "observed_gap": "已有实现与测试，但原生 E2E 清理 hook 失败，且尚无不可变 commit Evidence。"
+    }
+  ],
+  "governance_consequences": [
+    "将 L0-TMK-003A、L0-TMK-015A、L0-TMK-016 提升为 approved。",
+    "将冲突候选 L0-TMK-003B、L0-TMK-015B 标记为 rejected，保留历史来源与可追溯性。",
+    "从候选 L1 和合同的有效映射中移除 rejected 规则，不删除历史对象。",
+    "保留 baseline-046e97e Inventory 原貌；它仍准确描述批准前冻结基线上的矛盾。",
+    "建立预览直接键入的候选实现工作包；在治理批准进入不可变 commit 前不签发实现任务信封。",
+    "本决策只批准产品语义，不宣称现有实现通过架构审查或证据 closeout。"
+  ]
+}

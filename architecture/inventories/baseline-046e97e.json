@@ -1,0 +1,654 @@
+{
+  "schema_version": "inventory:v0.1",
+  "inventory_id": "INV-TMK-046E97E",
+  "project_id": "tomark",
+  "status": "candidate",
+  "baseline": {
+    "commit": "046e97e48de8f2e4cb02c5e22603ed101a717517",
+    "status": "frozen",
+    "branch_at_discovery": "master",
+    "worktree_at_discovery_start": "clean"
+  },
+  "collected_on": "2026-08-09",
+  "authority": {
+    "classification": "candidate_observation",
+    "statement": "本清单记录冻结基线上的可观察实现与文档，不批准产品语义；observed 不等于 approved。",
+    "promotion_requirement": "候选 L0 与矛盾项须由授权项目负责人确认后才能提升为 approved。"
+  },
+  "scope": {
+    "included": [
+      "readme.md",
+      "agent.md",
+      "plan/prd/**",
+      "src/**",
+      "src-tauri/src/**",
+      "src-tauri/capabilities/**",
+      "src-tauri/permissions/**",
+      "tests/**",
+      "deps/package.json",
+      "deps/vitest.config.ts",
+      "deps/sync-version-from-git.mjs"
+    ],
+    "excluded": [
+      "deps/node_modules/**",
+      "deps/dist/**",
+      "src-tauri/target/**",
+      "已安装应用的签名、公证与操作系统策略",
+      "远程 GitHub Release 当前状态",
+      "Windows 与 Linux 运行态行为"
+    ]
+  },
+  "modules": [
+    {
+      "id": "INV-MOD-APP-SHELL",
+      "name": "应用壳与视图编排",
+      "responsibility": "挂载 Vue 应用，组合文档、编辑器、预览、设置、布局、快捷键和桌面生命周期。",
+      "selectors": [
+        "src/main.ts",
+        "src/App.vue",
+        "src/app/AppShell.vue",
+        "src/app/useViewMode.ts",
+        "src/app/usePaneSplit.ts"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-DOCUMENT-SESSION",
+      "name": "文档会话状态机",
+      "responsibility": "维护 path、content、savedContent、format、dirty、saveStatus、自动保存与编码冲突。",
+      "selectors": [
+        "src/app/useDocumentSession.ts",
+        "src/app/DirtyConfirmDialog.vue",
+        "src/app/EncodingSaveDialog.vue"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-EDITOR",
+      "name": "CodeMirror 源码编辑器",
+      "responsibility": "源码编辑、标题树、折叠、行定位、格式事务和撤销历史。",
+      "selectors": [
+        "src/editor/**"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-MARKDOWN",
+      "name": "Markdown 解析与安全渲染",
+      "responsibility": "解析 GFM、附加源码范围、生成安全 HTML、锚点和 ProseMirror 投影。",
+      "selectors": [
+        "src/markdown/**"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-PREVIEW",
+      "name": "预览投影",
+      "responsibility": "挂载不可键入的 ProseMirror 投影或 HTML fallback，处理选区、格式工具条、定位和 Mermaid。",
+      "selectors": [
+        "src/preview/**",
+        "src/app/usePreviewBridge.ts",
+        "src/app/usePreviewEditBridge.ts"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-LOCATE",
+      "name": "双向定位",
+      "responsibility": "在源码行、源码范围、预览块和折叠编辑器之间传递定位。",
+      "selectors": [
+        "src/app/usePaneLocate.ts",
+        "src/app/usePreviewBridge.ts",
+        "src/preview/previewSelection.ts",
+        "src/markdown/buildLineAnchorMap.ts"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-DOCUMENT-BRIDGE",
+      "name": "前端文档 IPC",
+      "responsibility": "选择路径并调用 load_markdown_document、save_markdown_document，映射编码和原生错误。",
+      "selectors": [
+        "src/native/fileService.ts",
+        "src/native/tauriRuntime.ts"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-DOCUMENT-IO",
+      "name": "Rust 文档 IO",
+      "responsibility": "检查文件系统 scope，解码和编码文档，并通过原子写执行保存。",
+      "selectors": [
+        "src-tauri/src/document_io.rs",
+        "src-tauri/src/text_codec.rs",
+        "src-tauri/src/atomic_write.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-EXPORT",
+      "name": "HTML 与 PNG 导出",
+      "responsibility": "从当前 Markdown 快照构建导出文档、处理图片与 Mermaid，并通过原生 IPC 写文件。",
+      "selectors": [
+        "src/app/settings/ExportSettingsPanel.vue",
+        "src/export/**",
+        "src/native/exportFileService.ts",
+        "src-tauri/src/export_io.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-SHELL-LIFECYCLE",
+      "name": "桌面生命周期",
+      "responsibility": "处理菜单、关窗守卫、外部打开文件队列、应用退出和测试钩子。",
+      "selectors": [
+        "src/app/useShellLifecycle.ts",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/open_file.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-DEFAULT-APP",
+      "name": "默认应用集成",
+      "responsibility": "显示引导并调用平台 API 或设置页请求默认 Markdown 应用。",
+      "selectors": [
+        "src/app/useDefaultAppSetup.ts",
+        "src/app/DefaultAppPrompt.vue",
+        "src-tauri/src/default_app.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-CAPABILITIES",
+      "name": "Tauri 能力与导航边界",
+      "responsibility": "声明主窗口命令权限、插件权限、CSP 和 WebView 导航限制。",
+      "selectors": [
+        "src-tauri/capabilities/default.json",
+        "src-tauri/permissions/*.toml",
+        "src-tauri/tauri.conf.json",
+        "src-tauri/src/lib.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-VERIFICATION",
+      "name": "测试矩阵",
+      "responsibility": "提供 Vitest、浏览器 WDIO、原生 Tauri WDIO 和 Rust 单元测试。",
+      "selectors": [
+        "tests/unit/**",
+        "tests/e2e/**",
+        "deps/vitest.config.ts",
+        "src-tauri/src/**/*.rs"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "INV-MOD-RELEASE",
+      "name": "版本、构建与发布",
+      "responsibility": "从 git 解析 semver，同步四份版本元数据，构建平台包并手工上传 GitHub Release。",
+      "selectors": [
+        "deps/package.json",
+        "deps/sync-version-from-git.mjs",
+        "src-tauri/Cargo.toml",
+        "src-tauri/tauri.conf.json",
+        "agent.md"
+      ],
+      "confidence": "observed"
+    }
+  ],
+  "entry_points": [
+    {
+      "id": "ENTRY-WEBVIEW",
+      "kind": "ui",
+      "selector": "src/main.ts:createApp(App).mount('#app')",
+      "confidence": "observed"
+    },
+    {
+      "id": "ENTRY-TAURI",
+      "kind": "native",
+      "selector": "src-tauri/src/main.rs -> tomark_lib::run",
+      "confidence": "observed"
+    },
+    {
+      "id": "ENTRY-IPC",
+      "kind": "native_commands",
+      "selector": "src-tauri/src/lib.rs:invoke_handler",
+      "commands": [
+        "atomic_write_text_file",
+        "load_markdown_document",
+        "save_markdown_document",
+        "atomic_write_bytes_file",
+        "read_export_image",
+        "write_html_export_bundle",
+        "poll_force_export_job",
+        "write_force_export_result",
+        "write_force_export_status",
+        "confirm_app_exit",
+        "acknowledge_open_file_listener",
+        "request_default_markdown_app"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "ENTRY-OS-OPEN",
+      "kind": "operating_system",
+      "selector": "src-tauri/src/open_file.rs",
+      "events": [
+        "startup argv",
+        "macOS RunEvent::Opened",
+        "Windows/Linux single-instance argv",
+        "tomark-open-file event"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "ENTRY-NPM",
+      "kind": "tooling",
+      "selector": "deps/package.json:scripts",
+      "commands": [
+        "npm --prefix deps run dev",
+        "npm --prefix deps test",
+        "npm --prefix deps run test:e2e",
+        "npm --prefix deps run test:e2e:native",
+        "npm --prefix deps run build",
+        "npm --prefix deps run tauri:build"
+      ],
+      "confidence": "observed"
+    }
+  ],
+  "state_machines": [
+    {
+      "id": "STATE-DOCUMENT",
+      "states": [
+        "untitled",
+        "clean",
+        "dirty",
+        "saving",
+        "encoding_intervention",
+        "autosave_paused"
+      ],
+      "transitions": [
+        "setContent: clean|dirty -> dirty",
+        "idle 2000ms with path: dirty -> saving",
+        "save success with unchanged version: saving -> clean",
+        "unmappable character: saving -> encoding_intervention",
+        "force UTF-8 overwrite or save-as success: encoding_intervention -> clean",
+        "three consecutive autosave failures: dirty -> autosave_paused",
+        "manual edit after pause: autosave_paused -> dirty"
+      ],
+      "selector": "src/app/useDocumentSession.ts",
+      "confidence": "observed"
+    },
+    {
+      "id": "STATE-DIRTY-GUARD",
+      "states": [
+        "idle",
+        "flushing_autosave",
+        "awaiting_user",
+        "accepted",
+        "cancelled"
+      ],
+      "transitions": [
+        "new/open/close/exit -> flushing_autosave",
+        "still dirty -> awaiting_user",
+        "save success or discard -> accepted",
+        "cancel or failed save -> cancelled"
+      ],
+      "selectors": [
+        "src/app/useDocumentSession.ts",
+        "src/app/DirtyConfirmDialog.vue",
+        "src/app/useShellLifecycle.ts"
+      ],
+      "confidence": "observed"
+    },
+    {
+      "id": "STATE-PREVIEW",
+      "states": [
+        "editable_projection",
+        "sanitized_html_fallback",
+        "stale",
+        "render_error"
+      ],
+      "transitions": [
+        "source change -> debounced projection rebuild",
+        "projection failure -> sanitized_html_fallback",
+        "newer render version -> discard stale result",
+        "format transaction success -> rebuild from authoritative source",
+        "stale revision or expected-text mismatch -> force resync"
+      ],
+      "selectors": [
+        "src/app/usePreviewBridge.ts",
+        "src/app/usePreviewEditBridge.ts"
+      ],
+      "confidence": "observed",
+      "limitation": "editable_projection 是实现命名；实际 ProseMirror editable() 返回 false，不允许键入。"
+    },
+    {
+      "id": "STATE-EXPORT",
+      "states": [
+        "idle",
+        "selecting_path",
+        "running",
+        "success",
+        "error",
+        "cancelled"
+      ],
+      "selectors": [
+        "src/app/settings/ExportSettingsPanel.vue",
+        "src/app/ExportProgressDialog.vue",
+        "src/export/runExport.ts"
+      ],
+      "confidence": "observed"
+    }
+  ],
+  "persistent_writes_and_side_effects": [
+    {
+      "id": "WRITE-DOCUMENT",
+      "target": "用户选择的 Markdown 文件",
+      "authority": "src-tauri/src/document_io.rs -> src-tauri/src/atomic_write.rs",
+      "atomicity": "single_file_atomic",
+      "confidence": "observed"
+    },
+    {
+      "id": "WRITE-EXPORT-BYTES",
+      "target": "用户选择的 HTML 或 PNG 文件",
+      "authority": "src-tauri/src/export_io.rs:atomic_write_bytes_file",
+      "atomicity": "single_file_atomic",
+      "confidence": "observed"
+    },
+    {
+      "id": "WRITE-EXPORT-BUNDLE",
+      "target": "HTML 文件及同名 _files 资源目录",
+      "authority": "src-tauri/src/export_io.rs:write_html_export_bundle",
+      "atomicity": "assets_then_html_non_transactional",
+      "confidence": "observed"
+    },
+    {
+      "id": "WRITE-DEFAULT-PROMPT",
+      "target": "localStorage:tomark.defaultAppPrompt.v1",
+      "authority": "src/app/useDefaultAppSetup.ts",
+      "atomicity": "browser_storage",
+      "confidence": "observed"
+    },
+    {
+      "id": "WRITE-FORCE-EXPORT",
+      "target": "系统临时目录中的 tomark-force-export-* 文件",
+      "authority": "src-tauri/src/export_io.rs",
+      "atomicity": "debug_protocol_mixed",
+      "confidence": "observed",
+      "limitation": "部分命令仅 debug 生效，且临时 job 读取后会删除。"
+    },
+    {
+      "id": "WRITE-VERSION",
+      "target": "tauri.conf.json、Cargo.toml、package.json、package-lock.json",
+      "authority": "deps/sync-version-from-git.mjs",
+      "atomicity": "multi_file_non_transactional",
+      "confidence": "observed"
+    },
+    {
+      "id": "SIDE-EFFECT-DEFAULT-APP",
+      "target": "操作系统默认应用关联或设置界面",
+      "authority": "src-tauri/src/default_app.rs",
+      "confidence": "observed"
+    },
+    {
+      "id": "SIDE-EFFECT-OPEN-URL",
+      "target": "系统浏览器或协议处理器",
+      "authority": "src/app/AppShell.vue -> @tauri-apps/plugin-opener",
+      "confidence": "observed"
+    },
+    {
+      "id": "SIDE-EFFECT-EXIT",
+      "target": "应用进程",
+      "authority": "src-tauri/src/lib.rs:confirm_app_exit",
+      "confidence": "observed"
+    },
+    {
+      "id": "SIDE-EFFECT-RELEASE",
+      "target": "GitHub Release 及资产",
+      "authority": "agent.md 中的 gh release 手工流程",
+      "confidence": "inferred"
+    }
+  ],
+  "authorization_and_boundaries": [
+    {
+      "id": "BOUNDARY-TAURI-CAPABILITY",
+      "finding": "主窗口通过 src-tauri/capabilities/default.json 获得自定义命令、dialog、fs 和 opener 权限。",
+      "confidence": "observed"
+    },
+    {
+      "id": "BOUNDARY-FS-SCOPE",
+      "finding": "文档与导出命令在写入前检查 Tauri fs_scope；外部打开文件会动态扩展允许路径。",
+      "confidence": "observed"
+    },
+    {
+      "id": "BOUNDARY-NAVIGATION",
+      "finding": "WebView 导航插件只允许应用入口 URL，外链由显式 opener 处理。",
+      "confidence": "observed"
+    },
+    {
+      "id": "BOUNDARY-LINK-PROTOCOL",
+      "finding": "预览格式层检查安全 href，但 AppShell 对 onOpenLink 接收值的完整协议约束依赖上游调用。",
+      "confidence": "inferred"
+    },
+    {
+      "id": "BOUNDARY-E2E",
+      "finding": "VITE_WDIO=1 会暴露 __tomarkE2e 测试 API；浏览器 E2E 通过 mock IPC 绕过真实 Rust 边界。",
+      "confidence": "observed"
+    }
+  ],
+  "verification_lanes": [
+    {
+      "id": "LANE-UNIT",
+      "command": "npm --prefix deps test",
+      "scope": "Vitest 单元与 Vue 组件",
+      "discovery_result": "237 passed",
+      "confidence": "observed",
+      "limitations": [
+        "运行输出未作为治理 Evidence 文件绑定到包含本治理数据的不可变 commit。",
+        "jsdom 报告 scrollBy 未实现警告。"
+      ]
+    },
+    {
+      "id": "LANE-BROWSER-E2E",
+      "command": "npm --prefix deps run test:e2e",
+      "scope": "Chrome headless + WDIO + mock Tauri IPC",
+      "discovery_result": "7 specs passed",
+      "confidence": "observed",
+      "limitations": [
+        "关键文件 IO 和权限边界由 tests/e2e/helpers/tauriMocks.ts 替代。"
+      ]
+    },
+    {
+      "id": "LANE-NATIVE-E2E",
+      "command": "npm --prefix deps run test:e2e:native",
+      "scope": "Tauri WebKit 调试构建",
+      "discovery_result": "7 assertions passed; native-export afterEach hook failed",
+      "confidence": "observed",
+      "limitations": [
+        "native-export.spec.ts 使用 unlinkSync 清理 _files 目录并触发 EPERM。",
+        "仅在 macOS 运行。",
+        "未覆盖系统打开文件、默认应用和编码往返。"
+      ]
+    },
+    {
+      "id": "LANE-RUST",
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml",
+      "scope": "Rust 单元测试",
+      "discovery_result": "34 passed",
+      "confidence": "observed",
+      "limitations": [
+        "未被 npm run test:all 聚合。",
+        "default_app.rs 无单元测试。",
+        "document_io.rs 存在依赖本机绝对路径的可移植性缺口。"
+      ]
+    },
+    {
+      "id": "LANE-BUILD",
+      "command": "npm --prefix deps run build",
+      "scope": "vue-tsc 与 Vite 生产构建",
+      "discovery_result": "passed",
+      "confidence": "observed",
+      "limitations": [
+        "不证明 Tauri 发行包、签名、公证或目标平台行为。"
+      ]
+    },
+    {
+      "id": "LANE-GOVERNANCE",
+      "command": "python3 architecture/tools/audit_project.py --target .",
+      "scope": "治理结构与引用",
+      "discovery_result": "passed: structure_and_references_only",
+      "confidence": "observed",
+      "limitations": [
+        "审计脚本不验证业务定义正确性，也不执行运行态 E2E。"
+      ]
+    }
+  ],
+  "contradictions_and_gaps": [
+    {
+      "id": "GAP-SEMANTIC-PREVIEW-EDIT",
+      "severity": "blocking_for_approval",
+      "finding": "readme.md、agent.md 和帮助声称预览可直接编辑文字；PRD 声称非 WYSIWYG；usePreviewEditSession.ts 明确 non-editable、not typing。",
+      "confidence": "observed",
+      "candidate_rule_refs": ["L0-TMK-003A", "L0-TMK-003B"]
+    },
+    {
+      "id": "GAP-SEMANTIC-MERMAID",
+      "severity": "blocking_for_approval",
+      "finding": "公开说明、帮助和当前实现支持只读 Mermaid 渲染；v1.10.0 PRD 将 Mermaid 列为非目标。",
+      "confidence": "observed",
+      "candidate_rule_refs": ["L0-TMK-015A", "L0-TMK-015B"]
+    },
+    {
+      "id": "GAP-SEMANTIC-EXPORT",
+      "severity": "needs_confirmation",
+      "finding": "HTML/PNG 导出已有用户界面、实现与测试，但 readme.md、agent.md 产品要点和旧 PRD 未将其定义为正式产品能力。",
+      "confidence": "observed",
+      "candidate_rule_refs": ["L0-TMK-016"]
+    },
+    {
+      "id": "GAP-FS-SYMLINK-SCOPE",
+      "severity": "security_review_required",
+      "finding": "save_markdown_document 对请求路径做 fs_scope 检查后由 atomic_write 解析符号链接，未观察到对解析后目标的二次 scope 检查；load 路径存在同类疑问。",
+      "confidence": "inferred"
+    },
+    {
+      "id": "GAP-DUPLICATE-DOCUMENT-WRITE",
+      "severity": "architecture_drift",
+      "finding": "atomic_write_text_file 命令与 save_markdown_document 内部写路径并存，scope 校验策略不完全一致，且前者未观察到前端调用。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-DUPLICATE-CODEC",
+      "severity": "architecture_drift",
+      "finding": "TypeScript fileService 测试辅助编码逻辑与 Rust text_codec 并存；生产权威在 Rust，但边界未由合同固定。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-OVERWRITE-FLAG",
+      "severity": "needs_confirmation",
+      "finding": "Rust 返回 allowDirectOverwrite，但前端文档会话未观察到消费该字段，编码检测策略可能未完整执行。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-CAPABILITY-DRIFT",
+      "severity": "evidence_gap",
+      "finding": "生产 capability 包含 debug force-export 命令及未观察到业务调用的 plugin-fs 读权限；E2E capability 又缺少部分生产命令。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-VERSION-DRIFT",
+      "severity": "release_blocker",
+      "finding": "基线最近提交说明为 v5.0.0，配置文件仍为 4.2.0，本地 tag 为更旧版本；只有运行 sync:version 才会对齐。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-NO-CI",
+      "severity": "evidence_gap",
+      "finding": "仓库未发现 .github/workflows 项目 CI，测试、治理审计和发布依赖本机手工执行。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-AGGREGATE-LANE",
+      "severity": "evidence_gap",
+      "finding": "npm run test:all 不包含 cargo test、治理审计或独立类型检查门。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-NATIVE-E2E-CLEANUP",
+      "severity": "test_defect",
+      "finding": "原生导出用例功能断言通过，但 afterEach 把资源目录当文件 unlink，导致 lane 失败。",
+      "confidence": "observed"
+    },
+    {
+      "id": "GAP-PRD-STALE",
+      "severity": "documentation_drift",
+      "finding": "唯一 PRD 归档在 v1.10.0，冻结基线提交说明为 v5.0.0，且 plan/misc 无过程记录。",
+      "confidence": "observed"
+    }
+  ],
+  "external_integrations": [
+    {
+      "name": "Tauri 2 与插件",
+      "purpose": "桌面窗口、dialog、fs scope、opener、single-instance 与 WDIO",
+      "confidence": "observed"
+    },
+    {
+      "name": "本地文件系统",
+      "purpose": "Markdown 文档、导出产物和临时 force-export 协议",
+      "confidence": "observed"
+    },
+    {
+      "name": "操作系统默认应用服务",
+      "purpose": "Markdown 文件关联与默认应用请求",
+      "confidence": "observed"
+    },
+    {
+      "name": "Git 与 GitHub CLI",
+      "purpose": "版本权威、安装包版本同步与 Release 发布",
+      "confidence": "inferred"
+    },
+    {
+      "name": "Mermaid 与 html2canvas",
+      "purpose": "图表渲染和 PNG 导出",
+      "confidence": "observed"
+    }
+  ],
+  "scanner_blind_spots": [
+    "Tauri dialog 插件对 fs_scope 的精确授予、持续时间和多窗口规则未在仓库源码中定义。",
+    "未验证安装包的 macOS sandbox、entitlements、签名、公证或 Gatekeeper 行为。",
+    "未在 Windows 或 Linux 运行单实例、默认应用、窗口 chrome、路径编码和安装包流程。",
+    "未检查远程 GitHub Release、仓库保护规则、密钥和发布权限。",
+    "未做依赖漏洞、许可证、SBOM、性能、大文档压力或故障注入检查。",
+    "未深查生成物 node_modules、dist、target；其内容不能作为本 Inventory 的源码事实。",
+    "测试执行结果未绑定包含本治理元数据的不可变提交，不能用于 evidence closeout。"
+  ],
+  "work_package_candidates": [
+    {
+      "id": "WP-CANDIDATE-SEMANTIC-ALIGNMENT",
+      "goal": "裁决预览键入、Mermaid 与导出的产品语义，并同步 readme、agent、帮助和 PRD。",
+      "status": "candidate"
+    },
+    {
+      "id": "WP-CANDIDATE-NATIVE-SCOPE",
+      "goal": "统一文档读写的符号链接解析与 fs_scope 校验，移除或收敛重复写路径。",
+      "status": "candidate"
+    },
+    {
+      "id": "WP-CANDIDATE-CAPABILITY-HARDENING",
+      "goal": "区分 production 与 debug capability，核实并最小化 plugin-fs 和 force-export 权限。",
+      "status": "candidate"
+    },
+    {
+      "id": "WP-CANDIDATE-VERIFICATION",
+      "goal": "修复原生 E2E 清理缺陷，将 Rust、前端、E2E、构建和治理审计纳入 CI。",
+      "status": "candidate"
+    },
+    {
+      "id": "WP-CANDIDATE-RELEASE-ALIGNMENT",
+      "goal": "在发版准入中校验 git 版本与四份配置一致，并记录可复验证据。",
+      "status": "candidate"
+    }
+  ]
+}
