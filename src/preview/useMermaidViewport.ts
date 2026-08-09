@@ -149,9 +149,6 @@ export function panMermaidViewport(
   dx: number,
   dy: number,
 ): MermaidViewportState {
-  if (state.scale <= state.fitScale + 1e-6) {
-    return state;
-  }
   return {
     ...state,
     mode: "manual",

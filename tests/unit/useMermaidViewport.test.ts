@@ -41,9 +41,12 @@ describe("useMermaidViewport", () => {
     expect(mermaidViewportTransform(state)).toContain("scale(");
   });
 
-  it("does not pan while at fit scale", () => {
+  it("allows pan at fit scale (initial load / after zoom-out)", () => {
     const state = createMermaidViewportState(natural, viewport);
-    const next = panMermaidViewport(state, 40, 40);
-    expect(next).toEqual(state);
+    expect(state.scale).toBeCloseTo(state.fitScale);
+    const next = panMermaidViewport(state, 40, -20);
+    expect(next.mode).toBe("manual");
+    expect(next.panX).toBe(40);
+    expect(next.panY).toBe(-20);
   });
 });

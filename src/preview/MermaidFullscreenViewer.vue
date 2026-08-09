@@ -103,9 +103,6 @@ function onPointerDown(event: PointerEvent) {
   if (!state.value || event.button !== 0) {
     return;
   }
-  if (state.value.scale <= state.value.fitScale + 1e-6) {
-    return;
-  }
   dragging.value = true;
   lastX = event.clientX;
   lastY = event.clientY;
