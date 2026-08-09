@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evidence Closeout"
+  short_description: "Bind commits, tests, and runtime evidence"
+  default_prompt: "Use $evidence-closeout to determine whether this work package can close."

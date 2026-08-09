@@ -1,0 +1,31 @@
+{
+  "name": "agent-governance-kit",
+  "version": "0.1.0",
+  "status": "file-control-plane",
+  "supported_agent_adapters": ["codex", "cursor"],
+  "core_objects": [
+    "semantic_rule",
+    "responsibility",
+    "contract",
+    "inventory",
+    "work_package",
+    "evidence"
+  ],
+  "skills": [
+    "governance-onboarding",
+    "architecture-admission",
+    "governed-implementation",
+    "architecture-review",
+    "evidence-closeout",
+    "legacy-system-discovery"
+  ],
+  "capabilities": {
+    "project_bootstrap": true,
+    "structure_and_reference_audit": true,
+    "json_schema": true,
+    "mcp_server": false,
+    "web_ui": false,
+    "business_semantic_correctness_proof": false,
+    "runtime_e2e": false
+  }
+}

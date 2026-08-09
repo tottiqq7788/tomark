@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/semantic-map.schema.json",
+  "title": "Portable Semantic Map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "l0_rules", "l1_responsibilities", "l2_components"],
+  "properties": {
+    "schema_version": {"const": "semantic-map:v0.1"},
+    "l0_rules": {"type": "array", "items": {"$ref": "#/$defs/l0"}},
+    "l1_responsibilities": {"type": "array", "items": {"$ref": "#/$defs/l1"}},
+    "l2_components": {"type": "array", "items": {"$ref": "#/$defs/l2"}}
+  },
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["id", "name", "status"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string", "minLength": 1},
+        "status": {"enum": ["candidate", "approved", "deprecated", "rejected"]}
+      }
+    },
+    "l0": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["statement", "source_refs"], "properties": {"statement": {"type": "string", "minLength": 1}, "source_refs": {"type": "array", "items": {"type": "string"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "l1": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["responsibility", "l0_refs", "owners"], "properties": {"responsibility": {"type": "string"}, "l0_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1}, "owners": {"type": "array", "items": {"type": "string"}, "minItems": 1}, "reviewers": {"type": "array", "items": {"type": "string"}}}}
+      ],
+      "unevaluatedProperties": false
+    },
+    "l2": {
+      "allOf": [
+        {"$ref": "#/$defs/base"},
+        {"type": "object", "required": ["l1_refs", "selectors"], "properties": {"l1_refs": {"type": "array", "items": {"type": "string"}, "minItems": 1}, "selectors": {"type": "array", "items": {"type": "string"}, "minItems": 1}}}
+      ],
+      "unevaluatedProperties": false
+    }
+  }
+}

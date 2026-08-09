@@ -1,0 +1,15 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "EXAMPLE-001",
+  "role": "implementation_owner",
+  "baseline_commit": "0000000",
+  "work_package_id": null,
+  "allowed_scope": ["replace/with/real/path"],
+  "l0_impact": "undetermined",
+  "l0_rule_ids": [],
+  "must_preserve": [],
+  "must_reject": [],
+  "required_evidence": ["static", "unit"],
+  "stop_conditions": ["Stop if the actual impact exceeds the declared scope."],
+  "notes": "Replace or delete this example after onboarding."
+}

@@ -1,0 +1,17 @@
+---
+description: Project governance admission, implementation and evidence rules
+alwaysApply: true
+---
+
+This repository uses a machine-readable governance control plane under `architecture/`.
+
+Before implementation:
+
+1. Read `architecture/governance.json` and the active task envelope.
+2. Classify the change as no L0 impact, modifying L0, or adding L0.
+3. Do not implement an L0-affecting change without an approved work package.
+
+During implementation, remain inside `allowed_scope` and stop when actual impact exceeds the declaration.
+
+At closeout, distinguish static, contract, unit/integration, fault-injection, and runtime E2E evidence. Never claim runtime proof from static checks.
+

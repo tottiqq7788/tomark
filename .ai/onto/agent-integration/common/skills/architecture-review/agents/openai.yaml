@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Review"
+  short_description: "Review actual changes against declared architecture"
+  default_prompt: "Use $architecture-review to review this change against its declared impact."

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/evidence.schema.json",
+  "title": "Governance Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "evidence_id", "work_package_id", "commit", "type", "status", "command_or_source", "limitations"],
+  "properties": {
+    "schema_version": {"const": "evidence:v0.1"},
+    "evidence_id": {"type": "string", "minLength": 1},
+    "work_package_id": {"type": "string", "minLength": 1},
+    "commit": {"type": "string", "minLength": 7},
+    "type": {"enum": ["static", "contract", "unit", "integration", "fault_injection", "runtime_e2e"]},
+    "status": {"enum": ["passed", "failed", "skipped", "unavailable", "not_required"]},
+    "command_or_source": {"type": "string", "minLength": 1},
+    "result_summary": {"type": "string"},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  }
+}

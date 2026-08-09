@@ -1,7 +1,7 @@
 {
   "name": "tomark",
   "private": true,
-  "version": "4.1.0",
+  "version": "4.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite --config ../src/vite.config.mts",

@@ -1,0 +1,16 @@
+{
+  "schema_version": "governance-manifest:v0.1",
+  "project_id": "replace-me",
+  "mode": "existing",
+  "baseline": {
+    "commit": "unversioned",
+    "status": "unversioned"
+  },
+  "paths": {
+    "semantic_map": "architecture/traceability/semantic-map.json",
+    "contracts": "architecture/contracts",
+    "inventories": "architecture/inventories",
+    "work_packages": "architecture/work-packages",
+    "evidence": "architecture/evidence"
+  }
+}

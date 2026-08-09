@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/task-envelope.schema.json",
+  "title": "Governed Agent Task Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "task_id", "role", "baseline_commit", "allowed_scope", "l0_impact", "must_preserve", "must_reject", "required_evidence", "stop_conditions"],
+  "properties": {
+    "schema_version": {"const": "task-envelope:v0.1"},
+    "task_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]+$"},
+    "role": {"enum": ["architecture_owner", "implementation_owner", "independent_reviewer", "evidence_owner", "discovery_owner"]},
+    "baseline_commit": {"type": "string", "minLength": 7},
+    "work_package_id": {"type": ["string", "null"]},
+    "allowed_scope": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "l0_impact": {"enum": ["none", "modify_existing", "add_new", "undetermined"]},
+    "l0_rule_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "must_preserve": {"type": "array", "items": {"type": "string"}},
+    "must_reject": {"type": "array", "items": {"type": "string"}},
+    "required_evidence": {"type": "array", "items": {"enum": ["static", "contract", "unit", "integration", "fault_injection", "runtime_e2e"]}, "uniqueItems": true},
+    "stop_conditions": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "notes": {"type": "string"}
+  }
+}

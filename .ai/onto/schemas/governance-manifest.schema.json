@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/governance-manifest.schema.json",
+  "title": "Governance Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "project_id", "mode", "baseline", "paths"],
+  "properties": {
+    "schema_version": {"const": "governance-manifest:v0.1"},
+    "project_id": {"type": "string", "minLength": 1},
+    "mode": {"enum": ["new", "existing"]},
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commit", "status"],
+      "properties": {
+        "commit": {"type": "string", "minLength": 1},
+        "status": {"enum": ["frozen", "unversioned", "candidate"]}
+      }
+    },
+    "paths": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semantic_map", "contracts", "inventories", "work_packages", "evidence"],
+      "properties": {
+        "semantic_map": {"type": "string"},
+        "contracts": {"type": "string"},
+        "inventories": {"type": "string"},
+        "work_packages": {"type": "string"},
+        "evidence": {"type": "string"}
+      }
+    }
+  }
+}
