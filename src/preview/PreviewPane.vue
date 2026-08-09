@@ -110,7 +110,6 @@ const mermaidToolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
 const mermaidTarget = ref<HTMLElement | null>(null);
 const mermaidSourceSnapshot = ref("");
 const mermaidSvgSnapshot = ref("");
-const mermaidLocateLine = ref<number | null>(null);
 const mermaidDiagramIndex = ref(1);
 const mermaidExportBusy = ref(false);
 const mermaidViewerOpen = ref(false);
@@ -122,7 +121,7 @@ const useEditable = computed(
 );
 
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
-const MERMAID_TOOLBAR_SIZE = { width: 168, height: 38 };
+const MERMAID_TOOLBAR_SIZE = { width: 148, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
   const el = toolbarRef.value?.root ?? null;
@@ -182,44 +181,9 @@ function hideMermaidToolbar(options?: { keepViewer?: boolean }) {
   if (!options?.keepViewer) {
     mermaidSourceSnapshot.value = "";
     mermaidSvgSnapshot.value = "";
-    mermaidLocateLine.value = null;
     mermaidViewerOpen.value = false;
   }
   disconnectMermaidTargetObserver();
-}
-
-function resolveMermaidLocateLine(
-  wrapper: HTMLElement,
-  sourceLine: number | null,
-): number | null {
-  if (sourceLine != null && sourceLine >= 1) {
-    return sourceLine;
-  }
-  const anchored =
-    (wrapper.closest("[data-source-line]") as HTMLElement | null) ?? wrapper;
-  const raw = anchored.getAttribute("data-source-line");
-  if (raw) {
-    const line = Number.parseInt(raw, 10);
-    if (Number.isFinite(line) && line >= 1) {
-      return line;
-    }
-  }
-  const host = wrapper.closest("[data-tm-from]") as HTMLElement | null;
-  if (host && props.projection) {
-    const from = Number.parseInt(host.getAttribute("data-tm-from") || "", 10);
-    if (Number.isFinite(from) && from >= 0) {
-      // Lazy import avoided: projection maps are already in this module's graph
-      // via editable host; resolve line through sourceMap blocks.
-      const block = props.projection.sourceMap.blocks.find(
-        (candidate) =>
-          candidate.sourceFrom <= from && from < candidate.sourceTo,
-      );
-      if (block?.sourceLine != null && block.sourceLine >= 1) {
-        return block.sourceLine;
-      }
-    }
-  }
-  return null;
 }
 
 function diagramIndexAmongSuccess(wrapper: HTMLElement): number {
@@ -301,10 +265,6 @@ function showMermaidToolbarFor(wrapper: HTMLElement) {
   mermaidTarget.value = wrapper;
   mermaidSourceSnapshot.value = context.source;
   mermaidSvgSnapshot.value = context.svg;
-  mermaidLocateLine.value = resolveMermaidLocateLine(
-    wrapper,
-    context.sourceLine,
-  );
   mermaidDiagramIndex.value = diagramIndexAmongSuccess(wrapper);
   placeMermaidToolbar(wrapper);
   observeMermaidTarget(wrapper);
@@ -505,15 +465,6 @@ async function onMermaidCopySource() {
       // Status remains fallback.
     }
   }
-}
-
-function onMermaidLocateSource() {
-  const line = mermaidLocateLine.value;
-  if (line == null || line < 1) {
-    emit("status", "无法定位该 Mermaid 图表的源码位置");
-    return;
-  }
-  emit("locate-source", line);
 }
 
 function onMermaidFullscreen() {
@@ -1109,10 +1060,9 @@ onBeforeUnmount(() => {
       :center-x="mermaidToolbarCenterX"
       :busy="mermaidExportBusy"
       @fullscreen="onMermaidFullscreen"
-      @export-png="onMermaidExportPng"
-      @export-svg="onMermaidExportSvg"
       @copy-source="onMermaidCopySource"
-      @locate="onMermaidLocateSource"
+      @export-svg="onMermaidExportSvg"
+      @export-png="onMermaidExportPng"
       @dismiss="hideMermaidToolbar()"
     />
     <MermaidFullscreenViewer

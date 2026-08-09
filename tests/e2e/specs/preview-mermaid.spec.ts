@@ -199,19 +199,26 @@ describe("mermaid preview", () => {
           const toolbar = document.querySelector(
             '[data-testid="preview-mermaid-toolbar"]',
           );
+          const svgBtn = document.querySelector(
+            '[data-testid="mermaid-export-svg"]',
+          );
+          const pngBtn = document.querySelector(
+            '[data-testid="mermaid-export-png"]',
+          );
           return Boolean(
             toolbar &&
               getComputedStyle(toolbar).display !== "none" &&
               document.querySelector('[data-testid="mermaid-fullscreen"]') &&
-              document.querySelector('[data-testid="mermaid-export-png"]') &&
-              document.querySelector('[data-testid="mermaid-export-svg"]') &&
               document.querySelector('[data-testid="mermaid-copy-source"]') &&
-              document.querySelector('[data-testid="mermaid-locate-source"]'),
+              svgBtn?.textContent?.trim() === "SVG" &&
+              pngBtn?.textContent?.trim() === "PNG" &&
+              !document.querySelector('[data-testid="mermaid-locate-source"]'),
           );
         }),
       {
         timeout: 10_000,
-        timeoutMsg: "expected Mermaid icon toolbar with five actions",
+        timeoutMsg:
+          "expected Mermaid toolbar: fullscreen, copy, SVG, PNG (no locate)",
       },
     );
 
@@ -254,43 +261,6 @@ describe("mermaid preview", () => {
         timeoutMsg: "copy-source did not report success or write clipboard mock",
       },
     );
-
-    await $('[data-testid="mermaid-locate-source"]').click();
-    await browser.waitUntil(
-      async () =>
-        browser.execute(() => {
-          return (
-            document.querySelector(".cm-locate-flash")?.textContent?.trim() ===
-            "```mermaid"
-          );
-        }),
-      {
-        timeout: 10_000,
-        timeoutMsg: "toolbar locate-source did not flash the Mermaid fence",
-      },
-    );
-
-    // Re-open toolbar for fullscreen checks.
-    await browser.execute(() => {
-      const svg = document.querySelector(
-        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
-      );
-      if (!(svg instanceof Element)) {
-        throw new Error("missing mermaid svg");
-      }
-      const rect = svg.getBoundingClientRect();
-      svg.dispatchEvent(
-        new MouseEvent("click", {
-          bubbles: true,
-          cancelable: true,
-          clientX: rect.left + rect.width / 2,
-          clientY: rect.top + rect.height / 2,
-        }),
-      );
-    });
-    await $('[data-testid="mermaid-fullscreen"]').waitForDisplayed({
-      timeout: 5_000,
-    });
 
     await $('[data-testid="mermaid-fullscreen"]').click();
     await $('[data-testid="mermaid-fullscreen-viewer"]').waitForDisplayed({

@@ -1,0 +1,54 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-002",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "1dbfe7f9fa38530ca3225b03bca525b1a99f4ab3",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision",
+    "statement": "项目负责人确认调整 Mermaid 浮动工具栏：去掉定位源码按钮；顺序为全屏图标、复制源码图标、英文 SVG、英文 PNG。Cmd/Ctrl+点击定位源码继续保留。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-MERMAID-TOOLBAR-003",
+      "decision": "修订 L0-TMK-018：Mermaid 浮动工具栏不再提供定位源码按钮；动作顺序为 fullscreen（icon）、copy_source（icon）、export_svg（英文标签 SVG）、export_png（英文标签 PNG）。源码定位仅由 Cmd/Ctrl+点击提供。",
+      "approved_rule_ids": ["L0-TMK-018", "L0-TMK-015A"],
+      "modified_rule_ids": ["L0-TMK-018", "L0-TMK-008", "L0-TMK-015A"],
+      "scope": {
+        "toolbar": [
+          "fullscreen",
+          "copy_source",
+          "export_svg",
+          "export_png"
+        ],
+        "toolbar_presentation": {
+          "fullscreen": "icon",
+          "copy_source": "icon",
+          "export_svg": "text_label_SVG",
+          "export_png": "text_label_PNG"
+        },
+        "locate_source": {
+          "toolbar_button": false,
+          "modifier_click": true
+        }
+      },
+      "out_of_scope": [
+        "Mermaid 源码编辑 / 围栏写回",
+        "文档级 ExportSettingsPanel 三种导出格式行为变更",
+        "恢复工具栏定位源码按钮"
+      ],
+      "invariants": [
+        "Markdown 与围栏源码唯一权威；工具栏交互不得写回。",
+        "错误块不提供工具栏与成功导出路径。",
+        "Cmd/Ctrl+点击定位语义不变。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修订并保持批准 L0-TMK-018 / L0-TMK-015A；同步 L0-TMK-008 去掉工具栏定位入口表述。",
+    "签发 WP-MERMAID-TOOLBAR-003；实现与本决策同批落地。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

@@ -94,13 +94,14 @@
       "id": "L0-TMK-008",
       "name": "基于源码位置的双向定位",
       "status": "candidate",
-      "statement": "Cmd/Ctrl 点击必须基于 AST 源码位置在源码与预览间双向定位，空行落到最近可渲染块，不得按标题文字或像素高度猜测。在已成功渲染的 Mermaid 图表上，Cmd/Ctrl+点击继续定位源码；普通点击触发 Mermaid 查看工具栏，不触发定位。工具栏也可提供与修饰键定位等价的「定位源码」动作，仍不得修改源码。",
+      "statement": "Cmd/Ctrl 点击必须基于 AST 源码位置在源码与预览间双向定位，空行落到最近可渲染块，不得按标题文字或像素高度猜测。在已成功渲染的 Mermaid 图表上，Cmd/Ctrl+点击继续定位源码；普通点击触发 Mermaid 查看工具栏，不触发定位。浮动工具栏不提供定位源码按钮。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
         "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览",
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
-        "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002"
+        "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
+        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003"
       ]
     },
     {
@@ -170,7 +171,7 @@
       "id": "L0-TMK-015A",
       "name": "Mermaid 只读渲染",
       "status": "approved",
-      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文、定位源码），且不得改变围栏源码。复制源码不等于批准编辑。",
+      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文），且不得改变围栏源码。源码定位仍由 Cmd/Ctrl+点击提供。复制源码不等于批准编辑。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
@@ -178,7 +179,8 @@
         "src/app/settings/HelpSettingsPanel.vue",
         "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-MERMAID-FORMAL",
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
-        "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002"
+        "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
+        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003"
       ]
     },
     {
@@ -215,10 +217,11 @@
       "id": "L0-TMK-018",
       "name": "Mermaid 只读查看与单图导出",
       "status": "approved",
-      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示仅 icon 工具栏。工具栏提供全屏查看、单图 PNG 导出（白底 2×，画布上限内；超出则明确失败）、复制围栏正文到剪贴板（不含外层 fence 标记）、导出 SVG 文件，以及定位源码（与 Cmd/Ctrl+点击等价）。全屏查看器支持缩放、适配/重置与拖拽平移。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
+      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示浮动工具栏，顺序为全屏（icon）、复制围栏正文（icon）、导出 SVG（英文标签 SVG）、导出 PNG（英文标签 PNG，白底 2×，画布上限内；超出则明确失败）。工具栏不提供定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
       "source_refs": [
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
+        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]

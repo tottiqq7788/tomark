@@ -261,11 +261,11 @@ onBeforeUnmount(() => {
             </button>
             <button
               type="button"
-              data-testid="mermaid-viewer-export"
+              data-testid="mermaid-viewer-copy-source"
               :disabled="exportBusy"
-              @click="emit('export-png')"
+              @click="emit('copy-source')"
             >
-              导出 PNG
+              复制源码
             </button>
             <button
               type="button"
@@ -273,15 +273,15 @@ onBeforeUnmount(() => {
               :disabled="exportBusy"
               @click="emit('export-svg')"
             >
-              导出 SVG
+              SVG
             </button>
             <button
               type="button"
-              data-testid="mermaid-viewer-copy-source"
+              data-testid="mermaid-viewer-export"
               :disabled="exportBusy"
-              @click="emit('copy-source')"
+              @click="emit('export-png')"
             >
-              复制源码
+              PNG
             </button>
             <button
               type="button"

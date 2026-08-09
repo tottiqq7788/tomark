@@ -12,10 +12,9 @@ const root = ref<HTMLElement | null>(null);
 
 const emit = defineEmits<{
   fullscreen: [];
-  "export-png": [];
   "copy-source": [];
   "export-svg": [];
-  locate: [];
+  "export-png": [];
   dismiss: [];
 }>();
 
@@ -64,42 +63,6 @@ function onToolbarKeydown(event: KeyboardEvent) {
     <button
       type="button"
       class="mermaid-btn"
-      title="导出 PNG"
-      aria-label="导出 PNG"
-      data-testid="mermaid-export-png"
-      :disabled="busy"
-      :aria-busy="busy ? 'true' : 'false'"
-      @mousedown="retainSelection"
-      @click="emit('export-png')"
-    >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M8 2.2a.75.75 0 0 1 .75.75V8.2l1.7-1.7a.75.75 0 1 1 1.06 1.06l-3 3a.75.75 0 0 1-1.06 0l-3-3A.75.75 0 0 1 5.55 6.5L7.25 8.2V2.95A.75.75 0 0 1 8 2.2zM3 11.5A.75.75 0 0 1 3.75 10.75h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 11.5z"
-        />
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="mermaid-btn"
-      title="导出 SVG"
-      aria-label="导出 SVG"
-      data-testid="mermaid-export-svg"
-      :disabled="busy"
-      :aria-busy="busy ? 'true' : 'false'"
-      @mousedown="retainSelection"
-      @click="emit('export-svg')"
-    >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M3 3.75A.75.75 0 0 1 3.75 3h3.5a.75.75 0 0 1 0 1.5H5.56l2.22 2.22a.75.75 0 0 1-1.06 1.06L4.5 5.56v1.69a.75.75 0 0 1-1.5 0v-3.5zM12.25 3a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0V5.56L9.28 7.78a.75.75 0 1 1-1.06-1.06L10.44 4.5H8.75a.75.75 0 0 1 0-1.5h3.5zM3.75 8.75a.75.75 0 0 1 .75.75v1.69l2.22-2.22a.75.75 0 1 1 1.06 1.06L5.56 12.25h1.69a.75.75 0 0 1 0 1.5h-3.5A.75.75 0 0 1 3 13.25v-3.5a.75.75 0 0 1 .75-.75zm8.5 0a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-.75.75h-3.5a.75.75 0 0 1 0-1.5h1.69l-2.22-2.22a.75.75 0 1 1 1.06-1.06l2.22 2.22V9.5a.75.75 0 0 1 .75-.75z"
-        />
-      </svg>
-    </button>
-    <button
-      type="button"
-      class="mermaid-btn"
       title="复制源码"
       aria-label="复制源码"
       data-testid="mermaid-copy-source"
@@ -116,20 +79,29 @@ function onToolbarKeydown(event: KeyboardEvent) {
     </button>
     <button
       type="button"
-      class="mermaid-btn"
-      title="定位源码"
-      aria-label="定位源码"
-      data-testid="mermaid-locate-source"
+      class="mermaid-btn mermaid-btn-label"
+      title="Export SVG"
+      aria-label="Export SVG"
+      data-testid="mermaid-export-svg"
       :disabled="busy"
+      :aria-busy="busy ? 'true' : 'false'"
       @mousedown="retainSelection"
-      @click="emit('locate')"
+      @click="emit('export-svg')"
     >
-      <svg viewBox="0 0 16 16" aria-hidden="true">
-        <path
-          fill="currentColor"
-          d="M8 1.5a4.75 4.75 0 0 0-4.75 4.75c0 2.62 1.88 5.08 3.94 7.15a1.2 1.2 0 0 0 1.62 0c2.06-2.07 3.94-4.53 3.94-7.15A4.75 4.75 0 0 0 8 1.5zm0 6.5a1.75 1.75 0 1 1 0-3.5 1.75 1.75 0 0 1 0 3.5z"
-        />
-      </svg>
+      SVG
+    </button>
+    <button
+      type="button"
+      class="mermaid-btn mermaid-btn-label"
+      title="Export PNG"
+      aria-label="Export PNG"
+      data-testid="mermaid-export-png"
+      :disabled="busy"
+      :aria-busy="busy ? 'true' : 'false'"
+      @mousedown="retainSelection"
+      @click="emit('export-png')"
+    >
+      PNG
     </button>
   </div>
 </template>
@@ -161,6 +133,16 @@ function onToolbarKeydown(event: KeyboardEvent) {
   background: transparent;
   color: inherit;
   cursor: pointer;
+}
+
+.mermaid-btn-label {
+  width: auto;
+  min-width: 36px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .mermaid-btn:hover,
