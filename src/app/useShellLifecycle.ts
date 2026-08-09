@@ -34,6 +34,11 @@ export type ShellLifecycleOptions = {
     diagramIndex: number,
     targetPath: string,
   ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
+  /** E2E / forced-path single Mermaid SVG export via the live preview registry. */
+  exportMermaidDiagramSvgAt?: (
+    diagramIndex: number,
+    targetPath: string,
+  ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
 };
 
 export function useShellLifecycle(
@@ -123,6 +128,10 @@ export function useShellLifecycle(
               path: string;
               diagramIndex?: number;
             }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
+            runMermaidDiagramSvgToPath: (job: {
+              path: string;
+              diagramIndex?: number;
+            }) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
           };
         }
       ).__tomarkE2e = {
@@ -183,6 +192,27 @@ export function useShellLifecycle(
             const exportAt = options.exportMermaidDiagramPngAt;
             if (!exportAt) {
               throw new Error("Mermaid PNG export hook is unavailable");
+            }
+            const result = await exportAt(job.diagramIndex ?? 1, job.path);
+            await writeE2eExportResult(result);
+            return result;
+          } catch (error) {
+            const message =
+              error instanceof Error ? error.message : String(error);
+            session.statusMessage.value = `导出失败：${message}`;
+            const hookResult = { ok: false as const, error: message };
+            await writeE2eExportResult(hookResult);
+            return hookResult;
+          }
+        },
+        runMermaidDiagramSvgToPath: async (job) => {
+          try {
+            if (!job?.path) {
+              throw new Error("runMermaidDiagramSvgToPath requires path");
+            }
+            const exportAt = options.exportMermaidDiagramSvgAt;
+            if (!exportAt) {
+              throw new Error("Mermaid SVG export hook is unavailable");
             }
             const result = await exportAt(job.diagramIndex ?? 1, job.path);
             await writeE2eExportResult(result);

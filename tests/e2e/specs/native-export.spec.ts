@@ -279,4 +279,79 @@ describe("native export (Tauri WebView)", () => {
     expect(width % 2).toBe(0);
     expect(height % 2).toBe(0);
   });
+
+  it("exports a single Mermaid diagram SVG through the native path", async () => {
+    const unique = `${process.pid}-${Date.now()}`;
+    const outputPath = path.join(
+      tmpdir(),
+      `tomark-mermaid-diagram-${unique}.svg`,
+    );
+    cleanupPaths.push(outputPath);
+
+    const resultPath = path.join(tmpdir(), "tomark-force-export-result.json");
+    if (existsSync(resultPath)) {
+      unlinkSync(resultPath);
+    }
+
+    await browser.execute(() => {
+      const hooks = (
+        window as unknown as {
+          __tomarkE2e: {
+            replaceContent?: (next: string) => void;
+            setContent: (next: string) => void;
+          };
+        }
+      ).__tomarkE2e;
+      (hooks.replaceContent ?? hooks.setContent)(
+        "# Mermaid SVG\n\n```mermaid\ngraph TD\nA[中文]-->B[Done]\n```\n",
+      );
+    });
+
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length >= 1,
+        ),
+      {
+        timeout: 45_000,
+        timeoutMsg: "mermaid diagram was not ready for single SVG export",
+      },
+    );
+
+    const started = await browser.execute((payload) => {
+      const testWindow = window as unknown as {
+        __tomarkE2e?: {
+          runMermaidDiagramSvgToPath?: (
+            value: typeof payload,
+          ) => Promise<ExportHookResult>;
+        };
+      };
+      const hook = testWindow.__tomarkE2e?.runMermaidDiagramSvgToPath;
+      if (!hook) {
+        return false;
+      }
+      void hook(payload);
+      return true;
+    }, { path: outputPath, diagramIndex: 1 });
+
+    expect(started).toBe(true);
+    await browser.waitUntil(() => existsSync(resultPath), {
+      timeout: 110_000,
+      interval: 100,
+      timeoutMsg: "single Mermaid SVG export did not finish",
+    });
+    const result = JSON.parse(
+      readFileSync(resultPath, "utf8"),
+    ) as ExportHookResult;
+    expect(result).toEqual({
+      ok: true,
+      fileName: path.basename(outputPath),
+    });
+    const svg = readFileSync(outputPath, "utf8");
+    expect(svg).toContain("<svg");
+    expect(svg).not.toContain("```");
+  });
 });

@@ -484,6 +484,31 @@ describe("PreviewPane locate", () => {
     expect(wrapper.find('[data-testid="mermaid-export-png"]').exists()).toBe(
       true,
     );
+    expect(wrapper.find('[data-testid="mermaid-export-svg"]').exists()).toBe(
+      true,
+    );
+    expect(wrapper.find('[data-testid="mermaid-copy-source"]').exists()).toBe(
+      true,
+    );
+    expect(
+      wrapper.find('[data-testid="mermaid-locate-source"]').exists(),
+    ).toBe(true);
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    await wrapper.find('[data-testid="mermaid-copy-source"]').trigger("click");
+    await flushPromises();
+    expect(writeText).toHaveBeenCalledWith(
+      expect.stringContaining("graph TD"),
+    );
+    expect(wrapper.emitted("status")?.at(-1)?.[0]).toBe("已复制 Mermaid 源码");
+
+    await wrapper.find('[data-testid="mermaid-locate-source"]').trigger("click");
+    await nextTick();
+    expect(wrapper.emitted("locate-source")?.at(-1)?.[0]).toBe(5);
 
     // Outside click dismisses the Mermaid toolbar.
     await wrapper.get(".preview-pane").trigger("click");

@@ -211,6 +211,10 @@ const previewPaneApi = ref<{
     diagramIndex: number,
     targetPath: string,
   ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
+  exportMermaidDiagramSvgAt?: (
+    diagramIndex: number,
+    targetPath: string,
+  ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
 } | null>(null);
 
 function setPreviewPaneRef(el: unknown) {
@@ -229,6 +233,12 @@ function setPreviewPaneRef(el: unknown) {
             pmTo?: number;
           } | null;
           exportMermaidDiagramPngAt?: (
+            diagramIndex: number,
+            targetPath: string,
+          ) => Promise<
+            { ok: true; fileName: string } | { ok: false; error: string }
+          >;
+          exportMermaidDiagramSvgAt?: (
             diagramIndex: number,
             targetPath: string,
           ) => Promise<
@@ -288,6 +298,16 @@ const { fileOpsViaMenu } = useShellLifecycle(
     isBlocked: () => activeDrawer.value !== null || exportBusy.value,
     exportMermaidDiagramPngAt: (diagramIndex, targetPath) => {
       const api = previewPaneApi.value?.exportMermaidDiagramPngAt;
+      if (!api) {
+        return Promise.resolve({
+          ok: false as const,
+          error: "预览未就绪",
+        });
+      }
+      return api(diagramIndex, targetPath);
+    },
+    exportMermaidDiagramSvgAt: (diagramIndex, targetPath) => {
+      const api = previewPaneApi.value?.exportMermaidDiagramSvgAt;
       if (!api) {
         return Promise.resolve({
           ok: false as const,

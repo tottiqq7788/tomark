@@ -25,6 +25,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   "export-png": [];
+  "export-svg": [];
+  "copy-source": [];
 }>();
 
 const dialogRef = ref<HTMLElement | null>(null);
@@ -264,6 +266,22 @@ onBeforeUnmount(() => {
               @click="emit('export-png')"
             >
               导出 PNG
+            </button>
+            <button
+              type="button"
+              data-testid="mermaid-viewer-export-svg"
+              :disabled="exportBusy"
+              @click="emit('export-svg')"
+            >
+              导出 SVG
+            </button>
+            <button
+              type="button"
+              data-testid="mermaid-viewer-copy-source"
+              :disabled="exportBusy"
+              @click="emit('copy-source')"
+            >
+              复制源码
             </button>
             <button
               type="button"

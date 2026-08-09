@@ -110,6 +110,7 @@ const mermaidToolbarRef = ref<{ root?: HTMLElement | null } | null>(null);
 const mermaidTarget = ref<HTMLElement | null>(null);
 const mermaidSourceSnapshot = ref("");
 const mermaidSvgSnapshot = ref("");
+const mermaidLocateLine = ref<number | null>(null);
 const mermaidDiagramIndex = ref(1);
 const mermaidExportBusy = ref(false);
 const mermaidViewerOpen = ref(false);
@@ -121,7 +122,7 @@ const useEditable = computed(
 );
 
 const FALLBACK_TOOLBAR_SIZE = { width: 166, height: 38 };
-const MERMAID_TOOLBAR_SIZE = { width: 72, height: 38 };
+const MERMAID_TOOLBAR_SIZE = { width: 168, height: 38 };
 
 function measureToolbarSize(): { width: number; height: number } {
   const el = toolbarRef.value?.root ?? null;
@@ -181,9 +182,44 @@ function hideMermaidToolbar(options?: { keepViewer?: boolean }) {
   if (!options?.keepViewer) {
     mermaidSourceSnapshot.value = "";
     mermaidSvgSnapshot.value = "";
+    mermaidLocateLine.value = null;
     mermaidViewerOpen.value = false;
   }
   disconnectMermaidTargetObserver();
+}
+
+function resolveMermaidLocateLine(
+  wrapper: HTMLElement,
+  sourceLine: number | null,
+): number | null {
+  if (sourceLine != null && sourceLine >= 1) {
+    return sourceLine;
+  }
+  const anchored =
+    (wrapper.closest("[data-source-line]") as HTMLElement | null) ?? wrapper;
+  const raw = anchored.getAttribute("data-source-line");
+  if (raw) {
+    const line = Number.parseInt(raw, 10);
+    if (Number.isFinite(line) && line >= 1) {
+      return line;
+    }
+  }
+  const host = wrapper.closest("[data-tm-from]") as HTMLElement | null;
+  if (host && props.projection) {
+    const from = Number.parseInt(host.getAttribute("data-tm-from") || "", 10);
+    if (Number.isFinite(from) && from >= 0) {
+      // Lazy import avoided: projection maps are already in this module's graph
+      // via editable host; resolve line through sourceMap blocks.
+      const block = props.projection.sourceMap.blocks.find(
+        (candidate) =>
+          candidate.sourceFrom <= from && from < candidate.sourceTo,
+      );
+      if (block?.sourceLine != null && block.sourceLine >= 1) {
+        return block.sourceLine;
+      }
+    }
+  }
+  return null;
 }
 
 function diagramIndexAmongSuccess(wrapper: HTMLElement): number {
@@ -265,6 +301,10 @@ function showMermaidToolbarFor(wrapper: HTMLElement) {
   mermaidTarget.value = wrapper;
   mermaidSourceSnapshot.value = context.source;
   mermaidSvgSnapshot.value = context.svg;
+  mermaidLocateLine.value = resolveMermaidLocateLine(
+    wrapper,
+    context.sourceLine,
+  );
   mermaidDiagramIndex.value = diagramIndexAmongSuccess(wrapper);
   placeMermaidToolbar(wrapper);
   observeMermaidTarget(wrapper);
@@ -388,6 +428,94 @@ async function onMermaidExportPng() {
   await runMermaidPngExport();
 }
 
+async function runMermaidSvgExport(options?: {
+  targetPath?: string;
+  source?: string;
+  diagramIndex?: number;
+}): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+  const source = (options?.source ?? mermaidSourceSnapshot.value).trim();
+  if (!source) {
+    return { ok: false, error: "未选中可导出的 Mermaid 图表" };
+  }
+  if (mermaidExportBusy.value) {
+    return { ok: false, error: "正在导出 Mermaid…" };
+  }
+  mermaidExportBusy.value = true;
+  try {
+    const { exportMermaidDiagramSvg } = await import(
+      "@/export/exportMermaidDiagramSvg"
+    );
+    const result = await exportMermaidDiagramSvg({
+      source,
+      fileName: props.fileName,
+      diagramIndex: options?.diagramIndex ?? mermaidDiagramIndex.value,
+      targetPath: options?.targetPath,
+      onProgress: (message) => emit("status", message),
+    });
+    emit("status", `已导出：${result.fileName}`);
+    return { ok: true, fileName: result.fileName };
+  } catch (error) {
+    if (
+      error instanceof ExportCancelledError ||
+      (error instanceof Error && error.name === "ExportCancelledError")
+    ) {
+      emit("status", "已取消导出");
+      return { ok: false, error: "已取消导出" };
+    }
+    const message =
+      error instanceof ExportFailedError || error instanceof Error
+        ? error.message
+        : String(error);
+    emit("status", `导出失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("导出 Mermaid SVG 失败", error);
+    } catch {
+      // Status message remains the fallback when dialogs are unavailable.
+    }
+    return { ok: false, error: message };
+  } finally {
+    mermaidExportBusy.value = false;
+  }
+}
+
+async function onMermaidExportSvg() {
+  await runMermaidSvgExport();
+}
+
+async function onMermaidCopySource() {
+  const source = mermaidSourceSnapshot.value;
+  if (!source.trim()) {
+    emit("status", "未选中可复制的 Mermaid 源码");
+    return;
+  }
+  try {
+    if (!navigator.clipboard?.writeText) {
+      throw new Error("当前环境不支持剪贴板写入");
+    }
+    await navigator.clipboard.writeText(source);
+    emit("status", "已复制 Mermaid 源码");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    emit("status", `复制失败：${message}`);
+    try {
+      const { showError } = await import("@/native/fileService");
+      await showError("复制 Mermaid 源码失败", error);
+    } catch {
+      // Status remains fallback.
+    }
+  }
+}
+
+function onMermaidLocateSource() {
+  const line = mermaidLocateLine.value;
+  if (line == null || line < 1) {
+    emit("status", "无法定位该 Mermaid 图表的源码位置");
+    return;
+  }
+  emit("locate-source", line);
+}
+
 function onMermaidFullscreen() {
   if (!mermaidSourceSnapshot.value || !mermaidSvgSnapshot.value) {
     return;
@@ -405,13 +533,12 @@ function onMermaidViewerClose() {
   });
 }
 
-async function exportMermaidDiagramPngAt(
+function resolveMermaidWrapperAt(
   diagramIndex: number,
-  targetPath: string,
-): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+): { wrapper: HTMLElement; source: string } | { error: string } {
   const root = scrollRoot.value;
   if (!root) {
-    return { ok: false, error: "预览未就绪" };
+    return { error: "预览未就绪" };
   }
   const wrappers = [
     ...root.querySelectorAll(
@@ -420,16 +547,42 @@ async function exportMermaidDiagramPngAt(
   ] as HTMLElement[];
   const wrapper = wrappers[Math.max(0, diagramIndex - 1)];
   if (!wrapper) {
-    return { ok: false, error: `未找到第 ${diagramIndex} 个 Mermaid 图表` };
+    return { error: `未找到第 ${diagramIndex} 个 Mermaid 图表` };
   }
   const context = getMermaidDiagramContext(wrapper);
   if (!context) {
-    return { ok: false, error: "图表上下文缺失" };
+    return { error: "图表上下文缺失" };
   }
   showMermaidToolbarFor(wrapper);
+  return { wrapper, source: context.source };
+}
+
+async function exportMermaidDiagramPngAt(
+  diagramIndex: number,
+  targetPath: string,
+): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+  const resolved = resolveMermaidWrapperAt(diagramIndex);
+  if ("error" in resolved) {
+    return { ok: false, error: resolved.error };
+  }
   return runMermaidPngExport({
     targetPath,
-    source: context.source,
+    source: resolved.source,
+    diagramIndex,
+  });
+}
+
+async function exportMermaidDiagramSvgAt(
+  diagramIndex: number,
+  targetPath: string,
+): Promise<{ ok: true; fileName: string } | { ok: false; error: string }> {
+  const resolved = resolveMermaidWrapperAt(diagramIndex);
+  if ("error" in resolved) {
+    return { ok: false, error: resolved.error };
+  }
+  return runMermaidSvgExport({
+    targetPath,
+    source: resolved.source,
     diagramIndex,
   });
 }
@@ -863,6 +1016,7 @@ defineExpose({
   selectSourceRange,
   getFormatSelection,
   exportMermaidDiagramPngAt,
+  exportMermaidDiagramSvgAt,
   hideMermaidToolbar,
 });
 
@@ -956,6 +1110,9 @@ onBeforeUnmount(() => {
       :busy="mermaidExportBusy"
       @fullscreen="onMermaidFullscreen"
       @export-png="onMermaidExportPng"
+      @export-svg="onMermaidExportSvg"
+      @copy-source="onMermaidCopySource"
+      @locate="onMermaidLocateSource"
       @dismiss="hideMermaidToolbar()"
     />
     <MermaidFullscreenViewer
@@ -964,6 +1121,8 @@ onBeforeUnmount(() => {
       :export-busy="mermaidExportBusy"
       @close="onMermaidViewerClose"
       @export-png="onMermaidExportPng"
+      @export-svg="onMermaidExportSvg"
+      @copy-source="onMermaidCopySource"
     />
   </div>
 </template>

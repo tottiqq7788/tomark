@@ -203,14 +203,94 @@ describe("mermaid preview", () => {
             toolbar &&
               getComputedStyle(toolbar).display !== "none" &&
               document.querySelector('[data-testid="mermaid-fullscreen"]') &&
-              document.querySelector('[data-testid="mermaid-export-png"]'),
+              document.querySelector('[data-testid="mermaid-export-png"]') &&
+              document.querySelector('[data-testid="mermaid-export-svg"]') &&
+              document.querySelector('[data-testid="mermaid-copy-source"]') &&
+              document.querySelector('[data-testid="mermaid-locate-source"]'),
           );
         }),
       {
         timeout: 10_000,
-        timeoutMsg: "expected Mermaid icon toolbar with two actions",
+        timeoutMsg: "expected Mermaid icon toolbar with five actions",
       },
     );
+
+    await browser.execute(() => {
+      const win = window as unknown as {
+        __tomarkClipboard?: string;
+      };
+      win.__tomarkClipboard = "";
+      const clipboard = {
+        writeText: async (text: string) => {
+          win.__tomarkClipboard = text;
+        },
+      };
+      try {
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          writable: true,
+          value: clipboard,
+        });
+      } catch {
+        (navigator as unknown as { clipboard: typeof clipboard }).clipboard =
+          clipboard;
+      }
+    });
+    await $('[data-testid="mermaid-copy-source"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const status = document.querySelector(".status-left")?.textContent ?? "";
+          const text = (
+            window as unknown as { __tomarkClipboard?: string }
+          ).__tomarkClipboard;
+          return (
+            status.includes("已复制 Mermaid 源码") ||
+            Boolean(text && text.includes("graph") && !text.includes("```"))
+          );
+        }),
+      {
+        timeout: 8_000,
+        timeoutMsg: "copy-source did not report success or write clipboard mock",
+      },
+    );
+
+    await $('[data-testid="mermaid-locate-source"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          return (
+            document.querySelector(".cm-locate-flash")?.textContent?.trim() ===
+            "```mermaid"
+          );
+        }),
+      {
+        timeout: 10_000,
+        timeoutMsg: "toolbar locate-source did not flash the Mermaid fence",
+      },
+    );
+
+    // Re-open toolbar for fullscreen checks.
+    await browser.execute(() => {
+      const svg = document.querySelector(
+        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+      );
+      if (!(svg instanceof Element)) {
+        throw new Error("missing mermaid svg");
+      }
+      const rect = svg.getBoundingClientRect();
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    });
+    await $('[data-testid="mermaid-fullscreen"]').waitForDisplayed({
+      timeout: 5_000,
+    });
 
     await $('[data-testid="mermaid-fullscreen"]').click();
     await $('[data-testid="mermaid-fullscreen-viewer"]').waitForDisplayed({
