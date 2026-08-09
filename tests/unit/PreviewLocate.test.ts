@@ -112,7 +112,28 @@ describe("PreviewPane locate", () => {
     wrapper.unmount();
   });
 
-  it("opens links with Alt/Option+click in editable preview", async () => {
+  it("opens links with plain click in editable preview", async () => {
+    const source = `[site](https://example.com/docs)\n`;
+    const wrapper = mountEditablePreview(source);
+    await flushPromises();
+    await nextTick();
+
+    const link = wrapper.get("a").element as HTMLAnchorElement;
+    link.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await nextTick();
+
+    expect(wrapper.emitted("open-link")).toEqual([
+      ["https://example.com/docs"],
+    ]);
+    wrapper.unmount();
+  });
+
+  it("still opens links with Alt/Option+click in editable preview", async () => {
     const source = `[site](https://example.com/docs)\n`;
     const wrapper = mountEditablePreview(source);
     await flushPromises();

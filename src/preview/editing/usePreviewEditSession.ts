@@ -433,11 +433,11 @@ export function createPreviewEditSession(
                 return false;
               }
               event.preventDefault();
-              if (event.altKey && isSafeLinkHref(link.href)) {
+              // Plain / Alt+click open safe links via system opener.
+              // Link-label caret editing is deferred to direct-typing WP.
+              if (isSafeLinkHref(link.href)) {
                 handlers.onOpenLink?.(link.href);
-                return true;
               }
-              // Plain click no longer places a caret for label editing.
               return true;
             }
 
