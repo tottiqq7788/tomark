@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-002-runtime-e2e-native",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e:native:paste",
+  "result_summary": "macOS Tauri WebKit：app 打开临时 .md；osascript 写入系统 pasteboard PNG；经截图型 clipboardData（image UTI、无 File）触发与生产一致的粘贴编排；源码出现 ![](assets/pasted-*.png)；磁盘 assets/*.png 含 PNG 签名；预览 img 成功加载。Chromium 快路径 editor-paste-image.spec.ts 亦通过（mock 写盘，非本条主张）。",
+  "limitations": [
+    "WDIO 宿主 Cmd+V 无法可靠把系统剪贴板注入 WKWebView，故使用 pasteEditorScreenshotClipboard 合成与生产相同的截图型 DataTransfer，再调用同一 onPasteImage 编排读取真实系统剪贴板并真实写盘。",
+    "未把浏览器模式 pasteEditorImage 桥当作原生闭环证据。"
+  ]
+}

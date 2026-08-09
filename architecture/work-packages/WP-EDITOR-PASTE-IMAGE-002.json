@@ -3,9 +3,9 @@
   "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
   "project_id": "tomark",
   "name": "修复 macOS 截图粘贴与原生只读回退",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "71978eb0dfd6bd2037cd23ef189c32443b4310b0",
-  "implementation_commit": null,
+  "implementation_commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
   "baseline_requirement": "纠正基线为 WP-EDITOR-PASTE-IMAGE-001 closeout commit 71978eb；缺陷来源为 v5.12.2 安装包中 macOS 截图粘贴无反应、未创建 assets/。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-008.json",
@@ -64,16 +64,25 @@
     "相对路径越出文档目录。"
   ],
   "required_evidence": ["unit", "integration", "fault_injection", "runtime_e2e"],
-  "evidence_ids": [],
+  "evidence_ids": [
+    "EV-EDITOR-PASTE-IMAGE-002-unit",
+    "EV-EDITOR-PASTE-IMAGE-002-integration",
+    "EV-EDITOR-PASTE-IMAGE-002-fault-injection",
+    "EV-EDITOR-PASTE-IMAGE-002-runtime-e2e-native",
+    "EV-EDITOR-PASTE-IMAGE-002-architecture-review"
+  ],
   "stop_conditions": [
     "实际影响超出 allowed_scope。",
     "原生回退需要读文本/写剪贴板权限。"
   ],
   "task_envelope_id": "TASK-EDITOR-PASTE-IMAGE-002",
   "closeout": {
-    "decision": null,
-    "commit": null,
-    "reason": null,
-    "residual_risks": []
+    "decision": "closed",
+    "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+    "reason": "DEC-008 修订的 L0-TMK-021 已实现：截图型粘贴经原生 read-image 写入真实 assets/ 并插入相对路径；capability 最小化；单元/集成/故障注入/macOS native E2E 与架构复核已绑定实现 commit。",
+    "residual_risks": [
+      "WDIO 未能稳定发送真实 Cmd+V 进入 WKWebView；native E2E 用截图型合成 DataTransfer + 真实系统剪贴板/真实写盘证明编排，安装包手势仍建议抽样确认。",
+      "空剪贴板时部分环境下 readImage 可能长时间挂起；已用 JS 超时保护，极端宿主仍可能占用短暂粘贴互斥。"
+    ]
   }
 }

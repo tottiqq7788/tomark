@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-002-fault-injection",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+  "type": "fault_injection",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- tests/unit/useEditorPasteImage.test.ts tests/unit/clipboardImageService.test.ts",
+  "result_summary": "故障注入通过：另存为取消不写盘不插入；写盘失败 showError 且不 dispatch；原生无图/抛错不插入；Async 超时回退原生；原生读取超时 showError；编码超限与 rgba 不完整拒绝；Image.close 在失败路径仍调用。",
+  "limitations": [
+    "空系统剪贴板导致 readImage 挂起的运行态路径未在 native E2E 稳定复现；由 JS 侧 nativeClipboardTimeoutMs 与单测超时注入覆盖。"
+  ]
+}

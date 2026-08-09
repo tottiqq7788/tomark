@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-002-integration",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "cargo test --manifest-path src-tauri/Cargo.toml assets; python3 architecture/tools/audit_project.py --target .; python3 .ai/onto/scripts/validate_package.py",
+  "result_summary": "Rust assets 相关 4 tests passed（含 paste_image_path_requires_assets_prefix 与 write_document_relative_image_creates_assets_file）。治理 audit 与 onto validate_package 均 passed。生产/E2E capability 合同由 nativeCapabilityClipboard 单测断言仅 allow-read-image。",
+  "limitations": [
+    "未在完整 AppHandle fs_scope 下做命令级集成；相对路径门闩仍由 export_io 单元覆盖。"
+  ]
+}

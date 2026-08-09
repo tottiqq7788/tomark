@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-002-unit",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test",
+  "result_summary": "Vitest 56 files / 306 tests passed。覆盖 pasteImageMarkdown（截图型载荷、空 MIME 文件头、skip-async）、useEditorPasteImage（原生回退、纯文本不触发、超时、另存为取消/写盘失败）、clipboardImageService（RGBA→PNG、资源 close）、createEditor 粘贴路由、nativeCapabilityClipboard 合同。",
+  "limitations": [
+    "jsdom 无真实 WKWebView DataTransfer；截图型载荷用合成 types stub。",
+    "原生 readImage 在单测中 mock，不触及系统 pasteboard。"
+  ]
+}

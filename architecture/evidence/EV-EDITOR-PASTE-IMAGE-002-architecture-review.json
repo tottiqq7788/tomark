@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EDITOR-PASTE-IMAGE-002-architecture-review",
+  "work_package_id": "WP-EDITOR-PASTE-IMAGE-002",
+  "commit": "dfaf48c5bb6822ea00cd4f5ff0b2664c207641a9",
+  "type": "static",
+  "status": "passed",
+  "command_or_source": "independent architecture-review against TASK/WP-EDITOR-PASTE-IMAGE-002; follow-up evidence bind on dfaf48c",
+  "result_summary": "初评 evidence_incomplete（缺 EV 绑定、tauri.conf.json 未入 scope）。已将 tauri.conf.json 纳入 allowed_scope，删除未用 classifyClipboardPaste，补 shouldSkipAsync 单测，并在 dfaf48c 绑定四类证据。实现与修订后 L0-TMK-021 / CONTRACT-TMK-NATIVE-CAPABILITY 对齐：仅 allow-read-image；纯文本不触发原生；失败不半截写入。closeout 判定 accepted（附 residual：真实 Cmd+V 手势与空剪贴板 readImage 挂起由超时与 limitations 记录）。",
+  "limitations": [
+    "复评基于实现 commit 与证据文件，非二次全量盲审。"
+  ]
+}
