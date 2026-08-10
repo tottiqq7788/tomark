@@ -47,6 +47,9 @@ export function useShellLifecycle(
   options: ShellLifecycleOptions = {},
 ) {
   const fileOpsViaMenu = ref(false);
+  const popupFileMenu = ref<((x: number, y: number) => Promise<void>) | null>(
+    null,
+  );
 
   let unlistenCloseRequested: UnlistenFn | null = null;
   let unlistenMenu: UnlistenFn | null = null;
@@ -405,7 +408,7 @@ export function useShellLifecycle(
       if (unmounted) {
         return;
       }
-      unlistenMenu = await installAppMenu({
+      const installation = await installAppMenu({
         newDocument: () => {
           void flushPreviewEdits().then(() => session.newDocument());
         },
@@ -421,16 +424,18 @@ export function useShellLifecycle(
           Boolean(options.isBlocked?.()),
       });
       if (unmounted) {
-        unlistenMenu?.();
-        unlistenMenu = null;
+        installation.dispose();
         return;
       }
-      fileOpsViaMenu.value = true;
+      unlistenMenu = installation.dispose;
+      fileOpsViaMenu.value = installation.fileOpsViaMenu;
+      popupFileMenu.value = installation.popupFileMenu;
     } catch (error) {
       if (unmounted) {
         return;
       }
       fileOpsViaMenu.value = false;
+      popupFileMenu.value = null;
       session.statusMessage.value = `未能安装应用菜单：${
         error instanceof Error ? error.message : String(error)
       }`;
@@ -481,6 +486,7 @@ export function useShellLifecycle(
     }
     unlistenCloseRequested?.();
     unlistenMenu?.();
+    popupFileMenu.value = null;
     unlistenAppExitRequested?.();
     unlistenOpenFile?.();
     session.dispose();
@@ -490,5 +496,5 @@ export function useShellLifecycle(
     }
   });
 
-  return { fileOpsViaMenu };
+  return { fileOpsViaMenu, popupFileMenu };
 }

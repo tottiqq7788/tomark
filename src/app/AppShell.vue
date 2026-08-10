@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, onMounted, ref, watch } from "vue";
+import {
+  computed,
+  defineAsyncComponent,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
 import DirtyConfirmDialog from "@/app/DirtyConfirmDialog.vue";
 import EncodingSaveDialog from "@/app/EncodingSaveDialog.vue";
 import SettingsDrawer from "@/app/SettingsDrawer.vue";
@@ -22,14 +29,17 @@ import { useShellLifecycle } from "./useShellLifecycle";
 import { useDefaultAppSetup } from "./useDefaultAppSetup";
 import { createEditorPasteImageHandler } from "./useEditorPasteImage";
 import { isMacOS } from "@/shared/isMacOS";
+import { isWindows } from "@/shared/isWindows";
+import { useWindowsTitlebar } from "./useWindowsTitlebar";
 
 type ActiveDrawer = "settings" | null;
 
 const EditorPane = defineAsyncComponent(() => import("@/editor/EditorPane.vue"));
 const PreviewPane = defineAsyncComponent(() => import("@/preview/PreviewPane.vue"));
 
-/** macOS Overlay titlebar merges with toolbar; Windows keeps native chrome. */
+/** Platform window chrome is configured by Tauri's platform-specific config. */
 const macOSOverlayTitlebar = isMacOS();
+const windowsCustomTitlebar = isWindows();
 
 const {
   path,
@@ -286,7 +296,7 @@ const editBridge = usePreviewEditBridge({
   statusMessage,
 });
 
-const { fileOpsViaMenu } = useShellLifecycle(
+const { fileOpsViaMenu, popupFileMenu } = useShellLifecycle(
   {
     dirty,
     saving,
@@ -327,6 +337,59 @@ const { fileOpsViaMenu } = useShellLifecycle(
       return api(diagramIndex, targetPath);
     },
   },
+);
+
+const {
+  maximized: windowMaximized,
+  minimize: minimizeWindow,
+  toggleMaximize: toggleMaximizeWindow,
+  closeWindow,
+  onDragRegionMouseDown,
+} = useWindowsTitlebar({
+  enabled: windowsCustomTitlebar,
+  onError: (message) => {
+    statusMessage.value = `窗口操作失败：${message}`;
+  },
+});
+
+const fileMenuButtonRef = ref<HTMLButtonElement | null>(null);
+
+function setFileMenuButtonRef(element: unknown) {
+  fileMenuButtonRef.value =
+    element instanceof HTMLButtonElement ? element : null;
+}
+
+async function openWindowsFileMenu(target = fileMenuButtonRef.value) {
+  const popup = popupFileMenu.value;
+  if (!target || !popup) {
+    return;
+  }
+  const rect = target.getBoundingClientRect();
+  try {
+    await popup(rect.left, rect.bottom);
+  } catch (error) {
+    statusMessage.value = `未能打开文件菜单：${
+      error instanceof Error ? error.message : String(error)
+    }`;
+  }
+}
+
+function onTitlebarKeydown(event: KeyboardEvent) {
+  if (
+    windowsCustomTitlebar &&
+    event.altKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    event.key.toLowerCase() === "f"
+  ) {
+    event.preventDefault();
+    void openWindowsFileMenu();
+  }
+}
+
+onMounted(() => window.addEventListener("keydown", onTitlebarKeydown, true));
+onBeforeUnmount(() =>
+  window.removeEventListener("keydown", onTitlebarKeydown, true),
 );
 
 function onSplitterKeydown(event: KeyboardEvent) {
@@ -509,7 +572,10 @@ useAppShortcuts({
   <div class="app-shell">
     <header
       class="toolbar"
-      :class="{ 'is-macos-overlay': macOSOverlayTitlebar }"
+      :class="{
+        'is-macos-overlay': macOSOverlayTitlebar,
+        'is-windows-custom': windowsCustomTitlebar,
+      }"
       data-testid="app-toolbar"
     >
       <span
@@ -518,6 +584,27 @@ useAppShortcuts({
         aria-hidden="true"
         data-tauri-drag-region
       />
+      <span
+        v-if="windowsCustomTitlebar"
+        class="toolbar-app-icon"
+        aria-hidden="true"
+      >
+        <svg viewBox="0 0 16 16">
+          <rect x="1" y="1" width="14" height="14" rx="3" />
+          <path d="M4 4.5h8M4 7.5h8M4 10.5h5" />
+        </svg>
+      </span>
+      <button
+        v-if="windowsCustomTitlebar"
+        :ref="setFileMenuButtonRef"
+        type="button"
+        class="toolbar-file-menu"
+        aria-label="文件菜单"
+        data-testid="windows-file-menu"
+        @click="openWindowsFileMenu($event.currentTarget as HTMLButtonElement)"
+      >
+        文件
+      </button>
       <button
         type="button"
         class="toolbar-title"
@@ -611,6 +698,58 @@ useAppShortcuts({
           <circle cx="8" cy="8" r="7" fill="currentColor" opacity="0.2" />
           <circle cx="8" cy="8" r="3.2" fill="currentColor" />
         </svg>
+      </div>
+      <span
+        v-if="windowsCustomTitlebar"
+        class="toolbar-windows-drag-region"
+        aria-hidden="true"
+        data-testid="windows-drag-region"
+        @mousedown="onDragRegionMouseDown"
+      />
+      <div
+        v-if="windowsCustomTitlebar"
+        class="toolbar-window-controls"
+        data-testid="windows-window-controls"
+      >
+        <button
+          type="button"
+          class="toolbar-window-control"
+          aria-label="最小化"
+          title="最小化"
+          data-testid="window-minimize"
+          @click="minimizeWindow"
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M2 8.5h8" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-window-control"
+          :aria-label="windowMaximized ? '还原' : '最大化'"
+          :title="windowMaximized ? '还原' : '最大化'"
+          data-testid="window-maximize"
+          @click="toggleMaximizeWindow"
+        >
+          <svg v-if="windowMaximized" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M3.5 4.5h5v5h-5zM5 4.5V3h4v4H8.5" />
+          </svg>
+          <svg v-else viewBox="0 0 12 12" aria-hidden="true">
+            <rect x="2.5" y="2.5" width="7" height="7" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          class="toolbar-window-control is-close"
+          aria-label="关闭"
+          title="关闭"
+          data-testid="window-close"
+          @click="closeWindow"
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="m2.5 2.5 7 7m0-7-7 7" />
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -866,6 +1005,104 @@ useAppShortcuts({
   min-height: 32px;
   height: 32px;
   box-sizing: border-box;
+}
+
+.toolbar.is-windows-custom {
+  justify-content: flex-start;
+  gap: 0;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+
+.toolbar-app-icon {
+  flex: 0 0 32px;
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+}
+
+.toolbar-app-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: #334155;
+  stroke: #f8fafc;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.toolbar-file-menu {
+  align-self: stretch;
+  min-width: 48px;
+  padding: 0 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+  cursor: default;
+}
+
+.toolbar-file-menu:hover,
+.toolbar-file-menu:focus-visible,
+.toolbar-window-control:hover,
+.toolbar-window-control:focus-visible {
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.toolbar.is-windows-custom .toolbar-title {
+  flex: 0 1 auto;
+  max-width: min(55%, 560px);
+  padding: 0 8px;
+  border-radius: 0;
+  line-height: 32px;
+}
+
+.toolbar.is-windows-custom .toolbar-save-status {
+  width: 24px;
+  height: 32px;
+}
+
+.toolbar-windows-drag-region {
+  flex: 1 1 48px;
+  align-self: stretch;
+  min-width: 24px;
+}
+
+.toolbar-window-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-self: stretch;
+}
+
+.toolbar-window-control {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: default;
+}
+
+.toolbar-window-control svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.toolbar-window-control.is-close:hover,
+.toolbar-window-control.is-close:focus-visible {
+  background: #c42b1c;
+  color: #fff;
 }
 
 .toolbar-traffic-spacer {

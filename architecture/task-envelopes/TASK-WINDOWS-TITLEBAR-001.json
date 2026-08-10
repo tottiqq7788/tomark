@@ -1,0 +1,38 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-WINDOWS-TITLEBAR-001",
+  "role": "implementation_owner",
+  "baseline_commit": "8943da47339bcc9f85ddc7542ce54b55da941ef1",
+  "work_package_id": "WP-WINDOWS-TITLEBAR-001",
+  "allowed_scope": [
+    "src/app/**",
+    "src/shared/isWindows.ts",
+    "src-tauri/tauri.windows.conf.json",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**"
+  ],
+  "l0_impact": "none",
+  "l0_rule_ids": ["L0-TMK-001", "L0-TMK-006"],
+  "must_preserve": [
+    "文件操作刷新、阻塞与 dirty guard 行为。",
+    "macOS Overlay/原生菜单和 Linux 原生窗口/菜单。",
+    "交互控件不成为拖动区。",
+    "最小窗口 capability。"
+  ],
+  "must_reject": [
+    "Windows 重复标题栏或菜单行。",
+    "关闭直接 destroy 或菜单动作绕过守卫。",
+    "跨平台关闭窗口装饰。",
+    "窗口权限扩大到任务无关命令。"
+  ],
+  "required_evidence": ["static", "contract", "unit", "integration", "runtime_e2e_windows"],
+  "stop_conditions": [
+    "需要修改 L0 语义。",
+    "改动超出 allowed_scope。",
+    "无法维持关闭与文件操作守卫。"
+  ],
+  "notes": "实现所有者可在当前 dirty worktree 中工作，但必须保留既有版本同步改动。"
+}

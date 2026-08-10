@@ -13,6 +13,12 @@ const tauriMocks = vi.hoisted(() => {
   const unlisten = vi.fn();
   const unlistenAppExit = vi.fn();
   const destroy = vi.fn(async () => undefined);
+  const close = vi.fn(async () => undefined);
+  const minimize = vi.fn(async () => undefined);
+  const toggleMaximize = vi.fn(async () => undefined);
+  const isMaximized = vi.fn(async () => false);
+  const startDragging = vi.fn(async () => undefined);
+  const onResized = vi.fn(async () => vi.fn());
   const invoke = vi.fn(async () => undefined);
   const onCloseRequested = vi.fn(async (handler: CloseHandler) => {
     closeHandler = handler;
@@ -26,23 +32,46 @@ const tauriMocks = vi.hoisted(() => {
   });
 
   return {
-    appWindow: { onCloseRequested, destroy, listen },
+    appWindow: {
+      onCloseRequested,
+      destroy,
+      close,
+      minimize,
+      toggleMaximize,
+      isMaximized,
+      startDragging,
+      onResized,
+      listen,
+    },
+    close,
     destroy,
     getAppExitHandler: () => appExitHandler,
     getCloseHandler: () => closeHandler,
+    isMaximized,
     invoke,
     listen,
+    minimize,
     onCloseRequested,
+    onResized,
     reset: () => {
       closeHandler = null;
       appExitHandler = null;
       unlisten.mockClear();
       unlistenAppExit.mockClear();
       destroy.mockClear();
+      close.mockClear();
+      minimize.mockClear();
+      toggleMaximize.mockClear();
+      isMaximized.mockClear();
+      isMaximized.mockResolvedValue(false);
+      startDragging.mockClear();
+      onResized.mockClear();
       invoke.mockClear();
       listen.mockClear();
       onCloseRequested.mockClear();
     },
+    startDragging,
+    toggleMaximize,
     unlisten,
   };
 });
@@ -62,15 +91,27 @@ vi.mock("@tauri-apps/api/event", () => ({
 
 const menuMocks = vi.hoisted(() => {
   let lastHandlers: { isBlocked?: () => boolean } | null = null;
+  let fileOpsViaMenu = true;
+  const popupFileMenu = vi.fn(async () => undefined);
   return {
     getLastHandlers: () => lastHandlers,
     installAppMenu: vi.fn(async (handlers: { isBlocked?: () => boolean }) => {
       lastHandlers = handlers;
-      return vi.fn();
+      return {
+        fileOpsViaMenu,
+        popupFileMenu: fileOpsViaMenu ? null : popupFileMenu,
+        dispose: vi.fn(),
+      };
     }),
+    popupFileMenu,
     reset: () => {
       lastHandlers = null;
+      fileOpsViaMenu = true;
+      popupFileMenu.mockClear();
       // cleared below after mock is created
+    },
+    setFileOpsViaMenu: (value: boolean) => {
+      fileOpsViaMenu = value;
     },
   };
 });
@@ -82,10 +123,15 @@ vi.mock("@/app/useAppMenu", () => ({
 
 const platformMocks = vi.hoisted(() => ({
   isMacOS: vi.fn(() => false),
+  isWindows: vi.fn(() => false),
 }));
 
 vi.mock("@/shared/isMacOS", () => ({
   isMacOS: () => platformMocks.isMacOS(),
+}));
+
+vi.mock("@/shared/isWindows", () => ({
+  isWindows: () => platformMocks.isWindows(),
 }));
 
 const dirty = ref(false);
@@ -189,6 +235,7 @@ describe("AppShell", () => {
     menuMocks.installAppMenu.mockClear();
     menuMocks.reset();
     platformMocks.isMacOS.mockReturnValue(false);
+    platformMocks.isWindows.mockReturnValue(false);
     dirty.value = false;
     dirtyDialogOpen.value = false;
     dirtyResolver = null;
@@ -226,6 +273,51 @@ describe("AppShell", () => {
     wrapper.unmount();
   });
 
+  it("renders one Windows titlebar with native file popup and guarded window controls", async () => {
+    platformMocks.isWindows.mockReturnValue(true);
+    menuMocks.setFileOpsViaMenu(false);
+    const wrapper = mount(AppShell, {
+      global: {
+        stubs: {
+          EditorPane: PaneStub,
+          PreviewPane: PaneStub,
+          Suspense: false,
+        },
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const toolbar = wrapper.get('[data-testid="app-toolbar"]');
+    expect(toolbar.classes()).toContain("is-windows-custom");
+    expect(wrapper.find(".toolbar-traffic-spacer").exists()).toBe(false);
+    expect(wrapper.get('[data-testid="windows-window-controls"]')).toBeTruthy();
+
+    await wrapper.get('[data-testid="windows-file-menu"]').trigger("click");
+    expect(menuMocks.popupFileMenu).toHaveBeenCalledWith(0, 0);
+
+    const dragRegion = wrapper.get('[data-testid="windows-drag-region"]');
+    expect(dragRegion.attributes("data-tauri-drag-region")).toBeUndefined();
+    dragRegion.element.dispatchEvent(
+      new MouseEvent("mousedown", { button: 0, bubbles: true }),
+    );
+    await flushPromises();
+    expect(tauriMocks.startDragging).toHaveBeenCalledOnce();
+
+    await wrapper.get('[data-testid="window-minimize"]').trigger("click");
+    await flushPromises();
+    expect(tauriMocks.minimize).toHaveBeenCalledOnce();
+    await wrapper.get('[data-testid="window-maximize"]').trigger("click");
+    await flushPromises();
+    expect(tauriMocks.toggleMaximize).toHaveBeenCalledOnce();
+    await wrapper.get('[data-testid="window-close"]').trigger("click");
+    await flushPromises();
+    expect(tauriMocks.close).toHaveBeenCalledOnce();
+    expect(tauriMocks.destroy).not.toHaveBeenCalled();
+
+    wrapper.unmount();
+  });
+
   it("merges toolbar with macOS overlay titlebar spacing and drag region", async () => {
     platformMocks.isMacOS.mockReturnValue(true);
     const wrapper = mount(AppShell, {
@@ -242,6 +334,10 @@ describe("AppShell", () => {
 
     const toolbar = wrapper.get('[data-testid="app-toolbar"]');
     expect(toolbar.classes()).toContain("is-macos-overlay");
+    expect(toolbar.classes()).not.toContain("is-windows-custom");
+    expect(wrapper.find('[data-testid="windows-window-controls"]').exists()).toBe(
+      false,
+    );
 
     const spacer = wrapper.get(".toolbar-traffic-spacer");
     expect(spacer.attributes("data-tauri-drag-region")).toBeDefined();

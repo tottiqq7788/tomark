@@ -4,6 +4,17 @@ describe("window close guard", () => {
     await title.waitForExist({ timeout: 60_000 });
     await title.waitForDisplayed();
 
+    const isWindows = await browser.execute(() =>
+      /Win/i.test(navigator.platform) || /Windows/i.test(navigator.userAgent),
+    );
+    if (isWindows) {
+      await expect($("[data-testid='app-toolbar']")).toHaveElementClass(
+        "is-windows-custom",
+      );
+      await expect($("[data-testid='windows-file-menu']")).toBeDisplayed();
+      await expect($("[data-testid='windows-window-controls']")).toBeDisplayed();
+    }
+
     // Wait for the async editor chunk to mount.
     const editor = await $(".cm-content");
     await editor.waitForExist({ timeout: 60_000 });
@@ -40,19 +51,25 @@ describe("window close guard", () => {
 
     // Do not await close(): when prevented it may not settle, and when allowed
     // the embedded WebDriver server dies with the window.
-    await browser.execute(() => {
-      const api = (
-        window as unknown as {
-          __TAURI__?: {
-            window?: { getCurrentWindow: () => { close: () => Promise<void> } };
-          };
+    if (isWindows) {
+      await $("[data-testid='window-close']").click();
+    } else {
+      await browser.execute(() => {
+        const api = (
+          window as unknown as {
+            __TAURI__?: {
+              window?: {
+                getCurrentWindow: () => { close: () => Promise<void> };
+              };
+            };
+          }
+        ).__TAURI__;
+        if (!api?.window) {
+          throw new Error("Tauri window API unavailable");
         }
-      ).__TAURI__;
-      if (!api?.window) {
-        throw new Error("Tauri window API unavailable");
-      }
-      void api.window.getCurrentWindow().close();
-    });
+        void api.window.getCurrentWindow().close();
+      });
+    }
 
     const dialog = await $('[data-testid="dirty-dialog"]');
     await dialog.waitForDisplayed({ timeout: 15_000 });

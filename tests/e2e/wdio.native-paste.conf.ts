@@ -8,7 +8,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const appBinary = path.join(root, "src-tauri/target/debug/tomark");
+const appBinary = path.join(
+  root,
+  "src-tauri/target/debug",
+  process.platform === "win32" ? "tomark.exe" : "tomark",
+);
 const fixtureDir = path.join(tmpdir(), "tomark-native-paste-e2e");
 const fixtureMd = path.join(fixtureDir, "paste-doc.md");
 

@@ -1,0 +1,57 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-WINDOWS-TITLEBAR-001",
+  "project_id": "tomark",
+  "name": "Windows 单行自绘标题栏",
+  "status": "in_progress",
+  "baseline_commit": "8943da47339bcc9f85ddc7542ce54b55da941ef1",
+  "baseline_requirement": "以冻结治理基线 8943da4 和当前实现提交 ceef8f3 为准；本工作包不得覆盖工作树中既有的版本同步改动。",
+  "role": "implementation_owner",
+  "decision_source": "user-approved implementation plan",
+  "l0_impact": {
+    "classification": "none",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-001", "L0-TMK-006"],
+    "reason": "仅调整 Windows 应用壳窗口装饰、菜单承载位置与窗口控制表现，不改变文档、保存、编辑或发布语义。"
+  },
+  "goal": "Windows 将系统标题栏、原生菜单行和应用文件状态顶栏合并为一条自绘标题栏，同时完整保留 macOS Overlay、Linux 原生菜单及文件生命周期守卫。",
+  "affected_l1": ["L1-TMK-SHELL", "L1-TMK-NATIVE"],
+  "affected_l2": ["L2-TMK-APP-SHELL", "L2-TMK-SHELL-LIFECYCLE", "L2-TMK-CAPABILITIES", "L2-TMK-VERIFICATION"],
+  "allowed_scope": [
+    "src/app/**",
+    "src/shared/isWindows.ts",
+    "src-tauri/tauri.windows.conf.json",
+    "src-tauri/capabilities/default.json",
+    "src-tauri/tauri.e2e.conf.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**"
+  ],
+  "out_of_scope": [
+    "macOS titleBarStyle、交通灯与原生应用菜单行为",
+    "Linux 窗口装饰与原生菜单行为",
+    "文档内容、保存格式、自动保存与导出语义",
+    "版本号与发布流程"
+  ],
+  "must_preserve": [
+    "Windows 文件动作继续先刷新预览编辑并服从既有阻塞条件。",
+    "关闭按钮必须调用 close 并经过未保存文档守卫，不得直接 destroy。",
+    "macOS Overlay 和原生应用菜单保持不变；Linux 保持当前原生窗口与菜单。",
+    "仅交互控件之外的空白区可拖动，文件名和按钮保持可点击。",
+    "只授予窗口控制所需的最小 capability。"
+  ],
+  "must_reject": [
+    "Windows 仍出现系统标题栏或独立原生菜单行。",
+    "关闭绕过 dirty guard 或文件菜单绕过操作阻塞。",
+    "将 decorations=false 应用于 macOS 或 Linux。",
+    "为方便实现授予 core:window 全量权限。"
+  ],
+  "required_evidence": ["static", "contract", "unit", "integration", "runtime_e2e_windows"],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实现需要扩展产品语义或修改 L0 定义。",
+    "实际改动超出 allowed_scope。",
+    "Windows 自绘关闭无法经过既有 dirty guard。"
+  ],
+  "task_envelope_id": "TASK-WINDOWS-TITLEBAR-001"
+}

@@ -386,6 +386,8 @@
         "src/App.vue",
         "src/app/AppShell.vue",
         "src/app/SettingsDrawer.vue",
+        "src/app/useWindowsTitlebar.ts",
+        "src/shared/isWindows.ts",
         "src/app/useViewMode.ts",
         "src/app/usePaneSplit.ts"
       ]
@@ -506,6 +508,8 @@
       "l1_refs": ["L1-TMK-SHELL", "L1-TMK-NATIVE"],
       "selectors": [
         "src/app/useShellLifecycle.ts",
+        "src/app/useAppMenu.ts",
+        "src/app/useWindowsTitlebar.ts",
         "src/app/useDefaultAppSetup.ts",
         "src-tauri/src/lib.rs",
         "src-tauri/src/open_file.rs",
@@ -521,6 +525,7 @@
         "src-tauri/capabilities/default.json",
         "src-tauri/permissions/*.toml",
         "src-tauri/tauri.conf.json",
+        "src-tauri/tauri.windows.conf.json",
         "src-tauri/tauri.e2e.conf.json"
       ]
     },

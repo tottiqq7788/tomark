@@ -8,6 +8,7 @@ const depsDir = path.join(root, "deps");
 // E2E on a configurable port (default 1422) and never reuse a foreign server.
 const E2E_PORT = Number(process.env.TOMARK_E2E_PORT || 1422);
 const E2E_URL = `http://127.0.0.1:${E2E_PORT}`;
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 export const config: Options.Testrunner = {
   runner: "local",
@@ -37,7 +38,7 @@ export const config: Options.Testrunner = {
         mode: "browser",
         devServerUrl: E2E_URL,
         devServer: {
-          command: `npm run dev -- --host 127.0.0.1 --port ${E2E_PORT} --strictPort`,
+          command: `${npmCommand} run dev -- --host 127.0.0.1 --port ${E2E_PORT} --strictPort`,
           cwd: depsDir,
           timeoutMs: 120_000,
           // Never reuse a plain `tauri:dev` / `npm run dev` server — e2e hooks

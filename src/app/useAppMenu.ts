@@ -1,4 +1,5 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { isWindows } from "@/shared/isWindows";
 
 export interface AppMenuHandlers {
   newDocument: () => void | Promise<void>;
@@ -7,13 +8,21 @@ export interface AppMenuHandlers {
   isBlocked?: () => boolean;
 }
 
+export interface AppMenuInstallation {
+  /** Native app-menu accelerators own file shortcuts on macOS/Linux only. */
+  fileOpsViaMenu: boolean;
+  /** Windows custom titlebar opens the native File menu at logical coordinates. */
+  popupFileMenu: ((x: number, y: number) => Promise<void>) | null;
+  dispose: UnlistenFn;
+}
+
 /**
- * Installs a native app menu with File → 新建 / 打开 / 另存为.
- * On macOS the first submenu occupies the application menu slot.
+ * Installs the platform menu surface. macOS/Linux use the native app menu;
+ * Windows exposes a native popup for the custom one-line titlebar.
  */
 export async function installAppMenu(
   handlers: AppMenuHandlers,
-): Promise<UnlistenFn> {
+): Promise<AppMenuInstallation> {
   const { Menu, MenuItem, PredefinedMenuItem, Submenu } = await import(
     "@tauri-apps/api/menu"
   );
@@ -26,35 +35,48 @@ export async function installAppMenu(
     void action();
   };
 
+  const createFileItems = async () => [
+    await MenuItem.new({
+      id: "file-new",
+      text: "新建",
+      accelerator: "CmdOrCtrl+N",
+      action: () => run(handlers.newDocument),
+    }),
+    await MenuItem.new({
+      id: "file-open",
+      text: "打开…",
+      accelerator: "CmdOrCtrl+O",
+      action: () => run(handlers.openDocument),
+    }),
+    await PredefinedMenuItem.new({ item: "Separator" }),
+    await MenuItem.new({
+      id: "file-save-as",
+      text: "另存为…",
+      accelerator: "CmdOrCtrl+Shift+S",
+      action: () => run(handlers.saveAs),
+    }),
+  ];
+
+  if (isWindows()) {
+    const menu = await Menu.new({ items: await createFileItems() });
+    return {
+      fileOpsViaMenu: false,
+      popupFileMenu: async (x, y) => {
+        const [{ LogicalPosition }, { getCurrentWindow }] = await Promise.all([
+          import("@tauri-apps/api/dpi"),
+          import("@tauri-apps/api/window"),
+        ]);
+        await menu.popup(new LogicalPosition(x, y), getCurrentWindow());
+      },
+      dispose: () => {
+        // Resource lifetime is tied to the WebView; no attached window menu remains.
+      },
+    };
+  }
+
   const fileSubmenu = await Submenu.new({
     text: "文件",
-    items: [
-      await MenuItem.new({
-        id: "file-new",
-        text: "新建",
-        accelerator: "CmdOrCtrl+N",
-        action: () => {
-          run(handlers.newDocument);
-        },
-      }),
-      await MenuItem.new({
-        id: "file-open",
-        text: "打开…",
-        accelerator: "CmdOrCtrl+O",
-        action: () => {
-          run(handlers.openDocument);
-        },
-      }),
-      await PredefinedMenuItem.new({ item: "Separator" }),
-      await MenuItem.new({
-        id: "file-save-as",
-        text: "另存为…",
-        accelerator: "CmdOrCtrl+Shift+S",
-        action: () => {
-          run(handlers.saveAs);
-        },
-      }),
-    ],
+    items: await createFileItems(),
   });
 
   if (isMac) {
@@ -70,18 +92,18 @@ export async function installAppMenu(
         await PredefinedMenuItem.new({ item: "Quit" }),
       ],
     });
-    const menu = await Menu.new({
-      items: [appSubmenu, fileSubmenu],
-    });
+    const menu = await Menu.new({ items: [appSubmenu, fileSubmenu] });
     await menu.setAsAppMenu();
   } else {
-    const menu = await Menu.new({
-      items: [fileSubmenu],
-    });
+    const menu = await Menu.new({ items: [fileSubmenu] });
     await menu.setAsAppMenu();
   }
 
-  return () => {
-    // Native menu is replaced on next install; nothing to free per-item.
+  return {
+    fileOpsViaMenu: true,
+    popupFileMenu: null,
+    dispose: () => {
+      // Native menu is replaced on next install; nothing to free per-item.
+    },
   };
 }
