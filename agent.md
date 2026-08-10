@@ -62,10 +62,25 @@
 
 | 场景 | 命令 | 说明 |
 |------|------|------|
-| **默认推荐**：桌面壳 + 前端热更新（要文件对话框、读盘等 Tauri API，或要真窗口） | `npm run tauri:dev` | 开发态窗口；前端走 Vite（`devUrl` ≈ `http://localhost:1420`），改 `src/` 一般 HMR；改 `src-tauri` Rust 才会增量重编壳层 |
+| **默认推荐**：桌面壳 + 前端热更新（要文件对话框、读盘等 Tauri API，或要真窗口） | macOS/Linux：`npm run tauri:dev`；Windows：见下方 | 开发态窗口；前端走 Vite（`devUrl` ≈ `http://localhost:1420`），改 `src/` 一般 HMR；改 `src-tauri` Rust 才会增量重编壳层 |
 | **更快**：只改 UI / 编辑器 / Markdown 渲染，不依赖原生 API | `npm run dev` | 仅 Vite，浏览器打开控制台即可，启动通常最快、前端报错最好查 |
 | 生产构建预览（偶发） | `npm run build` 后 `npm run preview` | 验证打包后的前端静态资源，**不是**日常开发预览 |
 | 发布安装包 | `npm run tauri:build` | 仅发版；慢，不作开发预览 |
+
+Windows 原生开发预览补充（不影响 macOS/Linux 的 `npm run tauri:dev`）：
+
+1. 前置安装 Rust stable MSVC（含 `cargo`）以及 Visual Studio 2022 Build Tools 的 **Desktop development with C++** 工作负载和 Windows SDK。
+2. 从 **x64 Native Tools Command Prompt for VS 2022**（或先执行 `VsDevCmd.bat -arch=x64`）启动，确保 `cl.exe` 和 `link.exe` 来自 Visual Studio；Git for Windows 自带的 `usr/bin/link.exe` 不可用。
+3. 在仓库根目录执行以下命令。`VCToolsInstallDir` 由 Visual Studio 开发者命令行提供，避免把 MSVC 版本号写死：
+
+```bat
+cd /d <仓库根目录>
+set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%VCToolsInstallDir%bin\Hostx64\x64\link.exe"
+deps\node_modules\.bin\tauri.cmd dev --config src-tauri\tauri.conf.json
+```
+
+Windows 端口仍为 `http://localhost:1420`；关闭桌面窗口或在启动命令窗口按 `Ctrl+C` 停止预览。若只需浏览器预览，仍使用 `npm run dev`。
 
 选择规则（Agent 执行「运行开发预览」时遵守）：
 
@@ -107,9 +122,25 @@
 |----------|------|------|
 | **macOS（须打两套）** | `npm run tauri:build -- --target x86_64-apple-darwin` | Intel：`src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg` |
 | | `npm run tauri:build -- --target aarch64-apple-darwin` | Apple 芯片：`src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg` |
-| **Windows** | `npm run tauri:build`（或显式 `--bundles nsis`） | `src-tauri/target/release/bundle/nsis/*.exe`（以实际日志为准） |
+| **Windows** | x64 Native Tools 命令行中的 Windows 流程（见下方） | `src-tauri/target/release/bundle/nsis/tomark_<semver>_x64-setup.exe` |
 
 预期文件名形态示例：`tomark_1.10.1_aarch64.dmg` / `tomark_1.10.1_x64.dmg`（版本段与当前 git `vX.Y.Z` 一致）。
+
+Windows 打包流程：
+
+1. 前置安装 Rust stable MSVC（含 `cargo`），以及 Visual Studio 2022 Build Tools 的 **Desktop development with C++** 工作负载和 Windows SDK。
+2. 从 **x64 Native Tools Command Prompt for VS 2022** 启动（或先执行 `VsDevCmd.bat -arch=x64`），并确认 `where cl`、`where link` 指向 Visual Studio；Git for Windows 自带的 `usr/bin/link.exe` 不可作为 MSVC 链接器。
+3. 在仓库根目录执行以下命令。显式设置 `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER`，避免 PATH 中其它 `link.exe` 抢先；`VCToolsInstallDir` 由 Visual Studio 开发者命令行提供：
+
+```bat
+cd /d <仓库根目录>
+set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+set "CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=%VCToolsInstallDir%bin\Hostx64\x64\link.exe"
+npm.cmd run sync:version
+deps\node_modules\.bin\tauri.cmd build --config src-tauri\tauri.conf.json --bundles nsis
+```
+
+`npm run tauri:build` 在 Windows 的 `cmd.exe` 下可能受 `.bin/tauri` 路径解析影响；上面的 `tauri.cmd` 是等价的直接调用，不改变 macOS/Linux 的脚本流程。构建会先执行 `beforeBuildCommand` 生成前端资源，完成后核对 NSIS 文件名、`FileVersion`/`ProductVersion` 与本次 Git `vX.Y.Z` 一致。版本同步或 Cargo 构建产生的版本配置 / `Cargo.lock` 差异属于预期变更。
 
 补充：
 
