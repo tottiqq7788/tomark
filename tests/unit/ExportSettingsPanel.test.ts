@@ -35,7 +35,7 @@ describe("ExportSettingsPanel", () => {
     await flushPromises();
   }
 
-  it("lists only html and png export actions", () => {
+  it("lists html, png and long-image pdf export actions", () => {
     const wrapper = mount(ExportSettingsPanel, {
       props: {
         markdownSource: "# hi",
@@ -50,7 +50,7 @@ describe("ExportSettingsPanel", () => {
       true,
     );
     expect(wrapper.find('[data-testid="export-action-png"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="export-action-pdf"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="export-action-pdf"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="export-action-pdf-paged"]').exists()).toBe(
       false,
     );

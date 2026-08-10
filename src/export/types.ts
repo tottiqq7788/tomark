@@ -1,4 +1,4 @@
-export type ExportFormatId = "html-embedded" | "html-assets" | "png";
+export type ExportFormatId = "html-embedded" | "html-assets" | "png" | "pdf";
 
 /** Optional progress callback for status-bar updates during long exports. */
 export type ExportProgressHandler = (message: string) => void;

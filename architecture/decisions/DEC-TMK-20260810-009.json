@@ -1,0 +1,49 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-009",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "f121c46112f387b82ee1fc32658afe1ff8280241",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision",
+    "statement": "项目负责人确认：文档级导出先增加长图不分页 PDF；使用与长图 PNG 同源的白底栅格嵌入单页 PDF；暂不要求可检索文字；暂不做分页 PDF / DOCX。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-EXPORT-LONG-IMAGE-PDF",
+      "decision": "修订 L0-TMK-016：在既有嵌入图片 HTML、资源目录 HTML、长图 PNG 之外，增加长图不分页 PDF。PDF 由与长图 PNG 相同的导出快照与栅格管线生成，将整幅白底长图嵌入单页；不承诺可选中/可检索文字。首版不做分页 PDF、DOCX 或其它 Office 格式。",
+      "approved_rule_ids": ["L0-TMK-016"],
+      "modified_rule_ids": ["L0-TMK-016"],
+      "scope": {
+        "formats": ["html-embedded", "html-assets", "png", "pdf"],
+        "pdf": {
+          "layout": "single_page_long_image",
+          "raster": "same_as_document_png_white_bg",
+          "text_extractable": false,
+          "authority": "markdown_snapshot_via_export_pipeline"
+        }
+      },
+      "out_of_scope": [
+        "分页 PDF / print CSS 文字排版 PDF",
+        "可检索/可选中文字 PDF",
+        "DOCX 或其它 Office 格式",
+        "修改单图 Mermaid/图片工具栏导出语义",
+        "新增 Tauri capability（除非实现证明现有写入命令不足）"
+      ],
+      "invariants": [
+        "Markdown 源码唯一权威；导出读取启动时快照。",
+        "取消路径选择不产生文件；成功单文件原子写入。",
+        "PDF 与长图 PNG 共享画布上限与降采样语义；超限明确失败。",
+        "不得从预览 DOM 反推 Markdown 作为导出权威。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "修订并保持批准 L0-TMK-016。",
+    "更新 CONTRACT-TMK-EXPORT 与 L1-TMK-EXPORT 表述以覆盖 PDF。",
+    "签发 WP-EXPORT-PDF-001；实现前/同批落地本决策与语义修订。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

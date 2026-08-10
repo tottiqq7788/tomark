@@ -3,6 +3,7 @@ import {
   buildHtmlAssetsBundle,
   defaultExportBaseName,
 } from "./buildExportHtml";
+import { buildLongImagePdfFromPng } from "./buildLongImagePdfFromPng";
 import {
   EXPORT_CONTENT_WIDTH_PX,
   ExportCancelledError,
@@ -35,7 +36,7 @@ export interface RunExportResult {
   note?: string;
 }
 
-export type ExportRendererId = "png";
+export type ExportRendererId = "png" | "pdf";
 
 function suggestName(fileName: string, extension: string): string {
   return `${defaultExportBaseName(fileName)}.${extension}`;
@@ -60,6 +61,11 @@ export function exportTargetDialogOptions(
         defaultPath: suggestName(fileName, "png"),
         filters: [{ name: "PNG", extensions: ["png"] }],
       };
+    case "pdf":
+      return {
+        defaultPath: suggestName(fileName, "pdf"),
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      };
     default: {
       const exhaustive: never = format;
       throw new ExportFailedError(`未知导出格式：${String(exhaustive)}`);
@@ -79,6 +85,10 @@ function loadPngRenderer() {
   return import("html2canvas");
 }
 
+function loadPdfEncoder() {
+  return import("./buildLongImagePdfFromPng");
+}
+
 /** Load lazy export engines without rendering; used by the browser smoke test. */
 export async function preloadExportRenderer(
   renderer: ExportRendererId,
@@ -87,6 +97,13 @@ export async function preloadExportRenderer(
     case "png":
       await loadPngRenderer();
       return;
+    case "pdf":
+      await Promise.all([loadPngRenderer(), loadPdfEncoder()]);
+      return;
+    default: {
+      const exhaustive: never = renderer;
+      throw new ExportFailedError(`未知导出渲染器：${String(exhaustive)}`);
+    }
   }
 }
 
@@ -103,6 +120,8 @@ export async function runExport(
       return exportAssetsHtml(options, title, baseName);
     case "png":
       return exportPng(options, title);
+    case "pdf":
+      return exportPdf(options, title);
     default: {
       const exhaustive: never = options.format;
       throw new ExportFailedError(`未知导出格式：${String(exhaustive)}`);
@@ -207,13 +226,18 @@ async function resolveExportTargetPathForFormat(
   );
 }
 
-async function exportPng(
+interface LongImageRaster {
+  bytes: Uint8Array;
+  warnings: ImageWarning[];
+  note?: string;
+}
+
+async function renderLongImagePng(
   options: RunExportOptions,
   title: string,
-): Promise<RunExportResult> {
-  const targetPath = await resolveExportTargetPathForFormat(options);
-
-  reportProgress(options, "正在生成长图…");
+  progressLabel: string,
+): Promise<LongImageRaster> {
+  reportProgress(options, progressLabel);
   const exportDoc = await buildExportDocument({
     title,
     markdownSource: options.markdownSource,
@@ -232,7 +256,7 @@ async function exportPng(
     await waitForExportImages(host);
     const article = host.querySelector(".export-root") as HTMLElement | null;
     if (!article) {
-      throw new ExportFailedError("无法构建 PNG 导出节点");
+      throw new ExportFailedError("无法构建长图导出节点");
     }
 
     const width = Math.max(article.scrollWidth, EXPORT_CONTENT_WIDTH_PX);
@@ -259,18 +283,49 @@ async function exportPng(
     if (!blob) {
       throw new ExportFailedError("PNG 编码失败");
     }
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    reportProgress(options, "正在写入文件…");
-    await writeExportBytes(targetPath, bytes);
     return {
-      path: targetPath,
-      fileName: fileNameFromPath(targetPath),
+      bytes: new Uint8Array(await blob.arrayBuffer()),
       warnings: exportDoc.warnings,
       note,
     };
   } finally {
     host.remove();
   }
+}
+
+async function exportPng(
+  options: RunExportOptions,
+  title: string,
+): Promise<RunExportResult> {
+  const targetPath = await resolveExportTargetPathForFormat(options);
+  const raster = await renderLongImagePng(options, title, "正在生成长图…");
+  reportProgress(options, "正在写入文件…");
+  await writeExportBytes(targetPath, raster.bytes);
+  return {
+    path: targetPath,
+    fileName: fileNameFromPath(targetPath),
+    warnings: raster.warnings,
+    note: raster.note,
+  };
+}
+
+async function exportPdf(
+  options: RunExportOptions,
+  title: string,
+): Promise<RunExportResult> {
+  const targetPath = await resolveExportTargetPathForFormat(options);
+  const raster = await renderLongImagePng(options, title, "正在生成长图…");
+  reportProgress(options, "正在封装 PDF…");
+  const pdfBytes = await buildLongImagePdfFromPng(raster.bytes);
+  reportProgress(options, "正在写入文件…");
+  await writeExportBytes(targetPath, pdfBytes);
+  const pdfNote = "长图单页 PDF（位图，不可检索文字）。";
+  return {
+    path: targetPath,
+    fileName: fileNameFromPath(targetPath),
+    warnings: raster.warnings,
+    note: raster.note ? `${raster.note} ${pdfNote}` : pdfNote,
+  };
 }
 
 /** Exported for unit tests; keeps PNG within WebKit canvas limits. */

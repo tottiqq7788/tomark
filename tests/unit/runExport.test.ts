@@ -15,8 +15,14 @@ vi.mock("html2canvas", () => ({
     const canvas = document.createElement("canvas");
     canvas.width = 10;
     canvas.height = 10;
+    const pngBytes = Uint8Array.from(
+      atob(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      ),
+      (c) => c.charCodeAt(0),
+    );
     canvas.toBlob = (cb: BlobCallback) => {
-      cb(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], { type: "image/png" }));
+      cb(new Blob([pngBytes], { type: "image/png" }));
     };
     return canvas;
   }),
@@ -136,6 +142,33 @@ describe("runExport generators", () => {
     );
   });
 
+  it("exports a single-page long-image pdf from the png raster", async () => {
+    pickExportPath.mockResolvedValue("/tmp/note.pdf");
+    const { runExport } = await import("@/export/runExport");
+    const result = await runExport({
+      format: "pdf",
+      markdownSource: "# PDF\n\n长图",
+      documentPath: null,
+      fileName: "note.md",
+    });
+    expect(result.fileName).toBe("note.pdf");
+    expect(result.note).toMatch(/不可检索文字/);
+    expect(pickExportPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaultPath: "note.pdf",
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      }),
+    );
+    expect(writeExportBytes).toHaveBeenCalledWith(
+      "/tmp/note.pdf",
+      expect.any(Uint8Array),
+    );
+    const bytes = writeExportBytes.mock.calls[0][1] as Uint8Array;
+    expect(String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3])).toBe(
+      "%PDF",
+    );
+  });
+
   it("downscales huge png pages below the old 0.5 floor", async () => {
     const { computeExportPngScale } = await import("@/export/runExport");
     const scale = computeExportPngScale(920, 20_000);
@@ -152,8 +185,9 @@ describe("runExport generators", () => {
     );
   });
 
-  it("preloads the png renderer", async () => {
+  it("preloads the png and pdf renderers", async () => {
     const { preloadExportRenderer } = await import("@/export/runExport");
     await expect(preloadExportRenderer("png")).resolves.toBeUndefined();
+    await expect(preloadExportRenderer("pdf")).resolves.toBeUndefined();
   });
 });

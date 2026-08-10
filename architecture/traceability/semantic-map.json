@@ -199,12 +199,13 @@
     },
     {
       "id": "L0-TMK-016",
-      "name": "HTML 与 PNG 导出",
+      "name": "HTML、PNG 与长图 PDF 导出",
       "status": "approved",
-      "statement": "当前编辑器中的 Markdown 内容可以导出为嵌入图片的单文件 HTML、带资源目录的 HTML 或长图 PNG。",
+      "statement": "当前编辑器中的 Markdown 内容可以导出为嵌入图片的单文件 HTML、带资源目录的 HTML、长图 PNG，或长图不分页 PDF。长图 PDF 使用与长图 PNG 相同的白底栅格管线，将整幅图像嵌入单页；不承诺可选中或可检索文字。分页 PDF、可检索文字 PDF 与 DOCX 不在本规则范围内。",
       "source_refs": [
         "src/app/settings/ExportSettingsPanel.vue",
-        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-EXPORT-FORMAL"
+        "architecture/decisions/DEC-TMK-20260809-001.json#DEC-TMK-EXPORT-FORMAL",
+        "architecture/decisions/DEC-TMK-20260810-009.json#DEC-TMK-EXPORT-LONG-IMAGE-PDF"
       ]
     },
     {
@@ -354,7 +355,7 @@
       "id": "L1-TMK-EXPORT",
       "name": "内容导出",
       "status": "candidate",
-      "responsibility": "以当前 Markdown 快照构建安全 HTML 或 PNG，并通过原生边界写入用户选择的位置；亦负责单张 Mermaid 图表的只读 PNG 导出。",
+      "responsibility": "以当前 Markdown 快照构建安全 HTML、PNG 或长图不分页 PDF，并通过原生边界写入用户选择的位置；亦负责单张 Mermaid 图表的只读 PNG 导出。",
       "l0_refs": [
         "L0-TMK-002",
         "L0-TMK-014",

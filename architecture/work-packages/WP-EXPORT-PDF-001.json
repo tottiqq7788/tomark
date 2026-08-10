@@ -1,0 +1,57 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "project_id": "tomark",
+  "name": "文档级长图不分页 PDF 导出",
+  "status": "in_progress",
+  "baseline_commit": "f121c46112f387b82ee1fc32658afe1ff8280241",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-009 与修订后 L0-TMK-016 的治理提交；若同批落地则以本决策记录时的 HEAD 为起点。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-009.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-016", "L0-TMK-002", "L0-TMK-014", "L0-TMK-015A"],
+    "reason": "扩展已批准文档级导出格式：增加长图不分页 PDF（位图单页，不承诺文字检索）。"
+  },
+  "goal": "ExportSettingsPanel 提供导出长图 PDF；与长图 PNG 同源白底栅格，整幅嵌入单页 PDF；取消不落盘；超长降采样/超限失败语义与 PNG 一致。",
+  "allowed_scope": [
+    "src/export/**",
+    "src/app/settings/ExportSettingsPanel.vue",
+    "src/app/useShellLifecycle.ts",
+    "deps/package.json",
+    "deps/package-lock.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "分页 PDF / 可检索文字 PDF",
+    "DOCX",
+    "单图 Mermaid/图片工具栏行为变更",
+    "新增或放宽 Tauri capability（除非证明现有 write_export_bytes 不足）",
+    "修改无关全屏查看器等工作包未提交改动"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "既有三种导出格式行为不变。",
+    "取消路径选择不产生文件。",
+    "单文件产物原子写入。"
+  ],
+  "must_reject": [
+    "把 PDF 表述为可检索文字文档。",
+    "从预览 DOM 反推 Markdown 作为导出权威。",
+    "分页 PDF / DOCX 混入首版范围。",
+    "静默写出损坏 PDF。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "需要新增 capability 或原生 PDF 打印 API 才能完成。"
+  ],
+  "task_envelope_id": "TASK-EXPORT-PDF-001"
+}

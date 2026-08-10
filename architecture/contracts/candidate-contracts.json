@@ -198,7 +198,8 @@
       ],
       "must": [
         "导出使用启动时的 Markdown、文档路径和文件名快照，包括尚未保存的编辑内容。",
-        "HTML 和 PNG 共享安全 Markdown 渲染语义，图片失败以显式 warning 返回。",
+        "HTML、PNG 和长图 PDF 共享安全 Markdown 渲染语义，图片失败以显式 warning 返回。",
+        "长图 PDF 与长图 PNG 共享白底栅格与画布上限/降采样语义；PDF 为整幅单页嵌入，不承诺文字检索。",
         "单图 Mermaid PNG 使用与预览一致的严格渲染语义、白底与固定 2× 像素密度；超出画布上限时明确失败。",
         "用户取消路径选择不产生导出文件。",
         "单文件产物原子写入；资源目录 HTML 必须明确报告其跨文件非事务限制。"
@@ -207,13 +208,14 @@
         "不得从预览 DOM 反推 Markdown 作为导出权威。",
         "不得读取文档目录边界外的相对图片。",
         "不得将浏览器 mock 通过当作真实原生写入证据。",
-        "不得把单图 Mermaid PNG 与文档级长图 PNG 混为同一语义或互相替代。"
+        "不得把单图 Mermaid PNG 与文档级长图 PNG/PDF 混为同一语义或互相替代。",
+        "不得把长图 PDF 表述为可检索文字或分页文档。"
       ],
       "required_evidence": [
-        "unit: 三种格式、图片警告、路径和画布限制、单图 Mermaid 白底 2×",
+        "unit: 四种格式、图片警告、路径和画布限制、单图 Mermaid 白底 2×、长图 PDF 单页位图",
         "integration: HTML bundle 与 Mermaid 导出",
         "fault_injection: 取消、图片失败、部分 bundle 写失败、单图画布超限",
-        "runtime_e2e: 真实原生 HTML、文档 PNG 与单图 Mermaid PNG 文件内容"
+        "runtime_e2e: 真实原生 HTML、文档 PNG、文档 PDF 与单图 Mermaid PNG 文件内容"
       ],
       "closeout_gaps": [
         "原生 native-export E2E 的 afterEach 清理失败尚未修复。",

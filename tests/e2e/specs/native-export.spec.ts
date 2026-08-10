@@ -106,7 +106,7 @@ describe("native export (Tauri WebView)", () => {
       $('[data-testid="export-action-html-assets"]'),
     ).toBeDisplayed();
     await expect($('[data-testid="export-action-png"]')).toBeDisplayed();
-    await expect($('[data-testid="export-action-pdf"]')).not.toBeDisplayed();
+    await expect($('[data-testid="export-action-pdf"]')).toBeDisplayed();
     await expect(
       $('[data-testid="export-action-docx"]'),
     ).not.toBeDisplayed();
@@ -195,6 +195,29 @@ describe("native export (Tauri WebView)", () => {
     const bytes = readFileSync(outputPath);
     expect(bytes.length).toBeGreaterThan(8);
     expect(Array.from(bytes.subarray(0, 4))).toEqual([0x89, 0x50, 0x4e, 0x47]);
+  });
+
+  it("writes a single-page long-image PDF through the WebView export renderer", async () => {
+    const unique = `${process.pid}-${Date.now()}`;
+    const markdown =
+      "# PDF smoke\n\n中文正文。\n\n```mermaid\ngraph TD\nA[中文]-->B[Done]\n```";
+    const outputPath = path.join(tmpdir(), `tomark-export-${unique}.pdf`);
+    cleanupPaths.push(outputPath);
+
+    const result = await runExportToPath({
+      format: "pdf",
+      path: outputPath,
+      markdown,
+      fileName: "pdf-smoke.md",
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      fileName: path.basename(outputPath),
+    });
+    const bytes = readFileSync(outputPath);
+    expect(bytes.length).toBeGreaterThan(8);
+    expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
   });
 
   it("exports a single Mermaid diagram PNG at 2× with white background path", async () => {
