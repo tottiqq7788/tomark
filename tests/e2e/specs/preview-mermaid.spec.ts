@@ -293,6 +293,34 @@ describe("mermaid preview", () => {
       timeout: 10_000,
     });
 
+    const layout = await browser.execute(() => {
+      const dialog = document.querySelector(
+        '[data-testid="mermaid-fullscreen-viewer"] [role="dialog"]',
+      );
+      if (!(dialog instanceof HTMLElement)) {
+        throw new Error("missing mermaid viewer dialog");
+      }
+      const rect = dialog.getBoundingClientRect();
+      return {
+        dialogWidth: rect.width,
+        dialogHeight: rect.height,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+      };
+    });
+    expect(Math.abs(layout.dialogWidth - (layout.windowWidth - 32))).toBeLessThan(
+      8,
+    );
+    expect(
+      Math.abs(layout.dialogHeight - (layout.windowHeight - 32)),
+    ).toBeLessThan(8);
+    if (layout.windowWidth > 1152) {
+      expect(layout.dialogWidth).toBeGreaterThan(1120);
+    }
+    if (layout.windowHeight > 852) {
+      expect(layout.dialogHeight).toBeGreaterThan(820);
+    }
+
     const scaleBefore = await $(
       ".mermaid-viewer-scale",
     ).getText();
