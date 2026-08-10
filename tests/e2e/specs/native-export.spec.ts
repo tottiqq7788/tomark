@@ -5,8 +5,16 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const requireFromHere = createRequire(import.meta.url);
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
+const { PDFDocument } = requireFromHere(
+  path.join(repoRoot, "deps/node_modules/pdf-lib"),
+) as typeof import("pdf-lib");
 
 function cleanupPath(filePath: string) {
   if (!existsSync(filePath)) {
@@ -218,6 +226,11 @@ describe("native export (Tauri WebView)", () => {
     const bytes = readFileSync(outputPath);
     expect(bytes.length).toBeGreaterThan(8);
     expect(bytes.subarray(0, 4).toString()).toBe("%PDF");
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBe(1);
+    const { width, height } = pdf.getPage(0).getSize();
+    expect(width).toBeGreaterThan(1);
+    expect(height).toBeGreaterThan(1);
   });
 
   it("exports a single Mermaid diagram PNG at 2× with white background path", async () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { buildLongImagePdfFromPng } from "@/export/buildLongImagePdfFromPng";
 import { ExportFailedError } from "@/export/types";
@@ -30,5 +30,22 @@ describe("buildLongImagePdfFromPng", () => {
     await expect(
       buildLongImagePdfFromPng(new Uint8Array([0x00, 0x01, 0x02])),
     ).rejects.toBeInstanceOf(ExportFailedError);
+  });
+
+  it("does not double-wrap an ExportFailedError from embedPng", async () => {
+    const original = PDFDocument.prototype.embedPng;
+    PDFDocument.prototype.embedPng = vi.fn(async () => {
+      throw new ExportFailedError("上游已失败");
+    }) as typeof original;
+    try {
+      await expect(buildLongImagePdfFromPng(ONE_BY_ONE_PNG)).rejects.toSatisfy(
+        (error: unknown) =>
+          error instanceof ExportFailedError &&
+          error.message === "上游已失败" &&
+          !error.message.startsWith("PDF 编码失败："),
+      );
+    } finally {
+      PDFDocument.prototype.embedPng = original;
+    }
   });
 });

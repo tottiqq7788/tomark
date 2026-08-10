@@ -4,6 +4,7 @@ import { ExportFailedError } from "./types";
 /**
  * Embed a full-height white-background PNG as a single PDF page.
  * Text is not extractable; page size matches the image pixel size in PDF points.
+ * Very tall single pages may scroll/zoom poorly in some readers (accepted product trade-off).
  */
 export async function buildLongImagePdfFromPng(
   pngBytes: Uint8Array,
@@ -21,6 +22,9 @@ export async function buildLongImagePdfFromPng(
     const saved = await pdfDoc.save();
     return saved instanceof Uint8Array ? saved : new Uint8Array(saved);
   } catch (error) {
+    if (error instanceof ExportFailedError) {
+      throw error;
+    }
     const message = error instanceof Error ? error.message : String(error);
     throw new ExportFailedError(`PDF 编码失败：${message}`);
   }

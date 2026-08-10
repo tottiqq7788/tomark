@@ -50,7 +50,8 @@ const actions: {
   {
     id: "pdf",
     title: "导出长图 PDF",
-    description: "白底长图单页 PDF（不可检索文字）；超长文档会自动降采样。",
+    description:
+      "白底长图单页 PDF（不可检索文字）；超长会降采样。部分阅读器对超高单页缩放/滚动体验较差（产品已定不分页）。",
   },
 ];
 

@@ -181,7 +181,7 @@ describe("runExport generators", () => {
   it("rejects png when even minimum scale exceeds canvas limits", async () => {
     const { computeExportPngScale } = await import("@/export/runExport");
     expect(() => computeExportPngScale(920, 1_000_000)).toThrow(
-      /无法在画布限制内导出 PNG/,
+      /无法在画布限制内导出长图/,
     );
   });
 

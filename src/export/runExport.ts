@@ -281,7 +281,7 @@ async function renderLongImagePng(
       canvas.toBlob((value) => resolve(value), "image/png");
     });
     if (!blob) {
-      throw new ExportFailedError("PNG 编码失败");
+      throw new ExportFailedError("长图编码失败");
     }
     return {
       bytes: new Uint8Array(await blob.arrayBuffer()),
@@ -319,7 +319,8 @@ async function exportPdf(
   const pdfBytes = await buildLongImagePdfFromPng(raster.bytes);
   reportProgress(options, "正在写入文件…");
   await writeExportBytes(targetPath, pdfBytes);
-  const pdfNote = "长图单页 PDF（位图，不可检索文字）。";
+  const pdfNote =
+    "长图单页 PDF（位图，不可检索文字；超高单页在部分阅读器体验较差）。";
   return {
     path: targetPath,
     fileName: fileNameFromPath(targetPath),
@@ -348,7 +349,7 @@ export function computeExportPngScale(width: number, height: number): number {
     width * height * scale * scale > maxArea
   ) {
     throw new ExportFailedError(
-      "文档过长，无法在画布限制内导出 PNG。请改用 HTML。",
+      "文档过长，无法在画布限制内导出长图。请改用 HTML。",
     );
   }
   return scale;
