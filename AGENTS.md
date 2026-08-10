@@ -18,7 +18,7 @@
 - 冻结基线观察见 `architecture/inventories/baseline-046e97e.json`；Inventory 只描述该 commit 上的观察，不是永久真相。
 - 仓库布局、依赖位置、开发预览和发布硬约束继续以 `agent.md` 为入口；本文件不复制这些动态细节。
 - `DEC-TMK-20260809-001` 已批准：预览允许在可靠映射范围内直接键入；Mermaid 是正式只读渲染能力；HTML/PNG 导出是正式能力。
-- `DEC-TMK-20260810-009` 修订 `L0-TMK-016`：文档级导出增加长图不分页 PDF（与长图 PNG 同源白底栅格、单页位图、不承诺文字检索）；实现见 `WP-EXPORT-PDF-001`。
+- `DEC-TMK-20260810-009` 修订 `L0-TMK-016`：文档级导出增加长图不分页 PDF（与长图 PNG 同源白底栅格、单页位图、不承诺文字检索）；实现见已关闭的 `WP-EXPORT-PDF-001`。
 - `DEC-TMK-20260809-002` / `L0-TMK-018` 已批准：成功渲染的 Mermaid 支持只读查看工具栏（全屏、单图 PNG 白底 2×）；Cmd/Ctrl+点击仍定位源码。首版实现见已关闭的 `WP-MERMAID-VIEWER-001`。
 - `DEC-TMK-20260810-001` 扩展 `L0-TMK-018`：工具栏增加复制围栏正文、导出 SVG、定位源码；复制不等于批准编辑。实现见已关闭的 `WP-MERMAID-TOOLBAR-002`。
 - `DEC-TMK-20260810-002` 修订 `L0-TMK-018`：去掉工具栏定位源码按钮；顺序为全屏 icon、复制源码 icon、英文 SVG、英文 PNG；Cmd/Ctrl+点击仍定位。实现见 `WP-MERMAID-TOOLBAR-003`。

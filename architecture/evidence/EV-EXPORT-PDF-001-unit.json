@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EXPORT-PDF-001-unit",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "type": "unit",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- --run tests/unit/runExport.test.ts tests/unit/buildLongImagePdfFromPng.test.ts tests/unit/ExportSettingsPanel.test.ts",
+  "result_summary": "3 files / 19 tests passed。覆盖长图 PDF 单页封装、无效 PNG 失败、ExportFailedError 不二次包裹、runExport pdf 路径写入 %PDF、面板展示 pdf 且无 pdf-paged/docx、画布超限文案为「长图」。",
+  "limitations": [
+    "html2canvas 在单元层以 stub 提供固定 PNG；真实栅格由 native/runtime E2E 覆盖。"
+  ]
+}

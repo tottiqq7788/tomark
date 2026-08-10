@@ -1,0 +1,15 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EXPORT-PDF-001-runtime-e2e-native",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e:native",
+  "result_summary": "Tauri WebKit WDIO：3 spec files / 11 tests passed。native-export 含真实长图 PDF（%PDF + pdf-lib 解析页数=1 且宽高>1）；HTML/PNG 回归与面板 pdf 入口通过。",
+  "limitations": [
+    "PDF E2E 经强制目标路径钩子写入，不覆盖用户取消保存对话框的人工交互。",
+    "未对超高单页在第三方阅读器中的缩放体验做自动化断言（产品已定不分页，见 WP residual_risks）。",
+    "afterSession mock restore 有无害 WARN，不影响用例 PASSED。"
+  ]
+}

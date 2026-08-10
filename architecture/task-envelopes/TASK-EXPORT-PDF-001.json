@@ -34,5 +34,5 @@
     "实际影响超出 allowed_scope。",
     "需要新增 capability 或原生打印 API。"
   ],
-  "notes": "DEC-TMK-20260810-009：长图不分页 PDF；位图嵌入单页；不承诺文字检索。"
+  "notes": "DEC-TMK-20260810-009：长图不分页 PDF；位图嵌入单页；不承诺文字检索。实现 9bc311c；审查修复与 Evidence 绑定 1b6cc4d；WP closeout.decision=closed。超高单页阅读器体验为已定残余风险。"
 }

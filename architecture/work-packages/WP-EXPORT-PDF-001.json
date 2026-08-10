@@ -3,9 +3,10 @@
   "work_package_id": "WP-EXPORT-PDF-001",
   "project_id": "tomark",
   "name": "文档级长图不分页 PDF 导出",
-  "status": "in_progress",
+  "status": "closed",
   "baseline_commit": "f121c46112f387b82ee1fc32658afe1ff8280241",
-  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-009 与修订后 L0-TMK-016 的治理提交；若同批落地则以本决策记录时的 HEAD 为起点。",
+  "implementation_commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-009 与修订后 L0-TMK-016 的治理提交；首版实现见 9bc311c，审查修复与证据绑定见 1b6cc4d。",
   "role": "implementation_owner",
   "decision_source": "architecture/decisions/DEC-TMK-20260810-009.json",
   "l0_impact": {
@@ -48,10 +49,25 @@
     "静默写出损坏 PDF。"
   ],
   "required_evidence": ["unit", "integration", "runtime_e2e"],
-  "evidence_ids": [],
+  "evidence_ids": [
+    "EV-EXPORT-PDF-001-unit",
+    "EV-EXPORT-PDF-001-integration",
+    "EV-EXPORT-PDF-001-runtime-e2e-browser",
+    "EV-EXPORT-PDF-001-runtime-e2e-native",
+    "EV-EXPORT-PDF-001-architecture-review"
+  ],
   "stop_conditions": [
     "实际影响超出 allowed_scope。",
     "需要新增 capability 或原生 PDF 打印 API 才能完成。"
   ],
-  "task_envelope_id": "TASK-EXPORT-PDF-001"
+  "task_envelope_id": "TASK-EXPORT-PDF-001",
+  "closeout": {
+    "decision": "closed",
+    "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+    "reason": "实现与审查修复 commit 1b6cc4d 上 unit/integration/Chromium runtime_e2e/Tauri WebKit runtime_e2e 通过；未新增 capability；长图 PDF 单页位图、不可检索文字与 L0-TMK-016 / DEC-009 对齐。Evidence 见 EV-EXPORT-PDF-001-*。",
+    "residual_risks": [
+      "超高单页 PDF 在部分阅读器中缩放/滚动体验较差；产品已确认首版不分页，已在导出面板说明、成功 note 与公开文档中明示。",
+      "浏览器 E2E 不证明真实 PDF 字节；单页位图以 native-export + pdf-lib 解析为准。"
+    ]
+  }
 }
