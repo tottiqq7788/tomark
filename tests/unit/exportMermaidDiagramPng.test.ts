@@ -5,7 +5,7 @@ const saveBytesWithDialog = vi.fn();
 const writeExportBytes = vi.fn();
 const renderMermaidSvg = vi.fn();
 
-vi.mock("html2canvas", () => ({
+vi.mock("html2canvas-pro", () => ({
   default: (...args: unknown[]) => html2canvas(...args),
 }));
 

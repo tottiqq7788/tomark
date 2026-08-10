@@ -87,7 +87,7 @@ export function tightenMermaidSvgToContent(
 }
 
 /**
- * Trim near-white margins left by Mermaid's canvas or html2canvas measurement.
+ * Trim near-white margins left by Mermaid's canvas or html2canvas-pro measurement.
  * No-ops when the canvas API is unavailable (unit mocks) or content fills the frame.
  */
 export function cropCanvasWhiteMargins(
@@ -185,7 +185,7 @@ export async function rasterizeMermaidDiagramPng(
     const height = Math.max(1, Math.round(natural.height * PNG_SCALE));
     assertWithinCanvasLimits(width, height);
 
-    const html2canvas = (await import("html2canvas")).default;
+    const html2canvas = (await import("html2canvas-pro")).default;
     const rawCanvas = await html2canvas(target, {
       backgroundColor: "#ffffff",
       scale: PNG_SCALE,

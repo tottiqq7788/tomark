@@ -122,7 +122,7 @@ export default defineConfig(({ command }) => ({
   optimizeDeps: {
     // Lazy export renderer. Prebundle a stable URL at startup so WebKit does
     // not keep a transient optimizer URL after the dependency cache commits.
-    include: ["html2canvas"],
+    include: ["html2canvas-pro"],
   },
   clearScreen: false,
   server: {
@@ -203,7 +203,7 @@ export default defineConfig(({ command }) => ({
             },
             {
               name: "html2canvas",
-              test: /node_modules[\\/]html2canvas[\\/]/,
+              test: /node_modules[\\/]html2canvas-pro[\\/]/,
               priority: 8,
             },
           ],

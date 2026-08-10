@@ -10,7 +10,7 @@ vi.mock("@/native/exportFileService", () => ({
   writeExportBytes: (...args: unknown[]) => writeExportBytes(...args),
 }));
 
-vi.mock("html2canvas", () => ({
+vi.mock("html2canvas-pro", () => ({
   default: vi.fn(async () => {
     const canvas = document.createElement("canvas");
     canvas.width = 10;
@@ -145,6 +145,7 @@ describe("runExport generators", () => {
   it("exports a single-page long-image pdf from the png raster", async () => {
     pickExportPath.mockResolvedValue("/tmp/note.pdf");
     const { runExport } = await import("@/export/runExport");
+    const { PDFDocument } = await import("pdf-lib");
     const result = await runExport({
       format: "pdf",
       markdownSource: "# PDF\n\n长图",
@@ -153,6 +154,7 @@ describe("runExport generators", () => {
     });
     expect(result.fileName).toBe("note.pdf");
     expect(result.note).toMatch(/不可检索文字/);
+    expect(result.note).toMatch(/384 DPI|4x/);
     expect(pickExportPath).toHaveBeenCalledWith(
       expect.objectContaining({
         defaultPath: "note.pdf",
@@ -167,6 +169,10 @@ describe("runExport generators", () => {
     expect(String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3])).toBe(
       "%PDF",
     );
+    const pdf = await PDFDocument.load(bytes);
+    expect(pdf.getPageCount()).toBe(1);
+    // CSS 920px → 690pt; must not use 1px PNG size as page points (72 DPI trap).
+    expect(pdf.getPage(0).getSize().width).toBeCloseTo(920 * (72 / 96), 5);
   });
 
   it("downscales huge png pages below the old 0.5 floor", async () => {
@@ -176,6 +182,17 @@ describe("runExport generators", () => {
     expect(scale).toBeGreaterThanOrEqual(0.125);
     expect(920 * scale).toBeLessThanOrEqual(8192);
     expect(20_000 * scale).toBeLessThanOrEqual(8192);
+  });
+
+  it("allows a denser preferred scale for pdf when canvas permits", async () => {
+    const { computeExportPngScale, computeExportPdfSliceCssHeight } =
+      await import("@/export/runExport");
+    expect(computeExportPngScale(920, 800, 3)).toBe(3);
+    expect(computeExportPngScale(920, 800, 2)).toBe(2);
+    const sliceH = computeExportPdfSliceCssHeight(920, 4);
+    expect(sliceH).toBeGreaterThan(100);
+    // Full-document capture at 4× would exceed area for tall pages; slices stay under limits.
+    expect(920 * sliceH * 4 * 4).toBeLessThanOrEqual(16_777_216);
   });
 
   it("rejects png when even minimum scale exceeds canvas limits", async () => {

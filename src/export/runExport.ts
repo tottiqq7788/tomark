@@ -3,7 +3,10 @@ import {
   buildHtmlAssetsBundle,
   defaultExportBaseName,
 } from "./buildExportHtml";
-import { buildLongImagePdfFromPng } from "./buildLongImagePdfFromPng";
+import {
+  buildLongImagePdfFromSlices,
+  type LongImagePdfSlice,
+} from "./buildLongImagePdfFromPng";
 import {
   EXPORT_CONTENT_WIDTH_PX,
   ExportCancelledError,
@@ -82,7 +85,9 @@ export async function selectExportTargetPath(
 }
 
 function loadPngRenderer() {
-  return import("html2canvas");
+  // html2canvas-pro supports CSS Color Module Level 4 (`color()`, oklch, …)
+  // which stock html2canvas rejects on modern WebKit computed styles.
+  return import("html2canvas-pro");
 }
 
 function loadPdfEncoder() {
@@ -228,14 +233,52 @@ async function resolveExportTargetPathForFormat(
 
 interface LongImageRaster {
   bytes: Uint8Array;
+  cssWidth: number;
+  cssHeight: number;
+  scale: number;
   warnings: ImageWarning[];
   note?: string;
+}
+
+const EXPORT_RASTER_MAX_DIMENSION = 8192;
+const EXPORT_RASTER_MAX_AREA = 16_777_216;
+
+/** PDF uses sliced captures so long docs keep a high scale (≈384 DPI at 4×). */
+const PDF_PREFERRED_RASTER_SCALE = 4;
+
+function canvasToPngBytes(canvas: HTMLCanvasElement): Promise<Uint8Array> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((value) => {
+      if (!value) {
+        reject(new ExportFailedError("长图编码失败"));
+        return;
+      }
+      void value.arrayBuffer().then(
+        (buffer) => resolve(new Uint8Array(buffer)),
+        reject,
+      );
+    }, "image/png");
+  });
+}
+
+/** Max CSS-pixel height per html2canvas crop at the given scale. */
+export function computeExportPdfSliceCssHeight(
+  cssWidth: number,
+  scale: number,
+): number {
+  const safeScale = Math.max(0.125, scale);
+  const byDim = Math.floor(EXPORT_RASTER_MAX_DIMENSION / safeScale);
+  const byArea = Math.floor(
+    EXPORT_RASTER_MAX_AREA / (Math.max(1, cssWidth) * safeScale * safeScale),
+  );
+  return Math.max(64, Math.min(byDim, byArea) - 2);
 }
 
 async function renderLongImagePng(
   options: RunExportOptions,
   title: string,
   progressLabel: string,
+  preferredScale = 2,
 ): Promise<LongImageRaster> {
   reportProgress(options, progressLabel);
   const exportDoc = await buildExportDocument({
@@ -261,9 +304,9 @@ async function renderLongImagePng(
 
     const width = Math.max(article.scrollWidth, EXPORT_CONTENT_WIDTH_PX);
     const height = Math.max(article.scrollHeight, 1);
-    const scale = computeExportPngScale(width, height);
+    const scale = computeExportPngScale(width, height, preferredScale);
     const note =
-      scale < 2
+      scale < preferredScale
         ? `长图已按 ${scale.toFixed(2)}x 降采样，以避免超出画布上限。`
         : undefined;
 
@@ -275,18 +318,110 @@ async function renderLongImagePng(
       logging: false,
       width,
       windowWidth: width,
+      imageSmoothingQuality: "high",
     });
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((value) => resolve(value), "image/png");
-    });
-    if (!blob) {
-      throw new ExportFailedError("长图编码失败");
-    }
     return {
-      bytes: new Uint8Array(await blob.arrayBuffer()),
+      bytes: await canvasToPngBytes(canvas),
+      cssWidth: width,
+      cssHeight: height,
+      scale,
       warnings: exportDoc.warnings,
       note,
+    };
+  } finally {
+    host.remove();
+  }
+}
+
+interface PdfLongImageRaster {
+  slices: LongImagePdfSlice[];
+  cssWidth: number;
+  cssHeight: number;
+  scale: number;
+  warnings: ImageWarning[];
+  note?: string;
+}
+
+async function renderLongImagePdfSlices(
+  options: RunExportOptions,
+  title: string,
+): Promise<PdfLongImageRaster> {
+  reportProgress(options, "正在生成高清长图…");
+  const exportDoc = await buildExportDocument({
+    title,
+    markdownSource: options.markdownSource,
+    documentPath: options.documentPath,
+    embedImages: true,
+  });
+
+  const host = window.document.createElement("div");
+  host.style.cssText =
+    "position:fixed;left:-100000px;top:0;width:920px;background:#fff;pointer-events:none;";
+  host.innerHTML = `<style>${exportDoc.css}
+.markdown-body.export-root {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+</style><article class="markdown-body export-root">${exportDoc.bodyHtml}</article>`;
+  window.document.body.appendChild(host);
+
+  try {
+    await renderMermaidForExport(host);
+    await waitForExportImages(host);
+    const article = host.querySelector(".export-root") as HTMLElement | null;
+    if (!article) {
+      throw new ExportFailedError("无法构建长图导出节点");
+    }
+
+    const width = Math.max(article.scrollWidth, EXPORT_CONTENT_WIDTH_PX);
+    const height = Math.max(article.scrollHeight, 1);
+    // Slices keep this scale even for very tall documents.
+    const scale = PDF_PREFERRED_RASTER_SCALE;
+    const sliceCssHeight = computeExportPdfSliceCssHeight(width, scale);
+    const html2canvas = (await loadPngRenderer()).default;
+    const slices: LongImagePdfSlice[] = [];
+    const sliceCount = Math.max(1, Math.ceil(height / sliceCssHeight));
+
+    for (let index = 0, y = 0; y < height; index += 1, y += sliceCssHeight) {
+      const h = Math.min(sliceCssHeight, height - y);
+      reportProgress(
+        options,
+        sliceCount > 1
+          ? `正在生成高清长图（${index + 1}/${sliceCount}）…`
+          : "正在生成高清长图…",
+      );
+      const canvas = await html2canvas(article, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true,
+        logging: false,
+        x: 0,
+        y,
+        width,
+        height: h,
+        windowWidth: width,
+        windowHeight: h,
+        scrollX: 0,
+        scrollY: 0,
+        imageSmoothingQuality: "high",
+      });
+      slices.push({
+        pngBytes: await canvasToPngBytes(canvas),
+        cssHeightPx: h,
+      });
+    }
+
+    return {
+      slices,
+      cssWidth: width,
+      cssHeight: height,
+      scale,
+      warnings: exportDoc.warnings,
+      note:
+        sliceCount > 1
+          ? `已按 ${scale}x 分片栅格（${sliceCount} 片）以保持清晰度。`
+          : `已按 ${scale}x 栅格导出。`,
     };
   } finally {
     host.remove();
@@ -298,7 +433,7 @@ async function exportPng(
   title: string,
 ): Promise<RunExportResult> {
   const targetPath = await resolveExportTargetPathForFormat(options);
-  const raster = await renderLongImagePng(options, title, "正在生成长图…");
+  const raster = await renderLongImagePng(options, title, "正在生成长图…", 2);
   reportProgress(options, "正在写入文件…");
   await writeExportBytes(targetPath, raster.bytes);
   return {
@@ -314,13 +449,16 @@ async function exportPdf(
   title: string,
 ): Promise<RunExportResult> {
   const targetPath = await resolveExportTargetPathForFormat(options);
-  const raster = await renderLongImagePng(options, title, "正在生成长图…");
+  const raster = await renderLongImagePdfSlices(options, title);
   reportProgress(options, "正在封装 PDF…");
-  const pdfBytes = await buildLongImagePdfFromPng(raster.bytes);
+  const pdfBytes = await buildLongImagePdfFromSlices(
+    raster.slices,
+    raster.cssWidth,
+  );
   reportProgress(options, "正在写入文件…");
   await writeExportBytes(targetPath, pdfBytes);
-  const pdfNote =
-    "长图单页 PDF（位图，不可检索文字；超高单页在部分阅读器体验较差）。";
+  const dpi = Math.round(96 * raster.scale);
+  const pdfNote = `长图单页 PDF（约 ${dpi} DPI 位图，不可检索文字；超高单页在部分阅读器体验较差）。`;
   return {
     path: targetPath,
     fileName: fileNameFromPath(targetPath),
@@ -330,11 +468,15 @@ async function exportPdf(
 }
 
 /** Exported for unit tests; keeps PNG within WebKit canvas limits. */
-export function computeExportPngScale(width: number, height: number): number {
-  const maxDimension = 8192;
-  const maxArea = 16_777_216;
+export function computeExportPngScale(
+  width: number,
+  height: number,
+  preferredScale = 2,
+): number {
+  const maxDimension = EXPORT_RASTER_MAX_DIMENSION;
+  const maxArea = EXPORT_RASTER_MAX_AREA;
   const minScale = 0.125;
-  let scale = 2;
+  let scale = Math.max(minScale, preferredScale);
   while (
     scale > minScale &&
     (width * scale > maxDimension ||
