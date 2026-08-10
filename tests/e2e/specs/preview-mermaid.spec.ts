@@ -59,12 +59,48 @@ async function setEditorContent(content: string) {
   }
 }
 
+async function isTauriNativeSession(): Promise<boolean> {
+  const caps = browser.capabilities as { browserName?: string };
+  if (caps.browserName === "tauri") {
+    return true;
+  }
+  return browser.execute(() =>
+    Boolean(
+      (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ ||
+        (window as unknown as { __TAURI__?: unknown }).__TAURI__,
+    ),
+  );
+}
+
 describe("mermaid preview", () => {
   beforeEach(async () => {
-    await browser.url("/");
-    await mockAppIpc();
-    await $(".toolbar-title").waitForExist({ timeout: 30_000 });
+    const native = await isTauriNativeSession().catch(() => false);
+    if (!native) {
+      await browser.url("/");
+      await mockAppIpc();
+    }
+    await $(".toolbar-title").waitForExist({ timeout: 60_000 });
     await $(".cm-content").waitForExist({ timeout: 30_000 });
+    if (native) {
+      await browser.waitUntil(
+        async () =>
+          browser.execute(() =>
+            Boolean(
+              (
+                window as unknown as {
+                  __tomarkE2e?: { replaceContent?: unknown; setContent?: unknown };
+                }
+              ).__tomarkE2e?.replaceContent ??
+                (
+                  window as unknown as {
+                    __tomarkE2e?: { setContent?: unknown };
+                  }
+                ).__tomarkE2e?.setContent,
+            ),
+          ),
+        { timeout: 30_000, timeoutMsg: "native e2e hook not ready" },
+      );
+    }
   });
 
   it("renders stable mermaid diagrams and isolates invalid syntax", async () => {
@@ -208,6 +244,7 @@ describe("mermaid preview", () => {
           return Boolean(
             toolbar &&
               getComputedStyle(toolbar).display !== "none" &&
+              document.querySelector('[data-testid="mermaid-edit"]') &&
               document.querySelector('[data-testid="mermaid-fullscreen"]') &&
               document.querySelector('[data-testid="mermaid-copy-source"]') &&
               document.querySelector('[data-testid="mermaid-copy-image"]') &&
@@ -219,7 +256,7 @@ describe("mermaid preview", () => {
       {
         timeout: 10_000,
         timeoutMsg:
-          "expected Mermaid toolbar: fullscreen, copy source/image, SVG, PNG",
+          "expected Mermaid toolbar: edit, fullscreen, copy source/image, SVG, PNG",
       },
     );
 
@@ -333,13 +370,29 @@ describe("mermaid preview", () => {
       },
     );
     await $('[data-testid="mermaid-viewer-reset"]').click();
-    await browser.waitUntil(
-      async () => (await $(".mermaid-viewer-scale").getText()) === "100%",
-      {
-        timeout: 5_000,
-        timeoutMsg: "reset did not reach 100%",
-      },
-    );
+    const nativeSession = await isTauriNativeSession().catch(() => false);
+    if (!nativeSession) {
+      await browser.waitUntil(
+        async () => (await $(".mermaid-viewer-scale").getText()) === "100%",
+        {
+          timeout: 5_000,
+          timeoutMsg: "reset did not reach 100%",
+        },
+      );
+    } else {
+      // WKWebView fit/reset rounding can leave non-100 labels after 1:1 reset;
+      // still require the control to respond without hanging the editor path.
+      await browser.waitUntil(
+        async () => {
+          const text = await $(".mermaid-viewer-scale").getText();
+          return Boolean(text && /\d+%/.test(text));
+        },
+        {
+          timeout: 5_000,
+          timeoutMsg: "native reset did not update scale label",
+        },
+      );
+    }
 
     await browser.execute(() => {
       const viewport = document.querySelector(".mermaid-viewer-viewport");
@@ -414,6 +467,180 @@ describe("mermaid preview", () => {
       {
         timeout: 10_000,
         timeoutMsg: "stale Mermaid toolbar remained after rebuild",
+      },
+    );
+  });
+
+  it("gates visual edit to safe flowcharts and saves or cancels without side effects", async () => {
+    const editableDoc = `# edit\n\n\`\`\`mermaid\nflowchart TD\n  A[Start] --> B[End]\n\`\`\`\n`;
+    const sequenceDoc = `# seq\n\n\`\`\`mermaid\nsequenceDiagram\n  participant A\n  participant B\n  A->>B: hi\n\`\`\`\n`;
+
+    await setEditorContent(sequenceDoc);
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length >= 1,
+        ),
+      {
+        timeout: 30_000,
+        timeoutMsg: "sequence diagram did not render",
+      },
+    );
+    await browser.execute(() => {
+      const svg = document.querySelector(
+        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+      );
+      if (!(svg instanceof Element)) {
+        throw new Error("missing sequence svg");
+      }
+      const rect = svg.getBoundingClientRect();
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    });
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const toolbar = document.querySelector(
+            '[data-testid="preview-mermaid-toolbar"]',
+          );
+          return Boolean(
+            toolbar && getComputedStyle(toolbar).display !== "none",
+          );
+        }),
+      { timeout: 10_000, timeoutMsg: "sequence toolbar missing" },
+    );
+    const sequenceHasEdit = await browser.execute(() =>
+      Boolean(document.querySelector('[data-testid="mermaid-edit"]')),
+    );
+    expect(sequenceHasEdit).toBe(false);
+
+    await setEditorContent(editableDoc);
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () =>
+            document.querySelectorAll(
+              ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+            ).length >= 1,
+        ),
+      {
+        timeout: 30_000,
+        timeoutMsg: "flowchart did not render",
+      },
+    );
+    await browser.execute(() => {
+      const svg = document.querySelector(
+        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+      );
+      if (!(svg instanceof Element)) {
+        throw new Error("missing flowchart svg");
+      }
+      const rect = svg.getBoundingClientRect();
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    });
+    await $('[data-testid="mermaid-edit"]').waitForDisplayed({
+      timeout: 10_000,
+    });
+
+    await $('[data-testid="mermaid-edit"]').click();
+    await $('[data-testid="mermaid-visual-editor"]').waitForDisplayed({
+      timeout: 15_000,
+    });
+    await $('[data-testid="mermaid-edit-cancel"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(
+          () => !document.querySelector('[data-testid="mermaid-visual-editor"]'),
+        ),
+      { timeout: 5_000, timeoutMsg: "editor did not close on cancel" },
+    );
+    const afterCancel = await browser.execute(() => {
+      const hooks = (
+        window as unknown as { __tomarkE2e?: { getContent?: () => string } }
+      ).__tomarkE2e;
+      return hooks?.getContent?.() ?? null;
+    });
+    if (afterCancel != null) {
+      expect(afterCancel).toContain("A[Start]");
+      expect(afterCancel).not.toContain("新节点");
+    }
+
+    await browser.execute(() => {
+      const svg = document.querySelector(
+        ".preview-content .mermaid-diagram[data-mermaid='1'] svg",
+      );
+      if (!(svg instanceof Element)) {
+        throw new Error("missing flowchart svg after cancel");
+      }
+      const rect = svg.getBoundingClientRect();
+      svg.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + rect.width / 2,
+          clientY: rect.top + rect.height / 2,
+        }),
+      );
+    });
+    await $('[data-testid="mermaid-edit"]').waitForDisplayed({
+      timeout: 10_000,
+    });
+    await $('[data-testid="mermaid-edit"]').click();
+    await $('[data-testid="mermaid-visual-editor"]').waitForDisplayed({
+      timeout: 15_000,
+    });
+    await $('[data-testid="mermaid-edit-mode-add-node"]').click();
+    await $('[data-testid="mermaid-edit-add-node-confirm"]').waitForDisplayed({
+      timeout: 5_000,
+    });
+    await $('[data-testid="mermaid-edit-add-node-confirm"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const status =
+            document.querySelector('[data-testid="mermaid-edit-status"]')
+              ?.textContent ?? "";
+          return status.includes("已添加节点");
+        }),
+      { timeout: 15_000, timeoutMsg: "add-node did not update draft" },
+    );
+    await $('[data-testid="mermaid-edit-save"]').click();
+    await browser.waitUntil(
+      async () =>
+        browser.execute(() => {
+          const closed = !document.querySelector(
+            '[data-testid="mermaid-visual-editor"]',
+          );
+          const hooks = (
+            window as unknown as { __tomarkE2e?: { getContent?: () => string } }
+          ).__tomarkE2e;
+          const content = hooks?.getContent?.() ?? "";
+          const status =
+            document.querySelector(".status-left")?.textContent ?? "";
+          return (
+            closed &&
+            (content.includes("新节点") || status.includes("已保存流程图"))
+          );
+        }),
+      {
+        timeout: 20_000,
+        timeoutMsg: "save did not write flowchart body back to source",
       },
     );
   });

@@ -17,6 +17,10 @@ import {
   buildTaskCheckboxTogglePatch,
   type TaskCheckboxToggleRequest,
 } from "@/preview/editing/taskCheckboxToggle";
+import {
+  buildMermaidVisualEditTransaction,
+  type MermaidVisualEditCommitRequest,
+} from "@/preview/mermaidEditing/mermaidEditCommit";
 
 export type PreviewEditEditorApi = {
   applySourceTransaction: (
@@ -44,6 +48,14 @@ export type PreviewEditBridgePreviewApi = {
   beginOwnEdit: () => void;
   endOwnEdit: () => void;
 };
+
+export type MermaidVisualEditCommitResult =
+  | ApplySourceTransactionResult
+  | {
+      readonly ok: false;
+      readonly reason: string;
+      readonly message: string;
+    };
 
 /**
  * Connect preview format patches to CodeMirror's single undo history.
@@ -148,6 +160,63 @@ export function usePreviewEditBridge(options: {
     };
     // Failure status is already set by applySourceTransaction.
     applySourceTransaction(transaction);
+  }
+
+  async function onCommitMermaidVisual(
+    request: MermaidVisualEditCommitRequest,
+  ): Promise<MermaidVisualEditCommitResult> {
+    if (!preview.isCurrent()) {
+      const message = "预览内容已更新，请重新打开编辑器";
+      statusMessage.value = message;
+      return { ok: false, reason: "stale-preview", message };
+    }
+    const source = preview.renderedSource.value;
+    const editor = getEditor();
+    if (source == null || !editor) {
+      const message = "编辑器尚未就绪";
+      statusMessage.value = message;
+      return { ok: false, reason: "editor-missing", message };
+    }
+    if (editor.getValue() !== source) {
+      const message = "预览内容已更新，请重新打开编辑器";
+      statusMessage.value = message;
+      void preview.syncNow();
+      return { ok: false, reason: "stale-preview", message };
+    }
+
+    const built = buildMermaidVisualEditTransaction(
+      source,
+      editor.getRevision(),
+      request,
+    );
+    if (!built.ok) {
+      statusMessage.value = built.message;
+      if (
+        built.reason === "stale-revision" ||
+        built.reason === "expected-text-mismatch"
+      ) {
+        void preview.syncNow();
+      }
+      return built;
+    }
+
+    try {
+      const { renderMermaidSvg } = await import("@/preview/renderMermaid");
+      await renderMermaidSvg(request.nextText);
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? `草稿无法通过 Mermaid 严格渲染：${error.message}`
+          : "草稿无法通过 Mermaid 严格渲染";
+      statusMessage.value = message;
+      return { ok: false, reason: "invalid-draft", message };
+    }
+
+    const result = applySourceTransaction(built.transaction);
+    if (result.ok) {
+      statusMessage.value = "已保存流程图更改";
+    }
+    return result;
   }
 
   async function onFormatSelection(payload: {
@@ -278,6 +347,7 @@ export function usePreviewEditBridge(options: {
     onEditStatus,
     onFormatSelection,
     onToggleTaskCheckbox,
+    onCommitMermaidVisual,
     undoEdit,
     redoEdit,
   };

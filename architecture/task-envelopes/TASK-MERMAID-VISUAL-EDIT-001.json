@@ -1,0 +1,70 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-MERMAID-VISUAL-EDIT-001",
+  "role": "implementation_owner",
+  "baseline_commit": "36b425091b292decedf5924a2531a84bc66b5c79",
+  "work_package_id": "WP-MERMAID-VISUAL-EDIT-001",
+  "allowed_scope": [
+    "src/preview/mermaidEditing/**",
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidVisualEditor.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/preview/mermaidDiagramRegistry.ts",
+    "src/preview/renderMermaid.ts",
+    "src/preview/editing/mermaidNodeView.ts",
+    "src/preview/editing/schema.ts",
+    "src/markdown/buildEditableProjection.ts",
+    "src/markdown/buildLineAnchorMap.ts",
+    "src/markdown/sanitizeSchema.ts",
+    "src/shared/previewEditing.ts",
+    "src/app/usePreviewEditBridge.ts",
+    "src/app/AppShell.vue",
+    "src/editor/createEditor.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "tests/e2e/wdio.native.conf.ts",
+    "tests/fixtures/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "l0_impact": "add_new",
+  "l0_rule_ids": [
+    "L0-TMK-022",
+    "L0-TMK-004",
+    "L0-TMK-008",
+    "L0-TMK-015A",
+    "L0-TMK-018",
+    "L0-TMK-002",
+    "L0-TMK-005"
+  ],
+  "must_preserve": [
+    "Markdown 与围栏正文唯一权威；草稿/SVG 不得成为第二真相。",
+    "不可编辑图保持只读工具栏与导出语义。",
+    "Cmd/Ctrl+点击定位与现有回归。",
+    "revision/expectedText 乐观锁与统一撤销历史。"
+  ],
+  "must_reject": [
+    "不支持语法显示编辑入口。",
+    "取消产生源码副作用。",
+    "陈旧 revision 或 expectedText 不匹配仍写入。",
+    "修改围栏标记或围栏外内容。",
+    "新增原生权限。"
+  ],
+  "required_evidence": [
+    "static",
+    "contract",
+    "unit",
+    "integration",
+    "fault_injection",
+    "runtime_e2e"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "无法保持 CodeMirror/Markdown 为唯一权威。",
+    "无法提供 Chromium 与 Tauri WebKit 的编辑保存/取消证据。"
+  ],
+  "notes": "首版参考 tomaid 交互模式，但使用可无损往返的 flowchart 安全子集与 SourcePatchTransaction，不复制正则反写。"
+}

@@ -339,4 +339,112 @@ describe("usePreviewEditBridge", () => {
     expect(applySourceTransaction).not.toHaveBeenCalled();
     expect(statusMessage.value).toContain("预览内容已更新");
   });
+
+  it("commits mermaid visual edits through SourcePatchTransaction", async () => {
+    vi.resetModules();
+    vi.doMock("@/preview/renderMermaid", () => ({
+      renderMermaidSvg: vi.fn(async () => "<svg></svg>"),
+    }));
+    const { usePreviewEditBridge: bridgeFactory } = await import(
+      "@/app/usePreviewEditBridge"
+    );
+
+    const body = `flowchart TD
+  A[Start] --> B[End]
+`;
+    const markdown = `\`\`\`mermaid\n${body}\`\`\`\n`;
+    const bodyFrom = markdown.indexOf(body);
+    const next = body.replace("Start", "开始");
+    const statusMessage = ref("");
+    const applySourceTransaction = vi.fn(() => ({
+      ok: true as const,
+      revision: 1,
+      value: markdown.replace(body, next),
+    }));
+
+    const bridge = bridgeFactory({
+      getEditor: () => ({
+        applySourceTransaction,
+        getRevision: () => 0,
+        getValue: () => markdown,
+        undo: () => false,
+        redo: () => false,
+      }),
+      preview: {
+        renderedSource: ref(markdown),
+        isCurrent: () => true,
+        syncNow: vi.fn(async () => true),
+        syncAfterOwnEdit: vi.fn(),
+        beginOwnEdit: vi.fn(),
+        endOwnEdit: vi.fn(),
+      },
+      statusMessage,
+    });
+
+    const result = await bridge.onCommitMermaidVisual({
+      revision: 0,
+      bodyFrom,
+      bodyTo: bodyFrom + body.length,
+      expectedText: body,
+      nextText: next,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(applySourceTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        origin: "mermaid-visual",
+        patches: [
+          expect.objectContaining({
+            from: bodyFrom,
+            insert: next,
+            expectedText: body,
+          }),
+        ],
+      }),
+    );
+    expect(statusMessage.value).toContain("已保存");
+    vi.doUnmock("@/preview/renderMermaid");
+  });
+
+  it("refuses mermaid visual commit when expectedText mismatches", async () => {
+    const body = `flowchart TD
+  A[Start] --> B[End]
+`;
+    const markdown = `\`\`\`mermaid\n${body}\`\`\`\n`;
+    const bodyFrom = markdown.indexOf(body);
+    const statusMessage = ref("");
+    const applySourceTransaction = vi.fn();
+    const syncNow = vi.fn(async () => true);
+
+    const bridge = usePreviewEditBridge({
+      getEditor: () => ({
+        applySourceTransaction,
+        getRevision: () => 0,
+        getValue: () => markdown,
+        undo: () => false,
+        redo: () => false,
+      }),
+      preview: {
+        renderedSource: ref(markdown),
+        isCurrent: () => true,
+        syncNow,
+        syncAfterOwnEdit: vi.fn(),
+        beginOwnEdit: vi.fn(),
+        endOwnEdit: vi.fn(),
+      },
+      statusMessage,
+    });
+
+    const result = await bridge.onCommitMermaidVisual({
+      revision: 0,
+      bodyFrom,
+      bodyTo: bodyFrom + body.length,
+      expectedText: "stale-body",
+      nextText: body.replace("Start", "X"),
+    });
+
+    expect(result.ok).toBe(false);
+    expect(applySourceTransaction).not.toHaveBeenCalled();
+    expect(syncNow).toHaveBeenCalled();
+  });
 });

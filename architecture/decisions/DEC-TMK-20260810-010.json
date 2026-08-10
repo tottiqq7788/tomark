@@ -1,0 +1,63 @@
+{
+  "schema_version": "architecture-decision:v0.1",
+  "decision_id": "DEC-TMK-20260810-010",
+  "project_id": "tomark",
+  "status": "approved",
+  "recorded_on": "2026-08-10",
+  "baseline_commit": "36b425091b292decedf5924a2531a84bc66b5c79",
+  "authority": {
+    "actor": "project_stakeholder",
+    "source": "interactive_user_decision_and_accepted_plan",
+    "statement": "项目负责人确认：参考 tomaid 的点击图元反写交互，为可安全往返的 graph/flowchart Mermaid 围栏提供受限可视化编辑；工具栏增加编辑入口；独立弹窗持临时草稿，仅保存时经 SourcePatchTransaction 写回围栏正文；取消零写入；不做拖拽布局/改形状/子图/其它图类型。"
+  },
+  "decisions": [
+    {
+      "id": "DEC-TMK-MERMAID-VISUAL-EDIT",
+      "decision": "批准 L0-TMK-022：成功渲染且落入可无损往返 flowchart 子集的 Mermaid 围栏，普通点击工具栏可出现编辑 icon；打开独立编辑弹窗后可编辑节点/连线文字、新增矩形节点、两点连线、删除节点/连线；草稿仅本地，保存时整段围栏正文经 SourcePatchTransaction 写回 CodeMirror 同一撤销历史；不可编辑图保持 L0-TMK-018 只读工具栏。",
+      "approved_rule_ids": ["L0-TMK-022"],
+      "modified_rule_ids": [
+        "L0-TMK-004",
+        "L0-TMK-008",
+        "L0-TMK-015A",
+        "L0-TMK-018"
+      ],
+      "scope": {
+        "editable_gate": "auto_supported_flowchart_subset",
+        "capabilities": [
+          "edit_node_label",
+          "edit_edge_label",
+          "add_rect_node",
+          "link_two_nodes",
+          "delete_node",
+          "delete_edge"
+        ],
+        "commit": {
+          "authority": "mermaid_fence_body_source_patch",
+          "origin": "mermaid-visual",
+          "draft_until_save": true
+        },
+        "out_of_scope_first_cut": [
+          "drag_layout",
+          "change_node_shape",
+          "subgraph_edit",
+          "sequence_gantt_class_pie_other_types",
+          "style_classDef_click_linkStyle",
+          "chain_or_parallel_edge_statements",
+          "svg_dom_as_source_authority"
+        ]
+      },
+      "invariants": [
+        "Markdown 与围栏正文唯一权威；弹窗草稿与 SVG DOM 不得成为第二文档真相。",
+        "revision 或 expectedText 不匹配时必须拒绝写入并提示重新打开。",
+        "取消/Escape/遮罩关闭不得产生源码副作用。",
+        "Cmd/Ctrl+点击定位语义不变；错误块无编辑入口。",
+        "不新增 Tauri capability 或原生剪贴板写权限。"
+      ]
+    }
+  ],
+  "governance_consequences": [
+    "新增并批准 L0-TMK-022；修订 L0-TMK-004 / L0-TMK-008 / L0-TMK-015A / L0-TMK-018。",
+    "签发 WP-MERMAID-VISUAL-EDIT-001 与 TASK-MERMAID-VISUAL-EDIT-001。",
+    "本决策只批准产品语义，不宣称证据已关闭。"
+  ]
+}

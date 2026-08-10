@@ -104,12 +104,67 @@ function copyAnchorAttrs(from: HTMLElement, to: HTMLElement) {
     "data-source-line",
     "data-source-end",
     "data-anchor-id",
+    "data-tm-from",
+    "data-tm-to",
+    "data-tm-body-from",
+    "data-tm-body-to",
   ] as const) {
     const value = from.getAttribute(name);
     if (value !== null) {
       to.setAttribute(name, value);
     }
   }
+}
+
+function parseOptionalInt(raw: string | null): number | null {
+  if (raw == null || raw === "") {
+    return null;
+  }
+  const n = Number.parseInt(raw, 10);
+  return Number.isSafeInteger(n) && n >= 0 ? n : null;
+}
+
+function resolveBodyRangeFromHost(
+  host: HTMLElement,
+  source: string,
+): { fenceFrom: number | null; fenceTo: number | null; bodyFrom: number | null; bodyTo: number | null } {
+  const bodyFromAttr = parseOptionalInt(host.getAttribute("data-tm-body-from"));
+  const bodyToAttr = parseOptionalInt(host.getAttribute("data-tm-body-to"));
+  if (
+    bodyFromAttr != null &&
+    bodyToAttr != null &&
+    bodyToAttr >= bodyFromAttr
+  ) {
+    const fenceFrom = parseOptionalInt(host.getAttribute("data-tm-from"));
+    const fenceTo = parseOptionalInt(host.getAttribute("data-tm-to"));
+    return {
+      fenceFrom,
+      fenceTo,
+      bodyFrom: bodyFromAttr,
+      bodyTo: bodyToAttr,
+    };
+  }
+  const fenceFrom = parseOptionalInt(host.getAttribute("data-tm-from"));
+  const fenceTo = parseOptionalInt(host.getAttribute("data-tm-to"));
+  if (fenceFrom == null || fenceTo == null || fenceTo < fenceFrom) {
+    return {
+      fenceFrom: null,
+      fenceTo: null,
+      bodyFrom: null,
+      bodyTo: null,
+    };
+  }
+  // Host may be the pre or a readonly shell that already carries fence offsets.
+  // Reconstruct body offsets from the opening fence line length when possible.
+  // Without the full Markdown document we cannot verify; leave body null and
+  // let PreviewPane resolve via renderedSource + fence attrs at edit time.
+  void source;
+  return {
+    fenceFrom,
+    fenceTo,
+    bodyFrom: null,
+    bodyTo: null,
+  };
 }
 
 function buildErrorContent(source: string, message: string): HTMLElement {
@@ -146,7 +201,13 @@ function parseSourceLine(raw: string | null): number | null {
 function buildSuccessContent(
   svg: string,
   source: string,
-  sourceLine: number | null = null,
+  options?: {
+    sourceLine?: number | null;
+    fenceFrom?: number | null;
+    fenceTo?: number | null;
+    bodyFrom?: number | null;
+    bodyTo?: number | null;
+  },
 ): HTMLElement {
   const wrapper = document.createElement("div");
   wrapper.className = "mermaid-diagram";
@@ -155,7 +216,15 @@ function buildSuccessContent(
   // Mermaid also lists securityLevel in its secure config keys, so diagram
   // frontmatter cannot loosen sanitization for this insert.
   wrapper.innerHTML = svg;
-  registerMermaidDiagram(wrapper, { source, svg, sourceLine });
+  registerMermaidDiagram(wrapper, {
+    source,
+    svg,
+    sourceLine: options?.sourceLine ?? null,
+    fenceFrom: options?.fenceFrom ?? null,
+    fenceTo: options?.fenceTo ?? null,
+    bodyFrom: options?.bodyFrom ?? null,
+    bodyTo: options?.bodyTo ?? null,
+  });
   return wrapper;
 }
 
@@ -174,11 +243,14 @@ function buildSuccessBlock(
   svg: string,
   source: string,
 ): HTMLElement {
-  const wrapper = buildSuccessContent(
-    svg,
-    source,
-    parseSourceLine(pre.getAttribute("data-source-line")),
-  );
+  const ranges = resolveBodyRangeFromHost(pre, source);
+  const wrapper = buildSuccessContent(svg, source, {
+    sourceLine: parseSourceLine(pre.getAttribute("data-source-line")),
+    fenceFrom: ranges.fenceFrom,
+    fenceTo: ranges.fenceTo,
+    bodyFrom: ranges.bodyFrom,
+    bodyTo: ranges.bodyTo,
+  });
   copyAnchorAttrs(pre, wrapper);
   return wrapper;
 }
@@ -216,6 +288,11 @@ export async function renderMermaidInto(
     generation?: number;
     renderId?: string;
     isCancelled?: () => boolean;
+    fenceFrom?: number | null;
+    fenceTo?: number | null;
+    bodyFrom?: number | null;
+    bodyTo?: number | null;
+    sourceLine?: number | null;
   },
 ): Promise<boolean> {
   const cancelled = (): boolean => {
@@ -261,9 +338,15 @@ export async function renderMermaidInto(
     if (cancelled() || !host.isConnected) {
       return false;
     }
-    // Editable NodeView does not attach data-source-line on the diagram; keep
-    // null and rely on locate via outer shell / PM mapping when needed.
-    host.replaceChildren(buildSuccessContent(svg, source, null));
+    const hostRanges = resolveBodyRangeFromHost(host, source);
+    const wrapper = buildSuccessContent(svg, source, {
+      sourceLine: options?.sourceLine ?? null,
+      fenceFrom: options?.fenceFrom ?? hostRanges.fenceFrom,
+      fenceTo: options?.fenceTo ?? hostRanges.fenceTo,
+      bodyFrom: options?.bodyFrom ?? hostRanges.bodyFrom,
+      bodyTo: options?.bodyTo ?? hostRanges.bodyTo,
+    });
+    host.replaceChildren(wrapper);
   } catch (err) {
     if (cancelled() || !host.isConnected) {
       return false;

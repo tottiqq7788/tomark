@@ -36,6 +36,8 @@ import {
   ExportCancelledError,
   ExportFailedError,
 } from "@/export/types";
+import { resolveMermaidFenceBodyRange } from "@/preview/mermaidEditing/flowchartSourceModel";
+import type { MermaidVisualEditCommitRequest } from "@/preview/mermaidEditing/mermaidEditCommit";
 import {
   clampToolbarPosition,
   resolvePreviewSelection,
@@ -43,6 +45,7 @@ import {
 import PreviewFormatToolbar from "./PreviewFormatToolbar.vue";
 import MermaidDiagramToolbar from "./MermaidDiagramToolbar.vue";
 import MermaidFullscreenViewer from "./MermaidFullscreenViewer.vue";
+import MermaidVisualEditor from "./MermaidVisualEditor.vue";
 import ImageDiagramToolbar from "./ImageDiagramToolbar.vue";
 import ImageFullscreenViewer from "./ImageFullscreenViewer.vue";
 import PreviewEditableHost from "./editing/PreviewEditableHost.vue";
@@ -82,9 +85,16 @@ const emit = defineEmits<{
     },
   ];
   "toggle-task-checkbox": [request: TaskCheckboxToggleRequest];
+  "commit-mermaid-visual": [
+    request: MermaidVisualEditCommitRequest,
+  ];
   "edit-status": [status: PreviewEditStatus];
   status: [message: string];
 }>();
+
+export type MermaidVisualCommitHandler = (
+  request: MermaidVisualEditCommitRequest,
+) => Promise<{ ok: boolean; message?: string }>;
 
 const scrollRoot = ref<HTMLElement | null>(null);
 const fallbackContainer = ref<HTMLElement | null>(null);
@@ -134,8 +144,19 @@ const mermaidSvgSnapshot = ref("");
 const mermaidDiagramIndex = ref(1);
 const mermaidExportBusy = ref(false);
 const mermaidViewerOpen = ref(false);
+const mermaidEditable = ref(false);
+const mermaidEditOpen = ref(false);
+const mermaidEditStale = ref(false);
+const mermaidEditSource = ref("");
+const mermaidEditRevision = ref(0);
+const mermaidEditBodyFrom = ref(0);
+const mermaidEditBodyTo = ref(0);
+const mermaidEditExpected = ref("");
+const mermaidEditSaving = ref(false);
 const mermaidFullscreenBtn = ref<HTMLElement | null>(null);
 let mermaidTargetObserver: MutationObserver | null = null;
+/** Injected by AppShell so save can await bridge success/failure. */
+const mermaidCommitHandler = ref<MermaidVisualCommitHandler | null>(null);
 
 const imageToolbarVisible = ref(false);
 const imageToolbarTop = ref(0);
@@ -215,9 +236,10 @@ function disconnectMermaidTargetObserver() {
 function hideMermaidToolbar(options?: { keepViewer?: boolean }) {
   mermaidToolbarVisible.value = false;
   mermaidTarget.value = null;
+  mermaidEditable.value = false;
   // Keep source/SVG snapshots while the fullscreen viewer is still open so
   // export from the viewer does not lose the authoritative fence body.
-  if (!options?.keepViewer) {
+  if (!options?.keepViewer && !mermaidEditOpen.value) {
     mermaidSourceSnapshot.value = "";
     mermaidSvgSnapshot.value = "";
     mermaidViewerOpen.value = false;
@@ -300,14 +322,143 @@ function showMermaidToolbarFor(wrapper: HTMLElement) {
   if (!context) {
     return;
   }
+  if (mermaidEditOpen.value) {
+    return;
+  }
   hideToolbar();
   hideImageToolbar({ keepViewer: false });
   mermaidTarget.value = wrapper;
   mermaidSourceSnapshot.value = context.source;
   mermaidSvgSnapshot.value = context.svg;
+  mermaidEditable.value = context.editable;
   mermaidDiagramIndex.value = diagramIndexAmongSuccess(wrapper);
   placeMermaidToolbar(wrapper);
   observeMermaidTarget(wrapper);
+}
+
+function resolveMermaidBodyRangeForEdit(context: {
+  source: string;
+  fenceFrom: number | null;
+  fenceTo: number | null;
+  bodyFrom: number | null;
+  bodyTo: number | null;
+}): { bodyFrom: number; bodyTo: number; expectedText: string } | null {
+  const markdown = props.renderedSource;
+  if (markdown == null) {
+    return null;
+  }
+  if (
+    context.bodyFrom != null &&
+    context.bodyTo != null &&
+    context.bodyTo >= context.bodyFrom &&
+    markdown.slice(context.bodyFrom, context.bodyTo) === context.source
+  ) {
+    return {
+      bodyFrom: context.bodyFrom,
+      bodyTo: context.bodyTo,
+      expectedText: context.source,
+    };
+  }
+  if (context.fenceFrom != null && context.fenceTo != null) {
+    const resolved = resolveMermaidFenceBodyRange(
+      markdown,
+      context.fenceFrom,
+      context.fenceTo,
+      context.source,
+    );
+    if (resolved) {
+      return {
+        bodyFrom: resolved.from,
+        bodyTo: resolved.to,
+        expectedText: context.source,
+      };
+    }
+  }
+  // Last resort: unique body occurrence in the current rendered source.
+  const index = markdown.indexOf(context.source);
+  if (index < 0) {
+    return null;
+  }
+  if (markdown.indexOf(context.source, index + 1) >= 0) {
+    return null;
+  }
+  return {
+    bodyFrom: index,
+    bodyTo: index + context.source.length,
+    expectedText: context.source,
+  };
+}
+
+function onMermaidEdit() {
+  const wrapper = mermaidTarget.value;
+  const context = getMermaidDiagramContext(wrapper);
+  if (!context || !context.editable) {
+    emit("status", "该图不支持可视化编辑");
+    return;
+  }
+  const ranges = resolveMermaidBodyRangeForEdit(context);
+  if (!ranges) {
+    emit("status", "无法定位围栏正文，请改用源码区编辑");
+    return;
+  }
+  mermaidViewerOpen.value = false;
+  hideMermaidToolbar({ keepViewer: true });
+  mermaidEditSource.value = context.source;
+  mermaidEditExpected.value = ranges.expectedText;
+  mermaidEditBodyFrom.value = ranges.bodyFrom;
+  mermaidEditBodyTo.value = ranges.bodyTo;
+  mermaidEditRevision.value = props.getRevision();
+  mermaidEditStale.value = false;
+  mermaidEditOpen.value = true;
+}
+
+function onMermaidEditClose() {
+  mermaidEditOpen.value = false;
+  mermaidEditStale.value = false;
+  mermaidEditSource.value = "";
+  mermaidEditExpected.value = "";
+  mermaidEditSaving.value = false;
+}
+
+async function onMermaidEditSave(nextSource: string) {
+  if (mermaidEditSaving.value || mermaidEditStale.value) {
+    return;
+  }
+  const request: MermaidVisualEditCommitRequest = {
+    revision: mermaidEditRevision.value,
+    bodyFrom: mermaidEditBodyFrom.value,
+    bodyTo: mermaidEditBodyTo.value,
+    expectedText: mermaidEditExpected.value,
+    nextText: nextSource,
+  };
+  mermaidEditSaving.value = true;
+  try {
+    // Prefer injected handler so PreviewPane can await success before closing.
+    const handler = mermaidCommitHandler.value;
+    if (handler) {
+      const result = await handler(request);
+      if (result.ok) {
+        onMermaidEditClose();
+      } else if (result.message) {
+        emit("status", result.message);
+      }
+      return;
+    }
+    emit("commit-mermaid-visual", request);
+    onMermaidEditClose();
+  } finally {
+    mermaidEditSaving.value = false;
+  }
+}
+
+function markMermaidEditorStale() {
+  if (mermaidEditOpen.value) {
+    mermaidEditStale.value = true;
+  }
+}
+
+function setMermaidCommitHandler(handler: MermaidVisualCommitHandler | null) {
+  mermaidCommitHandler.value = handler;
 }
 
 function measureImageToolbarSize(): { width: number; height: number } {
@@ -522,7 +673,7 @@ function onPreviewCaptureClick(event: MouseEvent) {
   }
   if (
     target.closest(
-      '[data-testid="preview-mermaid-toolbar"], [data-testid="preview-image-toolbar"], [data-testid="preview-format-toolbar"], [data-testid="mermaid-fullscreen-viewer"], [data-testid="image-fullscreen-viewer"]',
+      '[data-testid="preview-mermaid-toolbar"], [data-testid="preview-image-toolbar"], [data-testid="preview-format-toolbar"], [data-testid="mermaid-fullscreen-viewer"], [data-testid="image-fullscreen-viewer"], [data-testid="mermaid-visual-editor"]',
     )
   ) {
     return;
@@ -569,7 +720,7 @@ function onGlobalKeydown(event: KeyboardEvent) {
   if (event.key !== "Escape") {
     return;
   }
-  if (mermaidViewerOpen.value || imageViewerOpen.value) {
+  if (mermaidEditOpen.value || mermaidViewerOpen.value || imageViewerOpen.value) {
     return;
   }
   if (mermaidToolbarVisible.value) {
@@ -1367,11 +1518,13 @@ defineExpose({
   exportMermaidDiagramPngAt,
   exportMermaidDiagramSvgAt,
   hideMermaidToolbar,
+  setMermaidCommitHandler,
 });
 
 watch(
   () => [props.html, props.editableSyncToken, props.renderMode] as const,
   () => {
+    markMermaidEditorStale();
     hideAllToolbars();
     if (useEditable.value) {
       flashId.value = null;
@@ -1475,6 +1628,8 @@ onBeforeUnmount(() => {
       :top="mermaidToolbarTop"
       :center-x="mermaidToolbarCenterX"
       :busy="mermaidExportBusy"
+      :editable="mermaidEditable"
+      @edit="onMermaidEdit"
       @fullscreen="onMermaidFullscreen"
       @copy-source="onMermaidCopySource"
       @copy-image="onMermaidCopyImage"
@@ -1491,6 +1646,13 @@ onBeforeUnmount(() => {
       @copy-image="onMermaidCopyImage"
       @export-svg="onMermaidExportSvg"
       @export-png="onMermaidExportPng"
+    />
+    <MermaidVisualEditor
+      :open="mermaidEditOpen"
+      :initial-source="mermaidEditSource"
+      :stale="mermaidEditStale"
+      @close="onMermaidEditClose"
+      @save="onMermaidEditSave"
     />
     <ImageDiagramToolbar
       ref="imageToolbarRef"

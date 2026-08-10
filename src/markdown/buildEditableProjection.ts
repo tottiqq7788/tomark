@@ -1307,12 +1307,29 @@ function buildReadonlyBlock(
   const label = readonlyLabel(node);
   const isMermaid =
     node.type === "code" && node.lang?.toLowerCase() === "mermaid";
+  const body = isMermaid ? (node.value ?? "") : "";
+  let bodyFrom = 0;
+  let bodyTo = 0;
+  if (isMermaid && body.length >= 0) {
+    // Lazy import avoided — resolve inline so projection stays sync.
+    const fence = state.source.slice(range.from, range.to);
+    const openMatch = /^```[^\n\r]*\r?\n/.exec(fence);
+    if (openMatch) {
+      const from = range.from + openMatch[0].length;
+      if (state.source.slice(from, from + body.length) === body) {
+        bodyFrom = from;
+        bodyTo = from + body.length;
+      }
+    }
+  }
   const pmNode = editablePreviewSchema.nodes.readonly_block.create({
     kind: isMermaid ? "mermaid" : node.type,
     label,
-    code: isMermaid ? (node.value ?? "") : "",
+    code: body,
     sourceFrom: range.from,
     sourceTo: range.to,
+    bodyFrom,
+    bodyTo,
     reason: `${node.type}-read-only`,
   });
   const immutable: ProjectionImmutableRange = {

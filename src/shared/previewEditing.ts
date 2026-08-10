@@ -1,4 +1,4 @@
-export type PreviewEditOrigin = "format" | "task-checkbox";
+export type PreviewEditOrigin = "format" | "task-checkbox" | "mermaid-visual";
 
 export interface SourcePatch {
   /** UTF-16 offsets into the exact Markdown source used for projection. */

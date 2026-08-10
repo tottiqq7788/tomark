@@ -52,7 +52,8 @@
         "L0-TMK-015A",
         "L0-TMK-018",
         "L0-TMK-019",
-        "L0-TMK-020"
+        "L0-TMK-020",
+        "L0-TMK-022"
       ],
       "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-NAVIGATION"],
       "selectors": [
@@ -64,8 +65,9 @@
       "must": [
         "渲染 HTML 必须经过已声明的 sanitize schema。",
         "标题、段落、列表项、引用、表格单元格及其它已批准可映射普通文字允许直接键入，并以显式源码事务写回唯一 Markdown 源码。",
-        "Mermaid 围栏作为正式能力渲染，在预览侧保持只读，并遵循与导出一致的图表语义。",
-        "成功渲染的 Mermaid 图普通点击显示浮动工具栏；顺序为全屏 icon、复制源码 icon、复制图片 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
+        "Mermaid 围栏作为正式能力渲染；默认只读查看，并遵循与导出一致的图表语义。",
+        "成功渲染的 Mermaid 图普通点击显示浮动工具栏；可安全往返 flowchart 子集可前置编辑 icon，否则顺序为全屏 icon、复制源码 icon、复制图片 icon、英文 SVG、英文 PNG；不提供定位源码按钮；Cmd/Ctrl+点击保留源码定位。",
+        "Mermaid 受限可视化编辑须在独立弹窗持临时草稿；仅保存时经 SourcePatchTransaction（origin=mermaid-visual）写回围栏正文；取消零写入；不可安全往返语法不得显示编辑入口。",
         "成功显示的 Markdown 图片普通点击显示浮动工具栏；顺序为全屏 icon、复制图片 icon、英文 PNG；预览须解析本地相对图；Cmd/Ctrl+点击保留源码定位。",
         "editable 预览中普通点击任务复选框须经 SourcePatchTransaction 写回 [ ]/[x] marker；Cmd/Ctrl+点击保留源码定位且不切换。",
         "editable 与 fallback 预览中普通点击安全链接须经系统 opener 打开；Cmd/Ctrl+点击保留源码定位且不打开；# 锚点不外开。",
@@ -76,21 +78,23 @@
       ],
       "must_not": [
         "不得用不可键入的选择投影冒充已批准的直接键入能力。",
-        "不得允许键入操作修改代码、图片、任务复选框、脚注生成内容、自动链接、Mermaid 或无法可靠映射的节点。",
+        "不得允许键入操作修改代码、图片、任务复选框、脚注生成内容、自动链接、不可安全往返的 Mermaid 或无法可靠映射的节点。",
         "不得把任务复选框点击切换扩展为键入或 WYSIWYG 编辑 marker。",
-        "不得通过查看器或单图导出写回 Markdown 或修改 Mermaid 围栏或图片语法。",
+        "不得通过只读查看器或单图导出写回 Markdown 或修改 Mermaid 围栏或图片语法。",
+        "不得从 SVG DOM 反推 Markdown 作为 Mermaid 编辑权威。",
         "不得让 ProseMirror 建立独立于 Markdown 源码的持久化历史或第二数据源。",
         "不得在 fallback 或 editable 渲染中绕过链接协议、只读边界或源码定位约束。"
       ],
       "required_evidence": [
-        "static: sanitize、源码映射、直接键入入口、Mermaid/图片点击路由和链接协议边界",
-        "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥、任务复选框切换 patch、链接普通点击外开",
-        "integration: CodeMirror 与预览键入/格式/任务复选框投影共用源码与撤销历史；Mermaid/图片工具栏与格式工具栏互斥",
-        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid/图片工具栏与全屏查看、任务复选框点击切换、链接普通点击外开"
+        "static: sanitize、源码映射、直接键入入口、Mermaid/图片点击路由、可视化编辑写回路径和链接协议边界",
+        "unit: 直接键入、可编辑与只读节点、输入法事务、陈旧事务、空行定位、查看器 viewport 与工具栏互斥、任务复选框切换 patch、Mermaid 安全子集与可视化编辑 patch、链接普通点击外开",
+        "integration: CodeMirror 与预览键入/格式/任务复选框/Mermaid 可视化编辑投影共用源码与撤销历史；Mermaid/图片工具栏与格式工具栏互斥",
+        "runtime_e2e: Chromium 与 Tauri WebKit 的键入、选择、格式、定位、输入法、Mermaid/图片工具栏与全屏查看、Mermaid 可视化编辑保存/取消、任务复选框点击切换、链接普通点击外开"
       ],
       "implementation_gaps": [
         "冻结基线 usePreviewEditSession.ts 设置 editable() 为 false 并忽略文档变更，尚未实现直接键入。",
         "Mermaid 查看器首版（全屏/PNG）已由 WP-MERMAID-VIEWER-001 关闭；工具栏扩展由 WP-MERMAID-TOOLBAR-002/003/004 覆盖。",
+        "Mermaid 受限可视化编辑由 WP-MERMAID-VISUAL-EDIT-001 覆盖。",
         "Markdown 图片只读查看由 WP-IMAGE-VIEWER-001 覆盖。",
         "任务复选框点击切换由 WP-TASK-CHECKBOX-TOGGLE-001 覆盖。",
         "预览链接普通点击外开由 WP-PREVIEW-LINK-OPEN-001 覆盖。",

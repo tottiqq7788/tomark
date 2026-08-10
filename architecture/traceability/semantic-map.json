@@ -50,13 +50,14 @@
       "id": "L0-TMK-004",
       "name": "预览只读边界",
       "status": "candidate",
-      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧不可键入或 WYSIWYG 修改其源码映射内容；无法可靠映射的内容必须拒绝修改并引导到源码区。图片与 Mermaid 允许已批准的只读查看交互（工具栏/全屏/单图导出/复制），且不得写回源码。任务复选框允许已批准的普通点击切换写回（见 L0-TMK-020），该写回不得扩展为键入编辑。",
+      "statement": "行内代码、围栏代码块、图片、任务复选框、脚注生成内容、自动链接和 Mermaid 在预览侧不可键入或 WYSIWYG 修改其源码映射内容；无法可靠映射的内容必须拒绝修改并引导到源码区。图片与 Mermaid 允许已批准的只读查看交互（工具栏/全屏/单图导出/复制），且不得写回源码。任务复选框允许已批准的普通点击切换写回（见 L0-TMK-020），该写回不得扩展为键入编辑。Mermaid 允许已批准的受限可视化编辑写回（见 L0-TMK-022），仅覆盖可安全往返的 flowchart 子集且须经 SourcePatchTransaction。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
         "src/app/settings/HelpSettingsPanel.vue",
         "architecture/decisions/DEC-TMK-20260810-004.json#DEC-TMK-IMAGE-VIEWER",
-        "architecture/decisions/DEC-TMK-20260810-005.json#DEC-TMK-TASK-CHECKBOX-TOGGLE"
+        "architecture/decisions/DEC-TMK-20260810-005.json#DEC-TMK-TASK-CHECKBOX-TOGGLE",
+        "architecture/decisions/DEC-TMK-20260810-010.json#DEC-TMK-MERMAID-VISUAL-EDIT"
       ]
     },
     {
@@ -96,14 +97,15 @@
       "id": "L0-TMK-008",
       "name": "基于源码位置的双向定位",
       "status": "candidate",
-      "statement": "Cmd/Ctrl 点击必须基于 AST 源码位置在源码与预览间双向定位，空行落到最近可渲染块，不得按标题文字或像素高度猜测。在已成功渲染的 Mermaid 图表上，Cmd/Ctrl+点击继续定位源码；普通点击触发 Mermaid 查看工具栏，不触发定位。浮动工具栏不提供定位源码按钮。",
+      "statement": "Cmd/Ctrl 点击必须基于 AST 源码位置在源码与预览间双向定位，空行落到最近可渲染块，不得按标题文字或像素高度猜测。在已成功渲染的 Mermaid 图表上，Cmd/Ctrl+点击继续定位源码；普通点击触发 Mermaid 查看工具栏，不触发定位。浮动工具栏不提供定位源码按钮。打开 Mermaid 可视化编辑弹窗时，Cmd/Ctrl+点击定位语义仍保留于预览主表面；编辑弹窗内的图元点击用于编辑选择，不触发源码定位。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
         "plan/prd/tomarkv1.10.020260807.md#21-编辑与预览",
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
-        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003"
+        "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
+        "architecture/decisions/DEC-TMK-20260810-010.json#DEC-TMK-MERMAID-VISUAL-EDIT"
       ]
     },
     {
@@ -172,9 +174,9 @@
     },
     {
       "id": "L0-TMK-015A",
-      "name": "Mermaid 只读渲染",
+      "name": "Mermaid 正式渲染与受限编辑例外",
       "status": "approved",
-      "statement": "Mermaid 围栏在预览和导出中可渲染为图表，但在预览侧保持只读。只读指不可键入或 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文、复制图片），且不得改变围栏源码。源码定位仍由 Cmd/Ctrl+点击提供。复制源码或图片不等于批准编辑。",
+      "statement": "Mermaid 围栏在预览和导出中可渲染为图表。默认在预览侧保持只读：不可键入或开放式 WYSIWYG 修改围栏源码；允许只读查看交互（工具栏、全屏、单图导出、复制围栏正文、复制图片），且不得改变围栏源码。源码定位仍由 Cmd/Ctrl+点击提供。复制源码或图片不等于批准编辑。已批准的受限可视化编辑例外见 L0-TMK-022：仅对可安全往返的 flowchart 子集，经独立编辑弹窗与 SourcePatchTransaction 写回围栏正文。",
       "source_refs": [
         "readme.md#核心能力",
         "agent.md#产品要点",
@@ -184,7 +186,8 @@
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
         "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
-        "architecture/decisions/DEC-TMK-20260810-003.json#DEC-TMK-MERMAID-TOOLBAR-004"
+        "architecture/decisions/DEC-TMK-20260810-003.json#DEC-TMK-MERMAID-TOOLBAR-004",
+        "architecture/decisions/DEC-TMK-20260810-010.json#DEC-TMK-MERMAID-VISUAL-EDIT"
       ]
     },
     {
@@ -222,12 +225,24 @@
       "id": "L0-TMK-018",
       "name": "Mermaid 只读查看与单图导出",
       "status": "approved",
-      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示浮动工具栏，顺序为全屏（icon）、复制围栏正文（icon）、复制图片（icon，PNG 白底 2× 栅格写入剪贴板，画布上限与导出 PNG 一致；失败须明确反馈）、导出 SVG（英文标签 SVG）、导出 PNG（英文标签 PNG，白底 2×）。工具栏不提供定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。上述交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码或图片不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
+      "statement": "预览中成功渲染的 Mermaid 图表支持只读查看交互：普通点击在图表上方显示浮动工具栏。不可编辑图顺序为全屏（icon）、复制围栏正文（icon）、复制图片（icon，PNG 白底 2× 栅格写入剪贴板，画布上限与导出 PNG 一致；失败须明确反馈）、导出 SVG（英文标签 SVG）、导出 PNG（英文标签 PNG，白底 2×）。可安全往返的 flowchart 子集可在最前增加编辑（icon），见 L0-TMK-022。工具栏不提供定位源码按钮；Cmd/Ctrl+点击仍定位源码。全屏查看器支持缩放、适配/重置与拖拽平移。只读查看与导出/复制交互不得修改 Markdown 源码或 Mermaid 围栏内容；复制源码或图片不等于批准编辑；渲染失败的错误块不提供工具栏或导出/复制成功路径。",
       "source_refs": [
         "architecture/decisions/DEC-TMK-20260809-002.json#DEC-TMK-MERMAID-VIEWER",
         "architecture/decisions/DEC-TMK-20260810-001.json#DEC-TMK-MERMAID-TOOLBAR-002",
         "architecture/decisions/DEC-TMK-20260810-002.json#DEC-TMK-MERMAID-TOOLBAR-003",
         "architecture/decisions/DEC-TMK-20260810-003.json#DEC-TMK-MERMAID-TOOLBAR-004",
+        "architecture/decisions/DEC-TMK-20260810-010.json#DEC-TMK-MERMAID-VISUAL-EDIT",
+        "readme.md#核心能力",
+        "agent.md#产品要点"
+      ]
+    },
+    {
+      "id": "L0-TMK-022",
+      "name": "Mermaid 受限可视化编辑",
+      "status": "approved",
+      "statement": "预览中成功渲染、且自动判定为可无损往返的 graph/flowchart Mermaid 围栏，允许受限可视化编辑：普通点击工具栏最前显示编辑 icon；打开独立编辑弹窗后可编辑节点/连线文字、新增矩形节点、两点连线、删除节点/连线。弹窗持有临时草稿并实时重绘；仅用户确认保存时，以 SourcePatchTransaction（origin=mermaid-visual）整段替换围栏正文并进入 CodeMirror 同一撤销历史；取消、Escape 或遮罩关闭不得写回。不可安全往返或不支持的图类型不得显示编辑入口。revision 或 expectedText 不匹配、草稿无法通过安全子集或严格渲染验证时必须拒绝写入。不得从 SVG DOM 反推 Markdown 作为权威；不得修改围栏标记、语言标记或围栏外内容；不做拖拽布局、改形状、子图或其它图类型编辑。",
+      "source_refs": [
+        "architecture/decisions/DEC-TMK-20260810-010.json#DEC-TMK-MERMAID-VISUAL-EDIT",
         "readme.md#核心能力",
         "agent.md#产品要点"
       ]
@@ -306,7 +321,7 @@
       "id": "L1-TMK-PREVIEW",
       "name": "预览投影与格式操作",
       "status": "candidate",
-      "responsibility": "从 Markdown 构建安全预览投影，支持可靠映射范围内的直接键入与格式写回，并维护只读边界、Mermaid 节点、只读查看工具栏/全屏查看器和降级渲染。",
+      "responsibility": "从 Markdown 构建安全预览投影，支持可靠映射范围内的直接键入与格式写回，并维护只读边界、Mermaid 节点、只读查看工具栏/全屏查看器、受限可视化编辑弹窗和降级渲染。",
       "l0_refs": [
         "L0-TMK-002",
         "L0-TMK-003A",
@@ -316,7 +331,8 @@
         "L0-TMK-015A",
         "L0-TMK-018",
         "L0-TMK-019",
-        "L0-TMK-020"
+        "L0-TMK-020",
+        "L0-TMK-022"
       ],
       "owners": ["role:implementation_owner"],
       "reviewers": ["role:architecture_owner", "role:independent_reviewer"]
@@ -466,6 +482,7 @@
         "src/preview/PreviewFormatToolbar.vue",
         "src/preview/MermaidDiagramToolbar.vue",
         "src/preview/MermaidFullscreenViewer.vue",
+        "src/preview/MermaidVisualEditor.vue",
         "src/preview/useMermaidViewport.ts",
         "src/preview/editing/PreviewEditableHost.vue",
         "src/preview/editing/usePreviewEditSession.ts",
@@ -488,7 +505,7 @@
     },
     {
       "id": "L2-TMK-MERMAID",
-      "name": "Mermaid 渲染",
+      "name": "Mermaid 渲染与受限编辑模型",
       "status": "candidate",
       "l1_refs": ["L1-TMK-PREVIEW", "L1-TMK-EXPORT"],
       "selectors": [
@@ -497,6 +514,7 @@
         "src/preview/mountMermaid.ts",
         "src/preview/mermaidGeneration.ts",
         "src/preview/mermaidDiagramRegistry.ts",
+        "src/preview/mermaidEditing/**",
         "src/export/exportMermaidDiagramPng.ts"
       ]
     },

@@ -73,6 +73,12 @@ function createReadonlyShell(node: ProseMirrorNode): HTMLElement {
   dom.setAttribute("data-tm-readonly", String(node.attrs.reason));
   dom.setAttribute("data-tm-from", String(node.attrs.sourceFrom));
   dom.setAttribute("data-tm-to", String(node.attrs.sourceTo));
+  const bodyFrom = Number(node.attrs.bodyFrom ?? 0);
+  const bodyTo = Number(node.attrs.bodyTo ?? 0);
+  if (kind === "mermaid" && bodyTo > bodyFrom) {
+    dom.setAttribute("data-tm-body-from", String(bodyFrom));
+    dom.setAttribute("data-tm-body-to", String(bodyTo));
+  }
   dom.setAttribute("role", "note");
   return dom;
 }
@@ -135,6 +141,10 @@ export function createReadonlyBlockNodeView(
     beginPending();
     // Placeholder until the async chunk finishes — keeps layout/locate stable.
     showLabel();
+    const fenceFrom = Number(node.attrs.sourceFrom ?? 0);
+    const fenceTo = Number(node.attrs.sourceTo ?? 0);
+    const bodyFrom = Number(node.attrs.bodyFrom ?? 0);
+    const bodyTo = Number(node.attrs.bodyTo ?? 0);
     void mermaidRendererLoader()
       .then(({ renderMermaidInto }) => {
         if (destroyed || token !== mountToken) {
@@ -143,6 +153,10 @@ export function createReadonlyBlockNodeView(
         return renderMermaidInto(dom, code, {
           renderId: `tomark-pm-mermaid-${token}-${Math.random().toString(36).slice(2, 6)}`,
           isCancelled: () => destroyed || token !== mountToken,
+          fenceFrom,
+          fenceTo,
+          bodyFrom: bodyTo > bodyFrom ? bodyFrom : null,
+          bodyTo: bodyTo > bodyFrom ? bodyTo : null,
         });
       })
       .catch((error) => {
@@ -175,6 +189,15 @@ export function createReadonlyBlockNodeView(
       dom.setAttribute("data-tm-readonly", String(updated.attrs.reason));
       dom.setAttribute("data-tm-from", String(updated.attrs.sourceFrom));
       dom.setAttribute("data-tm-to", String(updated.attrs.sourceTo));
+      const nextBodyFrom = Number(updated.attrs.bodyFrom ?? 0);
+      const nextBodyTo = Number(updated.attrs.bodyTo ?? 0);
+      if (nextKind === "mermaid" && nextBodyTo > nextBodyFrom) {
+        dom.setAttribute("data-tm-body-from", String(nextBodyFrom));
+        dom.setAttribute("data-tm-body-to", String(nextBodyTo));
+      } else {
+        dom.removeAttribute("data-tm-body-from");
+        dom.removeAttribute("data-tm-body-to");
+      }
       const classKind = nextKind || "unsupported";
       dom.className = `tm-readonly tm-readonly-block tm-readonly-${classKind}`;
       if (nextKind !== kind || nextCode !== code) {
