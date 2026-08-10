@@ -6,11 +6,13 @@ defineProps<{
   top: number;
   centerX: number;
   busy?: boolean;
+  editable?: boolean;
 }>();
 
 const root = ref<HTMLElement | null>(null);
 
 const emit = defineEmits<{
+  edit: [];
   fullscreen: [];
   "copy-source": [];
   "copy-image": [];
@@ -44,6 +46,24 @@ function onToolbarKeydown(event: KeyboardEvent) {
     data-testid="preview-mermaid-toolbar"
     @keydown="onToolbarKeydown"
   >
+    <button
+      v-if="editable"
+      type="button"
+      class="mermaid-btn"
+      title="可视化编辑"
+      aria-label="可视化编辑"
+      data-testid="mermaid-edit"
+      :disabled="busy"
+      @mousedown="retainSelection"
+      @click="emit('edit')"
+    >
+      <svg viewBox="0 0 16 16" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.752.453l-3.251 1.023a.75.75 0 0 1-.935-.935l1.023-3.251a1.75 1.75 0 0 1 .453-.752l8.61-8.61zm1.414 1.06a.25.25 0 0 0-.354 0L10.823 3.74l1.437 1.437 1.25-1.25a.25.25 0 0 0 0-.354l-1.083-1.086zM9.763 4.8l-6.38 6.38a.25.25 0 0 0-.065.108l-.688 2.187 2.187-.688a.25.25 0 0 0 .108-.065l6.38-6.38L9.763 4.8z"
+        />
+      </svg>
+    </button>
     <button
       type="button"
       class="mermaid-btn"
@@ -133,7 +153,7 @@ function onToolbarKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 2px;
   padding: 4px;
-  max-width: min(260px, calc(100vw - 16px));
+  max-width: min(300px, calc(100vw - 16px));
   transform: translateX(-50%);
   background: #111827;
   color: #f9fafb;

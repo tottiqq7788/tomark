@@ -235,11 +235,19 @@ const previewPaneApi = ref<{
     diagramIndex: number,
     targetPath: string,
   ) => Promise<{ ok: true; fileName: string } | { ok: false; error: string }>;
+  setMermaidCommitHandler?: (
+    handler:
+      | ((request: import("@/preview/mermaidEditing/mermaidEditCommit").MermaidVisualEditCommitRequest) => Promise<{
+          ok: boolean;
+          message?: string;
+        }>)
+      | null,
+  ) => void;
 } | null>(null);
 
 function setPreviewPaneRef(el: unknown) {
   setPreviewRef(el);
-  previewPaneApi.value =
+  const pane =
     el &&
     typeof (el as { selectSourceRange?: unknown }).selectSourceRange ===
       "function"
@@ -264,8 +272,33 @@ function setPreviewPaneRef(el: unknown) {
           ) => Promise<
             { ok: true; fileName: string } | { ok: false; error: string }
           >;
+          setMermaidCommitHandler?: (
+            handler:
+              | ((request: import("@/preview/mermaidEditing/mermaidEditCommit").MermaidVisualEditCommitRequest) => Promise<{
+                  ok: boolean;
+                  message?: string;
+                }>)
+              | null,
+          ) => void;
         })
       : null;
+  previewPaneApi.value = pane;
+  if (!pane) {
+    return;
+  }
+  pane.setMermaidCommitHandler?.(async (request) => {
+    const result = await editBridge.onCommitMermaidVisual(request);
+    if (result.ok) {
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      message:
+        "message" in result && typeof result.message === "string"
+          ? result.message
+          : "保存流程图失败，请重新打开编辑器",
+    };
+  });
 }
 
 const editBridge = usePreviewEditBridge({

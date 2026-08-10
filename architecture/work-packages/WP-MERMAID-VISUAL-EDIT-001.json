@@ -1,0 +1,95 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-MERMAID-VISUAL-EDIT-001",
+  "project_id": "tomark",
+  "name": "Mermaid 受限可视化编辑（flowchart 安全子集）",
+  "status": "evidence_incomplete",
+  "baseline_commit": "36b425091b292decedf5924a2531a84bc66b5c79",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-010 与 L0-TMK-022 的治理对象；可与实现同批提交。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-010.json",
+  "closeout_notes": "实现与审查已完成，但尚未获得绑定不可变 commit 的提交授权；Evidence 未写入。运行结论：vue-tsc/static 通过；validate_package+audit 通过；Vitest 全量 327 通过（含 flowchart/commit/bridge 故障注入）；Chromium 与 Tauri WebKit preview-mermaid.spec 均 3/3 通过。WP-MERMAID-TOOLBAR-003/004 证据缺口未借本包关闭。",
+  "l0_impact": {
+    "classification": "add_new",
+    "also_modifies": [
+      "L0-TMK-004",
+      "L0-TMK-008",
+      "L0-TMK-015A",
+      "L0-TMK-018"
+    ],
+    "rule_ids": [
+      "L0-TMK-022",
+      "L0-TMK-004",
+      "L0-TMK-008",
+      "L0-TMK-015A",
+      "L0-TMK-018",
+      "L0-TMK-002",
+      "L0-TMK-005"
+    ],
+    "reason": "新增 Mermaid 受限可视化编辑语义；修订只读边界与工具栏点击矩阵；写回仍经源码事务。"
+  },
+  "goal": "对可安全往返的 graph/flowchart Mermaid 围栏提供编辑入口与独立弹窗；支持节点/连线文字、新增矩形节点、两点连线、删除；仅保存时写回围栏正文并进入 CodeMirror 统一撤销历史。",
+  "allowed_scope": [
+    "src/preview/mermaidEditing/**",
+    "src/preview/MermaidDiagramToolbar.vue",
+    "src/preview/MermaidVisualEditor.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "src/preview/PreviewPane.vue",
+    "src/preview/mermaidDiagramRegistry.ts",
+    "src/preview/renderMermaid.ts",
+    "src/preview/editing/mermaidNodeView.ts",
+    "src/preview/editing/schema.ts",
+    "src/markdown/buildEditableProjection.ts",
+    "src/markdown/buildLineAnchorMap.ts",
+    "src/markdown/sanitizeSchema.ts",
+    "src/shared/previewEditing.ts",
+    "src/app/usePreviewEditBridge.ts",
+    "src/app/AppShell.vue",
+    "src/editor/createEditor.ts",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "tests/e2e/wdio.native.conf.ts",
+    "tests/fixtures/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "拖拽布局 / 改节点形状 / 子图编辑",
+    "sequence/gantt/class/pie 等非 flowchart 图类型可视化编辑",
+    "从 SVG DOM 反推 Markdown 作为权威",
+    "文档级导出三种格式行为变更",
+    "新增 Tauri capability 或 Rust IPC",
+    "关闭 WP-MERMAID-TOOLBAR-003/004 的既有证据缺口"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威；弹窗草稿与 SVG 不得成为第二文档真相。",
+    "不可编辑图仍遵循 L0-TMK-018 只读工具栏与导出语义。",
+    "Cmd/Ctrl+点击定位与现有 Mermaid E2E 回归。",
+    "SourcePatchTransaction 的 revision/expectedText 乐观锁。",
+    "统一 CodeMirror 撤销历史。"
+  ],
+  "must_reject": [
+    "不支持/歧义语法显示编辑入口。",
+    "取消/Escape/遮罩关闭产生源码副作用。",
+    "陈旧 revision 或 expectedText 不匹配仍写入。",
+    "修改围栏标记、语言标记或围栏外 Markdown。",
+    "把浏览器 mock E2E 当作 Tauri WebKit 证明。"
+  ],
+  "required_evidence": [
+    "static",
+    "contract",
+    "unit",
+    "integration",
+    "fault_injection",
+    "runtime_e2e"
+  ],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "无法保持 CodeMirror/Markdown 为唯一权威。",
+    "无法提供 Chromium 与 Tauri WebKit 的编辑保存/取消证据。"
+  ],
+  "task_envelope_id": "TASK-MERMAID-VISUAL-EDIT-001"
+}

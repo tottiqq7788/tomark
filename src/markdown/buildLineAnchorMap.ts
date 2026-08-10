@@ -33,6 +33,50 @@ function readLine(node: Element): { start: number; end: number } | null {
   return { start: pos.start.line, end: pos.end.line };
 }
 
+function readOffsets(node: Element): { from: number; to: number } | null {
+  const pos = node.position;
+  if (
+    pos?.start?.offset == null ||
+    pos?.end?.offset == null ||
+    !Number.isFinite(pos.start.offset) ||
+    !Number.isFinite(pos.end.offset) ||
+    pos.end.offset < pos.start.offset
+  ) {
+    return null;
+  }
+  return { from: pos.start.offset, to: pos.end.offset };
+}
+
+function classNameTokens(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item));
+  }
+  if (typeof value === "string") {
+    return value.split(/\s+/);
+  }
+  return [];
+}
+
+function isMermaidPre(node: Element): boolean {
+  if (node.tagName.toLowerCase() !== "pre") {
+    return false;
+  }
+  for (const child of node.children) {
+    if (!isElement(child) || child.tagName.toLowerCase() !== "code") {
+      continue;
+    }
+    const tokens = classNameTokens(child.properties?.className);
+    if (
+      tokens.some(
+        (token: string) => token.toLowerCase() === "language-mermaid",
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Walk HAST and stamp data-anchor attributes on renderable blocks.
  * Returns anchors collected in document order.
@@ -60,12 +104,22 @@ export function attachAnchors(tree: Root): PreviewAnchor[] {
     if (shouldAnchor && lines) {
       counter += 1;
       const id = `tm-a-${counter}`;
-      node.properties = {
+      const nextProperties = {
         ...node.properties,
         dataSourceLine: String(lines.start),
         dataSourceEnd: String(lines.end),
         dataAnchorId: id,
-      };
+      } as typeof node.properties;
+      // Mermaid fences also get character offsets for visual-edit write-back.
+      // Numeric only — never stamp source text onto DOM.
+      if (isMermaidPre(node) && nextProperties) {
+        const offsets = readOffsets(node);
+        if (offsets) {
+          nextProperties.dataTmFrom = String(offsets.from);
+          nextProperties.dataTmTo = String(offsets.to);
+        }
+      }
+      node.properties = nextProperties;
       anchors.push({
         id,
         sourceLineStart: lines.start,

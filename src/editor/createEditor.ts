@@ -275,9 +275,13 @@ export function createEditor(options: CreateEditorOptions): EditorHandle {
   }
 
   function sourceUserEvent(origin: PreviewEditOrigin): string {
-    return origin === "task-checkbox"
-      ? "input.preview.task-checkbox"
-      : "input.preview.format";
+    if (origin === "task-checkbox") {
+      return "input.preview.task-checkbox";
+    }
+    if (origin === "mermaid-visual") {
+      return "input.preview.mermaid-visual";
+    }
+    return "input.preview.format";
   }
 
   function applySourceTransaction(

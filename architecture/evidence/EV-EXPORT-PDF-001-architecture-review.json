@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EXPORT-PDF-001-architecture-review",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "type": "static",
+  "status": "passed",
+  "command_or_source": "independent architecture-review + security-review + Bugbot against WP/TASK-EXPORT-PDF-001 and DEC-TMK-20260810-009; follow-up fixes on 1b6cc4d",
+  "result_summary": "范围未越界：未新增 Tauri capability，写入仍走 atomic_write_bytes_file；导出权威为 Markdown 快照。审查后修复：共享长图超限/编码失败文案、ExportFailedError 不二次包裹、native E2E 单页断言、超高单页产品权衡写入 UI/文档。closeout 判定 accepted（附 residual：超高单页阅读器体验）。",
+  "limitations": [
+    "复评基于实现 commit 与证据文件，非二次全量盲审。"
+  ]
+}

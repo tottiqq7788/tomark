@@ -1,0 +1,14 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EXPORT-PDF-001-runtime-e2e-browser",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "type": "runtime_e2e",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps run test:e2e -- --spec tests/e2e/specs/settings-export.spec.ts",
+  "result_summary": "Chromium WDIO：settings-export 1 spec / 3 tests passed。导出面板展示 html/png/pdf；不展示 pdf-paged/docx；lazy renderer preload（含 pdf）成功。",
+  "limitations": [
+    "浏览器 lane 不写真实 PDF 文件内容；单页位图与原生写入由 native-export 覆盖。",
+    "afterSession mock restore 有无害 WARN，不影响 PASSED。"
+  ]
+}

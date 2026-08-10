@@ -18,6 +18,7 @@
 - 冻结基线观察见 `architecture/inventories/baseline-046e97e.json`；Inventory 只描述该 commit 上的观察，不是永久真相。
 - 仓库布局、依赖位置、开发预览和发布硬约束继续以 `agent.md` 为入口；本文件不复制这些动态细节。
 - `DEC-TMK-20260809-001` 已批准：预览允许在可靠映射范围内直接键入；Mermaid 是正式只读渲染能力；HTML/PNG 导出是正式能力。
+- `DEC-TMK-20260810-009` 修订 `L0-TMK-016`：文档级导出增加长图不分页 PDF（与长图 PNG 同源白底栅格、单页位图、不承诺文字检索）；实现见已关闭的 `WP-EXPORT-PDF-001`。
 - `DEC-TMK-20260809-002` / `L0-TMK-018` 已批准：成功渲染的 Mermaid 支持只读查看工具栏（全屏、单图 PNG 白底 2×）；Cmd/Ctrl+点击仍定位源码。首版实现见已关闭的 `WP-MERMAID-VIEWER-001`。
 - `DEC-TMK-20260810-001` 扩展 `L0-TMK-018`：工具栏增加复制围栏正文、导出 SVG、定位源码；复制不等于批准编辑。实现见已关闭的 `WP-MERMAID-TOOLBAR-002`。
 - `DEC-TMK-20260810-002` 修订 `L0-TMK-018`：去掉工具栏定位源码按钮；顺序为全屏 icon、复制源码 icon、英文 SVG、英文 PNG；Cmd/Ctrl+点击仍定位。实现见 `WP-MERMAID-TOOLBAR-003`。
@@ -27,8 +28,9 @@
 - `DEC-TMK-20260810-006` / `L0-TMK-009` 已批准：预览普通点击安全链接经系统默认浏览器打开；Cmd/Ctrl+点击仍定位。实现见 `WP-PREVIEW-LINK-OPEN-001`。
 - `DEC-TMK-20260810-007` / `L0-TMK-021` 已批准：源码区粘贴图片经另存为（若需要）后写入文档旁 `assets/`，并插入相对路径 `![]()`；取消另存为或写盘失败不得改源码；预览图片仍只读。首版实现见已关闭的 `WP-EDITOR-PASTE-IMAGE-001`。
 - `DEC-TMK-20260810-008` 修订 `L0-TMK-021`：同步/异步 Web 读取优先；截图型 UTI 无 File 可直达原生；显式粘贴手势内允许 `clipboard-manager:allow-read-image` 只读回退；不得授予读文本/写剪贴板/后台轮询。纠正实现见已关闭的 `WP-EDITOR-PASTE-IMAGE-002`。
+- `DEC-TMK-20260810-010` / `L0-TMK-022` 已批准：可安全往返的 graph/flowchart Mermaid 围栏支持受限可视化编辑（工具栏编辑 icon、独立弹窗草稿、保存经 SourcePatchTransaction 写回）；取消零写入；不可编辑图仍只读。实现见 `WP-MERMAID-VISUAL-EDIT-001`。
 - 冻结基线的预览实现仍为不可键入投影。不得把现状表述为已符合直接键入语义；直接键入须按专用工作包准入。
-- Mermaid / 图片查看器工具栏实现不得写回源码，不得绕过原生保存对话框。
+- Mermaid 只读查看工具栏与图片查看器不得写回源码，不得绕过原生保存对话框；Mermaid 可视化编辑写回仅经已批准的 SourcePatchTransaction。
 
 ## 开发前准入
 

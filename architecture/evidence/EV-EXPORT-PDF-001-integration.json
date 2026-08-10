@@ -1,0 +1,13 @@
+{
+  "schema_version": "evidence:v0.1",
+  "evidence_id": "EV-EXPORT-PDF-001-integration",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "type": "integration",
+  "status": "passed",
+  "command_or_source": "npm --prefix deps test -- --run tests/unit/exportHtml.test.ts tests/unit/exportFileService.test.ts tests/unit/exportSmokeFixture.test.ts tests/unit/runExport.test.ts tests/unit/buildLongImagePdfFromPng.test.ts tests/unit/ExportSettingsPanel.test.ts",
+  "result_summary": "6 files / 31 tests passed。导出管线 HTML 构建、写盘服务 mock、smoke fixture 与 PDF 封装（真实 pdf-lib）联调通过；PDF 与 PNG 共享 renderLongImagePng 入口。",
+  "limitations": [
+    "原生 atomic_write_bytes_file 与 fs_scope 由 mock/写盘服务单测与 native E2E 分担，本层不直连 Rust。"
+  ]
+}

@@ -47,6 +47,12 @@ const actions: {
     title: "导出长图 PNG",
     description: "白底长截图；超长文档会自动降采样。",
   },
+  {
+    id: "pdf",
+    title: "导出长图 PDF",
+    description:
+      "白底长图单页 PDF（不可检索文字）；约 4× 分片高清栅格。超高单页在部分阅读器体验较差。",
+  },
 ];
 
 function isExportCancelled(error: unknown): boolean {

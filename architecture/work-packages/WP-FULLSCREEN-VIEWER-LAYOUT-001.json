@@ -1,0 +1,45 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-FULLSCREEN-VIEWER-LAYOUT-001",
+  "project_id": "tomark",
+  "name": "全屏查看器随窗口自适应布局",
+  "status": "in_progress",
+  "baseline_commit": "ceef8f337fb3c576eb9f49c56578800a95553f41",
+  "baseline_requirement": "实现基线为当前 master HEAD；不改变 L0-TMK-018 / L0-TMK-019 产品语义。",
+  "role": "implementation_owner",
+  "l0_impact": {
+    "classification": "none",
+    "reason": "仅修复全屏对话框硬编码尺寸上限，使主体随应用窗口变大并保留固定 16px 外边距；不改变只读查看、工具栏、导出/复制或写回边界。"
+  },
+  "goal": "图片与 Mermaid 全屏查看器去掉 1120×820 上限，占满 overlay 内剩余区域，四周保持固定 16px 边距。",
+  "allowed_scope": [
+    "src/preview/ImageFullscreenViewer.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-image.spec.ts",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "architecture/**"
+  ],
+  "out_of_scope": [
+    "修改 L0-TMK-018 / L0-TMK-019 语义或工具栏动作集合",
+    "改写导出/复制规格或引入新 capability",
+    "预览直接键入或其他无关 UI"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威；查看器只读。",
+    "缩放、适配、重置、拖拽、Esc/遮罩关闭行为。",
+    "Teleport 到 body；viewport ResizeObserver 继续驱动适配。"
+  ],
+  "must_reject": [
+    "借机写回 Mermaid 围栏或图片 Markdown。",
+    "引入随窗口增长的外边距导致对话框相对更小。",
+    "用生产打包代替布局验证。"
+  ],
+  "required_evidence": ["unit", "runtime_e2e"],
+  "evidence_ids": [],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "发现需修改 L0 或导出语义时停止并重新准入。"
+  ],
+  "task_envelope_id": "TASK-FULLSCREEN-VIEWER-LAYOUT-001"
+}

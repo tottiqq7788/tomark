@@ -143,6 +143,9 @@ const nodes: Record<string, NodeSpec> = {
       code: { default: "" },
       sourceFrom: { default: 0 },
       sourceTo: { default: 0 },
+      /** Mermaid fence body offsets; 0/0 when not applicable. */
+      bodyFrom: { default: 0 },
+      bodyTo: { default: 0 },
       reason: { default: "read-only" },
     },
     group: "block",
@@ -157,6 +160,13 @@ const nodes: Record<string, NodeSpec> = {
         "data-tm-readonly": String(node.attrs.reason),
         "data-tm-from": String(node.attrs.sourceFrom),
         "data-tm-to": String(node.attrs.sourceTo),
+        ...(String(node.attrs.kind) === "mermaid" &&
+        Number(node.attrs.bodyTo) > Number(node.attrs.bodyFrom)
+          ? {
+              "data-tm-body-from": String(node.attrs.bodyFrom),
+              "data-tm-body-to": String(node.attrs.bodyTo),
+            }
+          : {}),
         role: "note",
       },
       String(node.attrs.label),

@@ -1,0 +1,73 @@
+{
+  "schema_version": "work-package:v0.1",
+  "work_package_id": "WP-EXPORT-PDF-001",
+  "project_id": "tomark",
+  "name": "文档级长图不分页 PDF 导出",
+  "status": "closed",
+  "baseline_commit": "f121c46112f387b82ee1fc32658afe1ff8280241",
+  "implementation_commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+  "baseline_requirement": "实现基线为包含 DEC-TMK-20260810-009 与修订后 L0-TMK-016 的治理提交；首版实现见 9bc311c，审查修复与证据绑定见 1b6cc4d。",
+  "role": "implementation_owner",
+  "decision_source": "architecture/decisions/DEC-TMK-20260810-009.json",
+  "l0_impact": {
+    "classification": "modify_existing",
+    "also_modifies": [],
+    "rule_ids": ["L0-TMK-016", "L0-TMK-002", "L0-TMK-014", "L0-TMK-015A"],
+    "reason": "扩展已批准文档级导出格式：增加长图不分页 PDF（位图单页，不承诺文字检索）。"
+  },
+  "goal": "ExportSettingsPanel 提供导出长图 PDF；与长图 PNG 同源白底栅格，整幅嵌入单页 PDF；取消不落盘；超长降采样/超限失败语义与 PNG 一致。",
+  "allowed_scope": [
+    "src/export/**",
+    "src/app/settings/ExportSettingsPanel.vue",
+    "src/app/useShellLifecycle.ts",
+    "deps/package.json",
+    "deps/package-lock.json",
+    "tests/unit/**",
+    "tests/e2e/specs/**",
+    "architecture/**",
+    "AGENTS.md",
+    "readme.md",
+    "agent.md"
+  ],
+  "out_of_scope": [
+    "分页 PDF / 可检索文字 PDF",
+    "DOCX",
+    "单图 Mermaid/图片工具栏行为变更",
+    "新增或放宽 Tauri capability（除非证明现有 write_export_bytes 不足）",
+    "修改无关全屏查看器等工作包未提交改动"
+  ],
+  "must_preserve": [
+    "Markdown 源码唯一权威。",
+    "既有三种导出格式行为不变。",
+    "取消路径选择不产生文件。",
+    "单文件产物原子写入。"
+  ],
+  "must_reject": [
+    "把 PDF 表述为可检索文字文档。",
+    "从预览 DOM 反推 Markdown 作为导出权威。",
+    "分页 PDF / DOCX 混入首版范围。",
+    "静默写出损坏 PDF。"
+  ],
+  "required_evidence": ["unit", "integration", "runtime_e2e"],
+  "evidence_ids": [
+    "EV-EXPORT-PDF-001-unit",
+    "EV-EXPORT-PDF-001-integration",
+    "EV-EXPORT-PDF-001-runtime-e2e-browser",
+    "EV-EXPORT-PDF-001-runtime-e2e-native",
+    "EV-EXPORT-PDF-001-architecture-review"
+  ],
+  "stop_conditions": [
+    "实际影响超出 allowed_scope。",
+    "需要新增 capability 或原生 PDF 打印 API 才能完成。"
+  ],
+  "task_envelope_id": "TASK-EXPORT-PDF-001",
+  "closeout": {
+    "decision": "closed",
+    "commit": "1b6cc4d5edfd76d52bab2024507ecc999600966e",
+    "reason": "实现与审查修复 commit 1b6cc4d 上 unit/integration/Chromium runtime_e2e/Tauri WebKit runtime_e2e 通过；未新增 capability；长图 PDF 单页位图、不可检索文字与 L0-TMK-016 / DEC-009 对齐。Evidence 见 EV-EXPORT-PDF-001-*。",
+    "residual_risks": [
+      "超高单页 PDF 在部分阅读器中缩放/滚动体验较差；产品已确认首版不分页，已在导出面板说明、成功 note 与公开文档中明示。",
+      "浏览器 E2E 不证明真实 PDF 字节；单页位图以 native-export + pdf-lib 解析为准。"
+    ]
+  }
+}

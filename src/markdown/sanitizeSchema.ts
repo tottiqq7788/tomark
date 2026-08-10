@@ -14,6 +14,8 @@ export const sanitizeSchema: Schema = {
       // Preview selection → source offset mapping (numeric / enum only).
       "dataTmFrom",
       "dataTmTo",
+      "dataTmBodyFrom",
+      "dataTmBodyTo",
       "dataTmFormat",
       "dataTmHref",
       "dataTmSourceBlock",
@@ -21,6 +23,7 @@ export const sanitizeSchema: Schema = {
       "className",
     ],
     code: [...(defaultSchema.attributes?.code ?? []), "className"],
+    pre: [...(defaultSchema.attributes?.pre ?? []), "className"],
     a: [...(defaultSchema.attributes?.a ?? []), "href", "title"],
     // Keep alt/src/title; protocol allow-list below decides which src values survive.
     img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "title"],

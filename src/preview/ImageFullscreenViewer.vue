@@ -327,8 +327,10 @@ onBeforeUnmount(() => {
 .image-viewer {
   display: grid;
   grid-template-rows: auto 1fr;
-  width: min(1120px, 100%);
-  height: min(820px, 100%);
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
   background: #fff;
   border-radius: 12px;
   box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);

@@ -1,0 +1,28 @@
+{
+  "schema_version": "task-envelope:v0.1",
+  "task_id": "TASK-FULLSCREEN-VIEWER-LAYOUT-001",
+  "role": "implementation_owner",
+  "baseline_commit": "ceef8f337fb3c576eb9f49c56578800a95553f41",
+  "work_package_id": "WP-FULLSCREEN-VIEWER-LAYOUT-001",
+  "allowed_scope": [
+    "src/preview/ImageFullscreenViewer.vue",
+    "src/preview/MermaidFullscreenViewer.vue",
+    "tests/unit/**",
+    "tests/e2e/specs/preview-image.spec.ts",
+    "tests/e2e/specs/preview-mermaid.spec.ts",
+    "architecture/**"
+  ],
+  "l0_impact": "none",
+  "l0_rule_ids": ["L0-TMK-018", "L0-TMK-019"],
+  "must_preserve": [
+    "查看器只读与现有缩放/适配/关闭行为。",
+    "overlay 固定 16px 边距；不写回源码。"
+  ],
+  "must_reject": [
+    "保留或引入 1120/820 硬上限导致大窗口下对话框过小。",
+    "修改工具栏能力或导出规格。"
+  ],
+  "required_evidence": ["unit", "runtime_e2e"],
+  "stop_conditions": ["实际影响超出 allowed_scope。"],
+  "notes": "l0_rule_ids 仅标明相关已批准规则上下文；本任务分类为不影响 L0。"
+}
